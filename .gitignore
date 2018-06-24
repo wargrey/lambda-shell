@@ -1,0 +1,8 @@
+# System special desktop services
+.DS_Store
+desktop.ini
+Thumbs.db
+
+# Auto-generating files
+compiled/
+
