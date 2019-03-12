@@ -1,3 +1,8 @@
 #lang typed/racket/base
 
-(require racket/tcp)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; https://tools.ietf.org/html/rfc4253                                                         ;;;
+;;; The Secure Shell Transport Layer Protocol                                                   ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(provide (all-defined-out))

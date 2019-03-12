@@ -1,4 +1,4 @@
-# SSH: Client and Server in Typed Racket
+# SSH: The Secure Shell Protocol
 
 wargrey
 
