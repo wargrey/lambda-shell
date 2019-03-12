@@ -1,6 +1,6 @@
 #lang scribble/manual
 
-@title{SSH: Client and Server in Typed Racket}
+@title{SSH: The Secure Shell Protocol}
 @author{wargrey}
 
 @itemlist[
