@@ -1,7 +1,13 @@
 #lang scribble/manual
 
-@title{SSH: The Secure Shell Protocol}
-@author{wargrey}
+@(require digimon/tamer)
 
-@itemlist[
- @item{@link["https://tools.ietf.org/html/rfc4253"]{The Secure Shell Transport Layer Protocol}}]
+@handbook-title/pkg-desc[]
+
+@;tamer-smart-summary[]
+
+@handbook-smart-table[]
+
+@include-section[(submod "transport.rkt" doc)]
+
+@handbook-appendix[#:index? #true]

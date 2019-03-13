@@ -1,6 +1,8 @@
 #lang info
 
 (define collection 'use-pkg-name)
+
+(define pkg-desc "λsh is a scripting language for Windows and Unix administrators")
 (define pkg-authors '(wargrey))
 
 (define version "1.0")

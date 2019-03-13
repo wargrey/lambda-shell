@@ -4,40 +4,38 @@
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
+(require (for-syntax syntax/parse))
 
-#;(define-syntax (define-ssh-error stx)
-  (syntax-case stx []
-    [(_ exn:ssh #:as SSH-Error [subexn #:-> parent] ...)
-     (with-syntax ([([make-exn make+exn throw-exn] ...)
-                    (for/list ([<exn> (in-list (syntax->list #'(subexn ...)))])
-                      (list (format-id <exn> "make-~a" (syntax-e <exn>))
-                            (format-id <exn> "make+~a" (syntax-e <exn>))
-                            (format-id <exn> "throw-~a" (syntax-e <exn>))))])
-       #'(begin (define-type SSH-Error exn:ssh)
-                (struct exn:ssh exn:fail ())
-                (struct subexn parent ()) ...
+(define-type SSH-Error exn:ssh)
 
-                (define make-exn : (-> (U CSS-Syntax-Any (Listof CSS-Token)) CSS-Syntax-Error)
-                  (lambda [v]
-                    (css-make-syntax-error subexn v)))
-                ...
+(struct exn:ssh exn:fail:network ())
+(struct exn:ssh:defense exn:ssh ())
+(struct exn:ssh:identification exn:ssh ())
 
-                (define make+exn : (->* ((U CSS-Syntax-Any (Listof CSS-Token))) ((Option CSS:Ident) Log-Level) CSS-Syntax-Error)
-                  (lambda [v [property #false] [level 'warning]]
-                    (define errobj : CSS-Syntax-Error (css-make-syntax-error subexn v))
-                    (css-log-syntax-error errobj property level)
-                    errobj))
-                ...
+(define ssh-error-logger-topic : Symbol 'exn:ssh)
 
-                (define throw-exn : (->* ((U CSS-Syntax-Any (Listof CSS-Token))) ((Option CSS:Ident) Log-Level) Nothing)
-                  (lambda [v [property #false] [level 'warning]]
-                    (raise (make+exn v property level))))
-                ...))]))
+(define-syntax (throw stx)
+  (syntax-parse stx
+    [(_ st:id /dev/ssh rest ...)
+     #'(throw [st] /dev/ssh rest ...)]
+    [(_ [st:id argl ...] /dev/ssh src frmt:str v ...)
+     #'(let ([errobj (st (format (string-append "~a: ~s: " frmt) (object-name /dev/ssh) src v ...) (current-continuation-marks) argl ...)])
+         (ssh-log-error errobj)
+         (raise errobj))]))
 
-(define throw-timeout-error : (->* (Symbol) (String) Void)
-  (lambda [func [message "timeout"]]
+(define ssh-raise-timeout-error : (->* (Port Symbol Real) (String) Void)
+  (lambda [/dev/ssh func seconds [message "timer break"]]
     (call-with-escape-continuation
         (λ [[ec : Procedure]]
-          (raise (make-exn:break (format "~a: ~a" func message)
+          (raise (make-exn:break (format "~a: ~a: ~a: ~as" (object-name /dev/ssh) func message seconds)
                                  (current-continuation-marks)
                                  ec))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-log-error : (->* (SSH-Error) (Log-Level) Void)
+  (lambda [errobj [level 'error]]
+    (log-message (current-logger)
+                 level
+                 ssh-error-logger-topic
+                 (format "~a: ~a" (object-name errobj) (exn-message errobj))
+                 errobj)))
