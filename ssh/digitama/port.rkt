@@ -5,8 +5,7 @@
 (require racket/tcp)
 (require racket/port)
 
-(require "identification.rkt")
-(require "transport.rkt")
+(require "transport/identification.rkt")
 (require "exception.rkt")
 
 (define ssh-connect : (-> String Integer
@@ -21,7 +20,7 @@
                         (define-values (identification idsize) (make-identification-string protoversion (or softwareversion "") comments))
                         (write-special /dev/tcpin /dev/pout)
                         (write-special /dev/tcpout /dev/pout)
-                        (write-identification /dev/tcpout identification idsize)
+                        (write-message /dev/tcpout identification idsize)
                         (write-special (read-server-identification /dev/tcpin) /dev/pout)))))
       (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all (current-custodian)) (raise e))])
         (define /dev/tcpin : Input-Port (assert (read-byte-or-special /dev/pin) input-port?))
@@ -49,20 +48,26 @@
         (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/pout))])
                         (write-special (read-client-identification /dev/tcpin) /dev/pout)))))
       (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all (current-custodian)) (raise e))])
-        (unless (cond [(not timeout) (sync/enable-break /dev/tcpin)]
-                      [else (sync/timeout/enable-break timeout /dev/tcpin)])
+        (unless (cond [(not timeout) (sync/enable-break /dev/pin)]
+                      [else (sync/timeout/enable-break timeout /dev/pin)])
           (ssh-raise-timeout-error /dev/tcpin 'ssh-accept timeout))
         (define maybe-server-id (read-byte-or-special /dev/pin))
         (when (exn? maybe-server-id) (raise maybe-server-id))
         (define server-id : SSH-Identification (assert maybe-server-id SSH-Identification?))
         (unless (= (SSH-Identification-protoversion server-id) protoversion)
-          (throw exn:ssh:identification /dev/tcpin 'ssh-connect "incompatible protoversion: ~a"
-                 (SSH-Identification-protoversion server-id)))
+          (define message : String (format "incompatible protoversion: ~a" (SSH-Identification-protoversion server-id)))
+          (write-message /dev/tcpout message (string-length message))
+          (throw exn:ssh:identification /dev/tcpin 'ssh-connect "~a" message))
         (define-values (identification idsize) (make-identification-string protoversion (or softwareversion "") comments))
-        (write-identification /dev/tcpout identification idsize)
+        (write-message /dev/tcpout identification idsize)
+        (displayln server-id)
+        (sleep 2)
         (values /dev/tcpin /dev/tcpout)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (with-handlers ([exn? (λ [[e : exn]] (displayln (exn-message e)))])
-    (ssh-connect "192.168.18.118" 22 #:timeout 0.618)))
+  #;(with-handlers ([exn? (λ [[e : exn]] (displayln (exn-message e)))])
+    (ssh-connect "192.168.18.118" 22 #:timeout 0.618))
+
+  (define sshd : TCP-Listener (tcp-listen 2222 4 #true))
+  (ssh-accept sshd #:timeout 0.618))

@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+;;; https://tools.ietf.org/html/rfc4253#section-4.2
+
 (provide (all-defined-out))
 
 (require racket/path)
@@ -9,7 +11,7 @@
 
 (require typed/setup/getinfo)
 
-(require "exception.rkt")
+(require "../exception.rkt")
 
 (define-type SSH-Server-Message-Handler (-> String Void))
 
@@ -19,7 +21,6 @@
    [comments : (Option String)]
    [raw : String])
   #:transparent)
-
 
 (define SSH-LONGEST-IDENTIFICATION-LENGTH : Positive-Index 255)
 (define SSH-LONGEST-SERVER-MESSAGE-LENGTH : Positive-Index 1024)
@@ -37,11 +38,12 @@
     (define-values (idsize maxsize) (values (string-length identification) (- SSH-LONGEST-IDENTIFICATION-LENGTH 2)))
     (values identification (min idsize maxsize))))
 
-(define write-identification : (-> Output-Port String Fixnum Void)
+(define write-message : (-> Output-Port String Fixnum Void)
   (lambda [/dev/sshout idstring idsize]
     (write-string idstring /dev/sshout 0 idsize)
     (write-char #\return /dev/sshout)
-    (write-char #\linefeed /dev/sshout)))
+    (write-char #\linefeed /dev/sshout)
+    (flush-output /dev/sshout)))
 
 (define read-server-identification : (-> Input-Port SSH-Identification)
   (lambda [/dev/sshin]
@@ -84,14 +86,14 @@
         (let-values ([(base name dir?) (split-path (simple-form-path dir))])
           (and (path? base) (collection-ref base))))))
 
-(define list->maybe-string : (-> (Listof Char) (Option String))
-  (lambda [snekot]
-    (and (pair? snekot)
-         (list->string (reverse snekot)))))
+(define maybe-substring : (-> String Positive-Index Positive-Index (Option String))
+  (lambda [src idx end]
+    (and (> end idx)
+         (substring src idx end))))
 
-(define list->maybe-float : (-> (Listof Char) (Option Positive-Flonum))
-  (lambda [snekot]
-    (define maybe-string : (Option String) (list->maybe-string snekot))
+(define maybe-subfloat : (-> String Positive-Index Positive-Index (Option Positive-Flonum))
+  (lambda [src idx end]
+    (define maybe-string : (Option String) (maybe-substring src idx end))
     (and (string? maybe-string)
          (let ([maybe-num (string->number maybe-string)])
            (and (real? maybe-num)
@@ -115,7 +117,7 @@
       (let read-loop : (Values (Option Positive-Index) (Option Positive-Flonum) (Option String) (Option String))
         ([idx : Positive-Index idx0]
          [end-idx : Positive-Index idx0]
-         [snekot : (Listof Char) null]
+         [token-idx : Positive-Index idx0]
          [protoversion : (Option Positive-Flonum) #false]
          [softwareversion : (Option String) #false]
          [comments : (Option String) #false]
@@ -125,17 +127,17 @@
         (cond [(> next-idx idx-max) (values #false #false #false #false)]
               [else (let ([maybe-ch : (U Char EOF) (read-char /dev/sshin)])
                       (cond [(eq? maybe-ch #\return)
-                             (read-loop next-idx end-idx null protoversion
-                                        (or softwareversion (list->maybe-string snekot))
-                                        (and softwareversion (list->maybe-string snekot))
+                             (read-loop next-idx end-idx token-idx protoversion
+                                        (or softwareversion (maybe-substring destline token-idx end-idx))
+                                        (and softwareversion (maybe-substring destline token-idx end-idx))
                                         minus? space?)]
                             [(or (eq? maybe-ch #\linefeed) (eof-object? maybe-ch))
                              (values end-idx protoversion
-                                     (or softwareversion (list->maybe-string snekot))
-                                     (and softwareversion (or comments (list->maybe-string snekot))))]
+                                     (or softwareversion (maybe-substring destline token-idx end-idx))
+                                     (and softwareversion (or comments (maybe-substring destline token-idx end-idx))))]
                             [(eq? maybe-ch #\-)
                              (string-set! destline idx maybe-ch)
-                             (define maybe-protoversion : (Option Positive-Flonum) (list->maybe-float snekot))
+                             (define maybe-protoversion : (Option Positive-Flonum) (maybe-subfloat destline token-idx idx))
                              (when (not space?)
                                (when (and minus?)
                                  (throw exn:ssh:identification /dev/sshin 'protocol-exchange "invalid softwareversion: ~s"
@@ -143,15 +145,15 @@
                                (unless maybe-protoversion
                                  (throw exn:ssh:identification /dev/sshin 'protocol-exchange "invalid protoversion: ~s"
                                         (substring destline 0 idx))))
-                             (read-loop next-idx end-idx (if space? (cons maybe-ch snekot) null)
+                             (read-loop next-idx end-idx (if space? token-idx next-idx)
                                         (or protoversion maybe-protoversion) softwareversion comments #true space?)]
                             [(eq? maybe-ch #\space)
                              (string-set! destline idx maybe-ch)
-                             (read-loop next-idx end-idx (if space? (cons maybe-ch snekot) null)
-                                        protoversion (or softwareversion (list->maybe-string snekot))
+                             (read-loop next-idx end-idx (if space? token-idx next-idx)
+                                        protoversion (or softwareversion (maybe-substring destline token-idx idx))
                                         comments minus? #true)]
                             [else (string-set! destline idx maybe-ch)
-                                  (read-loop next-idx next-idx (cons maybe-ch snekot) protoversion softwareversion comments minus? space?)]))])))
+                                  (read-loop next-idx next-idx token-idx protoversion softwareversion comments minus? space?)]))])))
     (or (and maybe-end-idx maybe-protoversion maybe-softwareversion
              (SSH-Identification maybe-protoversion maybe-softwareversion maybe-comments
                                  (substring destline 0 maybe-end-idx)))
