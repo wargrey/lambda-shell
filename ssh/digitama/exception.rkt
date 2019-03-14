@@ -9,6 +9,7 @@
 (define-type SSH-Error exn:ssh)
 
 (struct exn:ssh exn:fail:network ())
+(struct exn:ssh:eof exn:ssh ())
 (struct exn:ssh:defense exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
 
@@ -23,13 +24,16 @@
          (ssh-log-error errobj)
          (raise errobj))]))
 
-(define ssh-raise-timeout-error : (->* (Port Symbol Real) (String) Void)
+(define ssh-raise-timeout-error : (->* (Port Symbol Real) (String) Nothing)
   (lambda [/dev/ssh func seconds [message "timer break"]]
-    (call-with-escape-continuation
-        (λ [[ec : Procedure]]
-          (raise (make-exn:break (format "~a: ~a: ~a: ~as" (object-name /dev/ssh) func message seconds)
-                                 (current-continuation-marks)
-                                 ec))))))
+    (raise (make-exn:break (format "~a: ~a: ~a: ~as" (object-name /dev/ssh) func message seconds)
+                           (current-continuation-marks)
+                           (call-with-escape-continuation
+                               (λ [[ec : Procedure]] ec))))))
+
+(define ssh-raise-eof-error : (->* (Port Symbol) (String) Nothing)
+  (lambda [/dev/ssh func [message "peer has lost"]]
+    (throw exn:ssh:eof /dev/ssh func "~a" message)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-error : (->* (SSH-Error) (Log-Level) Void)

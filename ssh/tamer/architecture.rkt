@@ -2,7 +2,7 @@
 
 @(require digimon/tamer)
 
-@(define-bib SSH:PA
+@(define-bib SSH-ARCH
    #:title    "The Secure Shell Protocol Architecture"
    #:author   (org-author-name "RFC4251")
    #:date     2006
@@ -10,7 +10,7 @@
 
 @handbook-story{The Secure Shell Protocol Architecture}
 
-This section demonstrates the implementation of @~cite[SSH:PA].
+This section demonstrates the implementation of @~cite[SSH-ARCH].
 
 @;tamer-smart-summary[]
 

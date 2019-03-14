@@ -2,7 +2,7 @@
 
 @(require digimon/tamer)
 
-@(define-bib SSH:TLP
+@(define-bib SSH-TRANS
    #:title    "The Secure Shell Transport Layer Protocol"
    #:author   (org-author-name "RFC4253")
    #:date     2006
@@ -10,7 +10,7 @@
 
 @handbook-story{The Secure Shell Transport Layer Protocol}
 
-This section demonstrates the implementation of @~cite[SSH:TLP].
+This section demonstrates the implementation of @~cite[SSH-TRANS].
 
 @;tamer-smart-summary[]
 
