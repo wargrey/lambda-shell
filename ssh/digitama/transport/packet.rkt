@@ -11,7 +11,7 @@
 (define SSH-LONGEST-PACKET-LENGTH : Positive-Index 35000)
 
 (struct SSH-Packet
-  ([length : UInt32]
+  ([length : Index]
    [padding-length : Byte]
    [payload : Bytes]
    [random-padding : Bytes]
@@ -20,7 +20,7 @@
 (define read-binary-packet : (-> Input-Port SSH-Packet)
   (lambda [/dev/sshin]
     (define length-bs : Bytes (ssh-read-bytes /dev/sshin 4))
-    (define packet-length : UInt32 (ssh-bytes->uint32 length-bs))
+    (define-values (packet-length _) (ssh-bytes->uint32 length-bs))
     (when (> packet-length SSH-LONGEST-PACKET-LENGTH)
       (throw exn:ssh:defense /dev/sshin 'read-binary-packet
              "packet overlength: ~a" packet-length))

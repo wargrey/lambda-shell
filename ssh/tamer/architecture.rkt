@@ -62,10 +62,11 @@ This section demonstrates the implementation of @~cite[SSH-ARCH].
            (define raw (~a hex))
            (define mphex (string->number (substring raw 2) 16))
            (define bs (ssh-mpint->bytes mphex))
-           (cons (mpint->symbol (ssh-bytes->mpint bs)) (bytes->hex-string bs))))
+           (define-values (restored _) (ssh-bytes->mpint bs))
+           (cons (mpint->symbol restored) (bytes->hex-string bs))))
 
        (define namelist
          (lambda [names]
            (define bs (ssh-namelist->bytes names))
-           (cons (ssh-bytes->namelist bs)
-                   (bytes->hex-string bs))))]
+           (define-values (restored _) (ssh-bytes->namelist bs))
+           (cons restored (bytes->hex-string bs))))]

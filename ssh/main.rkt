@@ -12,9 +12,12 @@
 
 (provide (all-defined-out))
 
-(provide SSH-Server-Message-Handler)
+(provide SSH-Server-Message-Handler SSH-Message)
 
 (provide ssh-connect ssh-accept)
+(provide (all-from-out "assignment.rkt"))
 
-(require "digitama/port.rkt")
+(require "assignment.rkt")
+
+(require "digitama/transport.rkt")
 (require "digitama/transport/identification.rkt")

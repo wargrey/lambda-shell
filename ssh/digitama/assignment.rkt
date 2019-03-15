@@ -4,12 +4,56 @@
 
 (provide (all-defined-out))
 
-(require (for-syntax racket/base))
-(require (for-syntax racket/syntax))
+(require "datatype.rkt")
+(require "exception.rkt")
 
-(define-syntax (define-assignment stx)
-  (syntax-case stx [: quote]
-    [(_ id : TypeU [enum0 group0 comments0 ...] [enum group comments ...] ...)
+(require (for-syntax racket/base))
+(require (for-syntax racket/string))
+(require (for-syntax racket/syntax))
+(require (for-syntax racket/sequence))
+
+(define-for-syntax (ssh-typename <id>)
+  (format-id <id> "~a" (string-replace (symbol->string (syntax-e <id>)) "_" "-")))
+
+(define-for-syntax (ssh-typeid <id>)
+  (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) "_" ":")))
+
+(define-for-syntax (ssh-make-nbytes->bytes <n>)
+  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Natural)
+      (define end (+ offset #,(syntax-e <n>)))
+      (values (subbytes braw offset end)
+              end)))
+
+(define-for-syntax (ssh-datum-pipeline <FType>)
+  (case (syntax->datum <FType>)
+    [(Boolean) (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
+    [(Index) (list #'values #'ssh-uint32->bytes #'ssh-bytes->uint32 #'values)]
+    [(Natural) (list #'values #'ssh-uint64->bytes #'ssh-bytes->uint64 #'values)]
+    [(String) (list #'values #'ssh-string->bytes #'ssh-bytes->string #'values)]
+    [(Integer) (list #'values #'ssh-mpint->bytes #'ssh-bytes->mpint #'values)]
+    [(Symbol) (list #'values #'ssh-name->bytes #'ssh-bytes->name #'values)]
+    [(Bytes) (list #'values #'values #'ssh-values #'values)]
+    [else (with-syntax* ([(TypeC argument) (syntax-e <FType>)]
+                         [$type (format-id #'argument "$~a" (syntax-e #'argument))])
+            (case (syntax-e #'TypeC)
+              [(SSH-Bytes) (list #'values #'values (ssh-make-nbytes->bytes #'argument) #'values)]
+              [(SSH-Symbol) (list #'$type #'ssh-uint32->bytes #'ssh-bytes->uint32 #'$type)]
+              [(SSH-Namelist) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'$type)]
+              [else (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)]))]))
+
+(define-syntax (define-ssh-symbols stx)
+  (syntax-case stx [:]
+    [(_ TypeU : Type ([enum val] ...))
+     (with-syntax ([$id (format-id #'TypeU "$~a" (syntax-e #'TypeU))]
+                   [(name ...) (for/list ([<enum> (in-syntax #'(enum ...))]) (ssh-typename <enum>))])
+       #'(begin (define-type TypeU (U 'name ... 'enum ...))
+                (define $id : (case-> [Symbol -> Type] [Integer -> TypeU])
+                  (λ [v] (cond [(symbol? v) (case v [(enum name) val] ... [else 0])]
+                               [else (case v [(val) 'name] ... [else (error 'TypeU "unrecognized assignment: ~a" v)])])))))]))
+
+(define-syntax (define-ssh-names stx)
+  (syntax-case stx [:]
+    [(_ id : TypeU ([enum0 group0 comments0 ...] [enum group comments ...] ...))
      (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
                    [id?* (format-id #'id "~a?*" (syntax-e #'id))]
                    [TypeU* (format-id #'TypeU "~a*" (syntax-e #'TypeU))])
@@ -21,50 +65,58 @@
               (define id?* : (-> (Listof Any) Boolean : TypeU*)
                 (λ [es] ((inst andmap Any Boolean TypeU) id? es)))))]))
 
-(define-assignment ssh-algorithms/cipher : SSH-Algorithm/Cipher
-  ; http://tools.ietf.org/html/rfc4253#section-6.3
-  [3des-cbc                    REQUIRED          three-key 3DES in CBC mode]
-  [blowfish-cbc                OPTIONAL          Blowfish in CBC mode]
-  [twofish256-cbc              OPTIONAL          Twofish in CBC mode with a 256-bit key]
-  [twofish-cbc                 OPTIONAL          alias for twofish256-cbc]
-  [twofish192-cbc              OPTIONAL          Twofish with a 192-bit key]
-  [twofish128-cbc              OPTIONAL          Twofish with a 128-bit key]
-  [aes256-cbc                  OPTIONAL          AES in CBC mode with a 256-bit key]
-  [aes192-cbc                  OPTIONAL          AES with a 192-bit key]
-  [aes128-cbc                  RECOMMENDED       AES with a 128-bit key]
-  [serpent256-cbc              OPTIONAL          Serpent in CBC mode with a 256-bit key]
-  [serpent192-cbc              OPTIONAL          Serpent with a 192-bit key]
-  [serpent128-cbc              OPTIONAL          Serpent with a 128-bit key]
-  [arcfour                     OPTIONAL          the ARCFOUR stream cipher with a 128-bit key]
-  [idea-cbc                    OPTIONAL          IDEA in CBC mode]
-  [cast128-cbc                 OPTIONAL          CAST-128 in CBC mode]
-  [none                        OPTIONAL          no encryption])
+(define-syntax (define-message stx)
+  (syntax-case stx [:]
+    [(_ id val ([field : FieldType defval ...] ...))
+     (with-syntax* ([SSH-MSG (ssh-typename #'id)]
+                    [ssh:msg (ssh-typeid #'id)]
+                    [constructor (format-id #'id "~a" (gensym 'ssh:msg:))]
+                    [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
+                    [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
+                    [bytes->ssh:msg (format-id #'ssh:msg "bytes->~a" (syntax-e #'ssh:msg))]
+                    [(c-args ...)
+                     (for/fold ([syns null])
+                               ([<field> (in-syntax #'(field ...))]
+                                [<mkarg> (in-syntax #'([field : FieldType defval ...] ...))])
+                       (cons (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>))))
+                             (cons <mkarg> syns)))]
+                    [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket)] ...)
+                     (for/list ([<field> (in-syntax #'(field ...))]
+                                [<FType> (in-syntax #'(FieldType ...))])
+                       (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
+                             (ssh-datum-pipeline <FType>)))])
+       #'(begin (define-type SSH-MSG ssh:msg)
+                (struct ssh:msg SSH-Message ([field : FieldType] ...)
+                  #:transparent #:constructor-name constructor)
 
-(define-assignment ssh-algorithms/mac : SSH-Algorithm/MAC
-  ; http://tools.ietf.org/html/rfc4253#section-6.4
-  [hmac-sha1                   REQUIRED        HMAC-SHA1 (digest length = key length = 20)]
-  [hmac-sha1-96                RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20)]
-  [hmac-md5                    OPTIONAL        HMAC-MD5 (digest length = key length = 16)]
-  [hmac-md5-96                 OPTIONAL        first 96 bits of HMAC-MD5 (digest length = 12, key length = 16)]
-  [none                        OPTIONAL        no MAC]
+                (define (make-ssh:msg c-args ...) : SSH-MSG
+                  (constructor val 'id field ...))
 
-  ; http://tools.ietf.org/html/rfc6668#section-2
-  [hmac-sha2-256               RECOMMENDED   HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)]
-  [hmac-sha2-512               OPTIONAL      HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)])
+                (define ssh:msg->bytes : (-> SSH-MSG Bytes)
+                  (lambda [self]
+                    (bytes-append (bytes (SSH-Message-id self))
+                                  (ssh->bytes (racket->ssh (field-ref self)))
+                                  ...)))
 
-(define-assignment ssh-algorithms/publickey : SSH-Algorithm/Publickey
-  ; http://tools.ietf.org/html/rfc4253#section-6.6
-  [ssh-dss                     REQUIRED     sign   Raw DSS Key]
-  [ssh-rsa                     RECOMMENDED  sign   Raw RSA Key]
-  [pgp-sign-rsa                OPTIONAL     sign   OpenPGP certificates (RSA key)]
-  [pgp-sign-dss                OPTIONAL     sign   OpenPGP certificates (DSS key)])
+                (define bytes->ssh:msg : (->* (Bytes) (Index) (Option SSH-MSG))
+                  (lambda [bmsg [offset 0]]
+                    (and (= (bytes-ref bmsg offset) val)
+                         (let*-values ([(offset) (+ offset 1)]
+                                       [(field offset) (bytes->ssh bmsg offset)] ...)
+                           (constructor val 'id (ssh->racket field) ...)))))
 
-(define-assignment ssh-algorithms/compression : SSH-Algorithm/Compression
-  ; http://tools.ietf.org/html/rfc4253#section-6.2
-  [none                        REQUIRED           no compression]
-  [zlib                        OPTIONAL           ZLIB (LZ77) compression])
+                (hash-set! ssh-bytes->message-database val bytes->ssh:msg)))]))
 
-(define-assignment ssh-algorithms/kex : SSH-Algorithm/Kex
-  ; http://tools.ietf.org/html/rfc4253#section-8
-  [diffie-hellman-group1-sha1  REQUIRED]
-  [diffie-hellman-group14-sha1 REQUIRED])
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type SSH-Bytes->Message (->* (Bytes) (Index) (Option SSH-Message)))
+
+(struct SSH-Message ([id : Byte] [name : Symbol]))
+
+(define ssh-bytes->message-database : (HashTable Index SSH-Bytes->Message) (make-hasheq))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-values : (SSH-Bytes->Type Bytes)
+  (lambda [braw [offset 0]]
+    (define end : Index (bytes-length braw))
+    (values (subbytes braw offset end)
+            end)))
