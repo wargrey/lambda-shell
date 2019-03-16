@@ -27,20 +27,21 @@
 (define-for-syntax (ssh-datum-pipeline <FType>)
   (case (syntax->datum <FType>)
     [(Boolean) (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
-    [(Index) (list #'values #'ssh-uint32->bytes #'ssh-bytes->uint32 #'values)]
-    [(Natural) (list #'values #'ssh-uint64->bytes #'ssh-bytes->uint64 #'values)]
-    [(String) (list #'values #'ssh-string->bytes #'ssh-bytes->string #'values)]
-    [(Integer) (list #'values #'ssh-mpint->bytes #'ssh-bytes->mpint #'values)]
-    [(Symbol) (list #'values #'ssh-name->bytes #'ssh-bytes->name #'values)]
-    [(Bytes) (list #'values #'values #'ssh-values #'values)]
-    [else (with-syntax* ([(TypeC argument) (syntax-e <FType>)]
-                         [$type (format-id #'argument "$~a" (syntax-e #'argument))])
-            (case (syntax-e #'TypeC)
-              [(SSH-Bytes) (list #'values #'values (ssh-make-nbytes->bytes #'argument) #'values)]
-              [(SSH-Symbol) (list #'$type #'ssh-uint32->bytes #'ssh-bytes->uint32 #'$type)]
-              [(SSH-Namelist) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'$type)]
-              [(Listof) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)]
-              [else (raise-syntax-error 'define-ssh-message-field "invalid SSH data type" <FType>)]))]))
+    [(Index)   (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values)]
+    [(Natural) (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values)]
+    [(String)  (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values)]
+    [(Integer) (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values)]
+    [(Symbol)  (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values)]
+    [(Bytes)   (list #'values #'values             #'ssh-values         #'values)]
+    [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
+                         [$type (format-id #'T "$~a" (syntax-e #'T))])
+            (case (syntax-e #'TypeOf)
+              [(SSH-Bytes)    (list #'values #'values              (ssh-make-nbytes->bytes #'T) #'values)]
+              [(SSH-Symbol)   (list #'$type  #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
+              [(SSH-Namelist) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
+              [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
+                        (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
+                        (raise-syntax-error 'define-ssh-message-field "invalid SSH data type" <FType>))]))]))
 
 
 (define-for-syntax (ssh-message-field <declaration>)
@@ -68,15 +69,18 @@
   (syntax-case stx [:]
     [(_ id : TypeU ([enum0 group0 comments0 ...] [enum group comments ...] ...))
      (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
-                   [id?* (format-id #'id "~a?*" (syntax-e #'id))]
+                   [id-list (format-id #'id "~a-list" (syntax-e #'id))]
+                   [$TypeU (format-id #'id "$~a" (syntax-e #'TypeU))]
                    [TypeU* (format-id #'TypeU "~a*" (syntax-e #'TypeU))])
      #'(begin (define-type TypeU (U 'enum0 'enum ...))
               (define-type TypeU* (Listof TypeU))
-              (define id : (Pairof TypeU TypeU*) (cons 'enum0 (list 'enum ...)))
+              (define id-list : (Pairof TypeU TypeU*) (cons 'enum0 (list 'enum ...)))
+              
               (define id? : (-> Any Boolean : TypeU)
                 (λ [v] (cond [(eq? v 'enum0) #true] [(eq? v 'enum) #true] ... [else #false])))
-              (define id?* : (-> (Listof Any) Boolean : TypeU*)
-                (λ [es] ((inst andmap Any Boolean TypeU) id? es)))))]))
+
+              (define $TypeU : (-> (Listof Any) (SSH-Namelist TypeU))
+                (λ [vs] (filter id? vs)))))]))
 
 (define-syntax (define-message stx)
   (syntax-case stx [:]
@@ -146,3 +150,15 @@
     (define end : Index (bytes-length braw))
     (values (subbytes braw offset end)
             end)))
+
+(define ssh-cookie : (->* () (Positive-Byte) Bytes)
+  (lambda [[n 16]]
+    (define cookie : Bytes (make-bytes n))
+
+    (let shuffle ([idx+1 : Positive-Byte n])
+      (define idx : Byte (- idx+1 1))
+      (when (> idx 0)
+        (bytes-set! cookie idx (random 256))
+        (shuffle idx)))
+    
+    cookie))

@@ -25,15 +25,15 @@
   [SSH_MSG_DEBUG                      4 ([display? : Boolean #false] [message : String] [language : Symbol '||])]
   [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
   [SSH_MSG_SERVICE_ACCEPT             6 ([name : Symbol])]
-  [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16)]
-                                         [kex : (Listof Symbol)]
-                                         [publickey : (Listof Symbol)]
-                                         [local-cipher : (Listof Symbol)]
-                                         [remote-cipher : (Listof Symbol)]
-                                         [local-mac : (Listof Symbol)]
-                                         [remote-mac : (Listof Symbol)]
-                                         [local-compression : (Listof Symbol)]
-                                         [remote-compression : (Listof Symbol)]
+  [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16) (ssh-cookie)]
+                                         [kex : (SSH-Namelist SSH-Kex-Method) ssh-kex-method-list]
+                                         [publickey : (SSH-Namelist SSH-Publickey-Format) ssh-publickey-format-list]
+                                         [local-cipher : (SSH-Namelist SSH-Cipher) ssh-cipher-list]
+                                         [remote-cipher : (SSH-Namelist SSH-Cipher) ssh-cipher-list]
+                                         [local-mac : (SSH-Namelist SSH-MAC-Algorithm) ssh-mac-algorithm-list]
+                                         [remote-mac : (SSH-Namelist SSH-MAC-Algorithm) ssh-mac-algorithm-list]
+                                         [local-compression : (SSH-Namelist SSH-Compression-Method) ssh-compression-method-list]
+                                         [remote-compression : (SSH-Namelist SSH-Compression-Method) ssh-compression-method-list]
                                          [local-language : (Listof Symbol) null]
                                          [remote-language : (Listof Symbol) null]
                                          [guessing-follow? : Boolean #false]
@@ -93,7 +93,7 @@
   ([SSH_EXTENDED_DATA_STDERR                            1]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-names ssh-ciphers : SSH-Cipher
+(define-ssh-names ssh-cipher : SSH-Cipher
   ; http://tools.ietf.org/html/rfc4253#section-6.3
   ([3des-cbc                    REQUIRED          three-key 3DES in CBC mode]
    [blowfish-cbc                OPTIONAL          Blowfish in CBC mode]
@@ -112,7 +112,7 @@
    [cast128-cbc                 OPTIONAL          CAST-128 in CBC mode]
    [none                        OPTIONAL          no encryption]))
 
-(define-ssh-names ssh-mac-algorithms : SSH-MAC-Algorithm
+(define-ssh-names ssh-mac-algorithm : SSH-MAC-Algorithm
   ; http://tools.ietf.org/html/rfc4253#section-6.4
   ([hmac-sha1                   REQUIRED        HMAC-SHA1 (digest length = key length = 20)]
    [hmac-sha1-96                RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20)]
@@ -124,19 +124,19 @@
    [hmac-sha2-256               RECOMMENDED   HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)]
    [hmac-sha2-512               OPTIONAL      HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)]))
 
-(define-ssh-names ssh-publickey-formats : SSH-Publickey-Format
+(define-ssh-names ssh-publickey-format : SSH-Publickey-Format
   ; http://tools.ietf.org/html/rfc4253#section-6.6
   ([ssh-dss                     REQUIRED     sign   Raw DSS Key]
    [ssh-rsa                     RECOMMENDED  sign   Raw RSA Key]
    [pgp-sign-rsa                OPTIONAL     sign   OpenPGP certificates (RSA key)]
    [pgp-sign-dss                OPTIONAL     sign   OpenPGP certificates (DSS key)]))
 
-(define-ssh-names ssh-compression-methods : SSH-Compression-Method
+(define-ssh-names ssh-compression-method : SSH-Compression-Method
   ; http://tools.ietf.org/html/rfc4253#section-6.2
   ([none                        REQUIRED           no compression]
    [zlib                        OPTIONAL           ZLIB (LZ77) compression]))
 
-(define-ssh-names ssh-kex-methods : SSH-Kex-Method
+(define-ssh-names ssh-kex-method : SSH-Kex-Method
   ; http://tools.ietf.org/html/rfc4253#section-8
   ([diffie-hellman-group1-sha1  REQUIRED]
    [diffie-hellman-group14-sha1 REQUIRED]))
