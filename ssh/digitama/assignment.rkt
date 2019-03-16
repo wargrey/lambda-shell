@@ -39,7 +39,20 @@
               [(SSH-Bytes) (list #'values #'values (ssh-make-nbytes->bytes #'argument) #'values)]
               [(SSH-Symbol) (list #'$type #'ssh-uint32->bytes #'ssh-bytes->uint32 #'$type)]
               [(SSH-Namelist) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'$type)]
-              [else (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)]))]))
+              [(Listof) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)]
+              [else (raise-syntax-error 'define-ssh-message-field "invalid SSH data type" <FType>)]))]))
+
+
+(define-for-syntax (ssh-message-field <declaration>)
+  (define declaration (syntax-e <declaration>))
+  (define <field> (car declaration))
+  (define <kw-name> (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>)))))
+  (define-values (<argls> <value>)
+    (syntax-case <declaration> []
+      [(field FieldType) (values #'[field : FieldType] #'field)]
+      [(field FieldType defval) (values #'[field : (Option FieldType) #false] #'(or field defval))]
+      [_ (raise-syntax-error 'define-ssh-message-field "malformed field declaration" <declaration>)]))
+  (values <kw-name> <argls> <value>))
 
 (define-syntax (define-ssh-symbols stx)
   (syntax-case stx [:]
@@ -71,15 +84,19 @@
      (with-syntax* ([SSH-MSG (ssh-typename #'id)]
                     [ssh:msg (ssh-typeid #'id)]
                     [constructor (format-id #'id "~a" (gensym 'ssh:msg:))]
+                    [SSH:MSG->bytes (format-id #'ssh:msg "~a" (gensym 'ssh:msg:))]
+                    [ssh:msg? (format-id #'ssh:msg "~a?" (syntax-e #'ssh:msg))]
                     [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
                     [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
-                    [bytes->ssh:msg (format-id #'ssh:msg "bytes->~a" (syntax-e #'ssh:msg))]
-                    [(c-args ...)
-                     (for/fold ([syns null])
-                               ([<field> (in-syntax #'(field ...))]
-                                [<mkarg> (in-syntax #'([field : FieldType defval ...] ...))])
-                       (cons (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>))))
-                             (cons <mkarg> syns)))]
+                    [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
+                    [([kw-args ...] [init-values ...])
+                     (let-values ([(kw-args seulav)
+                                   (for/fold ([syns null] [slav null])
+                                             ([<declaration> (in-syntax #'([field FieldType defval ...] ...))])
+                                     (define-values (<kw-name> <argls> <value>) (ssh-message-field <declaration>))
+                                     (values (cons <kw-name> (cons <argls> syns))
+                                             (cons <value> slav)))])
+                       (list kw-args (reverse seulav)))]
                     [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket)] ...)
                      (for/list ([<field> (in-syntax #'(field ...))]
                                 [<FType> (in-syntax #'(FieldType ...))])
@@ -89,30 +106,39 @@
                 (struct ssh:msg SSH-Message ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor)
 
-                (define (make-ssh:msg c-args ...) : SSH-MSG
-                  (constructor val 'id field ...))
+                (define (make-ssh:msg kw-args ...) : SSH-MSG
+                  (constructor val init-values ...))
 
                 (define ssh:msg->bytes : (-> SSH-MSG Bytes)
                   (lambda [self]
-                    (bytes-append (bytes (SSH-Message-id self))
+                    (bytes-append (bytes val)
                                   (ssh->bytes (racket->ssh (field-ref self)))
                                   ...)))
 
-                (define bytes->ssh:msg : (->* (Bytes) (Index) (Option SSH-MSG))
+                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) SSH-MSG)
                   (lambda [bmsg [offset 0]]
-                    (and (= (bytes-ref bmsg offset) val)
-                         (let*-values ([(offset) (+ offset 1)]
-                                       [(field offset) (bytes->ssh bmsg offset)] ...)
-                           (constructor val 'id (ssh->racket field) ...)))))
+                    (let*-values ([(offset) (+ offset 1)]
+                                  [(field offset) (bytes->ssh bmsg offset)] ...)
+                      (constructor val (ssh->racket field) ...))))
 
-                (hash-set! ssh-bytes->message-database val bytes->ssh:msg)))]))
+                (define SSH:MSG->bytes : (-> SSH-Message (Option Bytes))
+                  (lambda [self]
+                    (and (ssh:msg? self)
+                         (ssh:msg->bytes self))))
+                
+                (hash-set! ssh-bytes->message-database val unsafe-bytes->ssh:msg)
+                (hash-set! ssh-message->bytes-database val SSH:MSG->bytes)
+                (hash-set! ssh-message-name-database val 'SSH-MSG)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-Bytes->Message (->* (Bytes) (Index) (Option SSH-Message)))
+(define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
+(define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
-(struct SSH-Message ([id : Byte] [name : Symbol]))
+(struct SSH-Message ([id : Byte]))
 
-(define ssh-bytes->message-database : (HashTable Index SSH-Bytes->Message) (make-hasheq))
+(define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
+(define ssh-message->bytes-database : (HashTable Index SSH-Message->Bytes) (make-hasheq))
+(define ssh-message-name-database : (HashTable Index Symbol) (make-hasheq))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-values : (SSH-Bytes->Type Bytes)

@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide (all-from-out "digitama/datatype.rkt"))
-(provide SSH-Bytes->Message (struct-out SSH-Message))
+(provide (struct-out SSH-Message))
 (provide define-ssh-symbols define-ssh-names)
 
 (require "digitama/assignment.rkt")
@@ -15,21 +15,14 @@
     [(_ [enum val ([field : FieldType defval ...] ...)] ...)
      #'(begin (define-message enum val ([field : FieldType defval ...] ...)) ...)]))
 
-(define ssh-bytes->message : SSH-Bytes->Message
-  (lambda [bmsg [offset 0]]
-    (define id : Byte (bytes-ref bmsg offset))
-    (define bytes->message : (Option SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (and bytes->message
-         (bytes->message bmsg offset))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; http://tools.ietf.org/html/rfc4250#section-4.1
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4253
-  [SSH_MSG_DISCONNECT                 1 ([reason : (SSH-Symbol SSH-Disconnection-Reason)] [description : String ""] [language : Symbol '||])]
+  [SSH_MSG_DISCONNECT                 1 ([reason : (SSH-Symbol SSH-Disconnection-Reason)] [description : String (symbol->string reason)] [language : Symbol '||])]
   [SSH_MSG_IGNORE                     2 ([data : String])]
-  [SSH_MSG_UNIMPLEMENTED              3 ([seq : Index])]
-  [SSH_MSG_DEBUG                      4 ([display? : Boolean] [message : String] [language : Symbol '||])]
+  [SSH_MSG_UNIMPLEMENTED              3 ([number : Index])]
+  [SSH_MSG_DEBUG                      4 ([display? : Boolean #false] [message : String] [language : Symbol '||])]
   [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
   [SSH_MSG_SERVICE_ACCEPT             6 ([name : Symbol])]
   [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16)]
@@ -59,7 +52,7 @@
   [SSH_MSG_REQUEST_FAILURE           82 ()]
   [SSH_MSG_CHANNEL_OPEN              90 ([type : Symbol] [partner : Index] [window-size : Index] [packet-upsize : Index] [extra : Bytes])]
   [SSH_MSG_CHANNEL_OPEN_CONFIRMATION 91 ([channel : Index] [partner : Index] [window-size : Index] [packet-upsize : Index] [extra : Bytes])]
-  [SSH_MSG_CHANNEL_OPEN_FAILURE      92 ([channel : Index] [reason : (SSH-Symbol SSH-Channel-Failure-Reason)] [descripion : String ""] [language : Symbol '||])]
+  [SSH_MSG_CHANNEL_OPEN_FAILURE      92 ([channel : Index] [reason : (SSH-Symbol SSH-Channel-Failure-Reason)] [descripion : String (symbol->string reason)] [language : Symbol '||])]
   [SSH_MSG_CHANNEL_WINDOW_ADJUST     93 ([channel : Index] [size : Index])]
   [SSH_MSG_CHANNEL_DATA              94 ([channel : Index] [data : String])]
   [SSH_MSG_CHANNEL_EXTENDED_DATA     95 ([channel : Index] [type : (SSH-Symbol SSH-Channel-Data-Type)] [data : String])]
@@ -148,6 +141,28 @@
   ([diffie-hellman-group1-sha1  REQUIRED]
    [diffie-hellman-group14-sha1 REQUIRED]))
 
-;;;
-(bytes->ssh:msg:disconnect (ssh:msg:disconnect->bytes (make-ssh:msg:disconnect #:reason 'SSH_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT)))
-;(bytes->ssh:msg:kexinit (ssh:msg:kexinit->bytes (make-ssh:msg:kexinit #:cookie (make-bytes 16))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-message-number : (-> SSH-Message Byte)
+  (lambda [self]
+    (SSH-Message-id self)))
+
+(define ssh-message-name : (-> SSH-Message Symbol)
+  (lambda [self]
+    (hash-ref ssh-message-name-database (SSH-Message-id self)
+              (λ [] (assert (object-name struct:SSH-Message) symbol?)))))
+
+(define ssh-bytes->message : (->* (Bytes) (Index) SSH-Message)
+  (lambda [bmsg [offset 0]]
+    (define id : Byte (bytes-ref bmsg offset))
+    (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
+    (cond [(not unsafe-bytes->message) (make-ssh:msg:unimplemented #:number id)]
+          [else (unsafe-bytes->message bmsg offset)])))
+
+(define ssh-message->bytes : (-> SSH-Message Bytes)
+  (lambda [self]
+    (define id : Byte (SSH-Message-id self))
+    (define message->bytes : (Option SSH-Message->Bytes) (hash-ref ssh-message->bytes-database id (λ [] #false)))
+    (or (and message->bytes (message->bytes self))
+
+         #|this should not happen|#
+         (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
