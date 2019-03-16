@@ -28,7 +28,7 @@
 (define default-ssh-server-message-handler : (Parameterof SSH-Server-Message-Handler) (make-parameter void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-identification-string : (-> Positive-Flonum String (Option String) (Values String Fixnum))
+(define ssh-make-identification-string : (-> Positive-Flonum String (Option String) (Values String Fixnum))
   (lambda [protocol maybe-version maybe-comments]
     (define version : String (if (string=? maybe-version "") (default-software-version) maybe-version))
     (define comments : String (or maybe-comments (default-comments)))
@@ -38,14 +38,14 @@
     (define-values (idsize maxsize) (values (string-length identification) (- SSH-LONGEST-IDENTIFICATION-LENGTH 2)))
     (values identification (min idsize maxsize))))
 
-(define write-message : (-> Output-Port String Fixnum Void)
+(define ssh-write-message : (-> Output-Port String Fixnum Void)
   (lambda [/dev/sshout idstring idsize]
     (write-string idstring /dev/sshout 0 idsize)
     (write-char #\return /dev/sshout)
     (write-char #\linefeed /dev/sshout)
     (flush-output /dev/sshout)))
 
-(define read-server-identification : (-> Input-Port SSH-Identification)
+(define ssh-read-server-identification : (-> Input-Port SSH-Identification)
   (lambda [/dev/sshin]
     (define line : String (make-string (max SSH-LONGEST-IDENTIFICATION-LENGTH SSH-LONGEST-SERVER-MESSAGE-LENGTH)))
     (define message-handler : SSH-Server-Message-Handler (default-ssh-server-message-handler))
@@ -58,7 +58,7 @@
           (read-check-notify-loop))))
     (read-peer-identification! /dev/sshin line 4 SSH-LONGEST-IDENTIFICATION-LENGTH)))
 
-(define read-client-identification : (-> Input-Port SSH-Identification)
+(define ssh-read-client-identification : (-> Input-Port SSH-Identification)
   (lambda [/dev/sshin]
     (define line : String (make-string SSH-LONGEST-IDENTIFICATION-LENGTH))
     (read-string! line /dev/sshin 0 4)

@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 ;;; https://tools.ietf.org/html/rfc4250
+;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
 
@@ -65,7 +66,7 @@
                   (λ [v] (cond [(symbol? v) (case v [(enum name) val] ... [else 0])]
                                [else (case v [(val) 'name] ... [else (error 'TypeU "unrecognized assignment: ~a" v)])])))))]))
 
-(define-syntax (define-ssh-names stx)
+(define-syntax (define-ssh-name-list stx)
   (syntax-case stx [:]
     [(_ id : TypeU ([enum0 group0 comments0 ...] [enum group comments ...] ...))
      (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
@@ -140,25 +141,38 @@
 
 (struct SSH-Message ([id : Byte]))
 
+(define ssh-message-number->name : (-> Byte (Option Symbol))
+  (lambda [id]
+    (hash-ref ssh-message-name-database id
+              (λ [] #false))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
 (define ssh-message->bytes-database : (HashTable Index SSH-Message->Bytes) (make-hasheq))
 (define ssh-message-name-database : (HashTable Index Symbol) (make-hasheq))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-values : (SSH-Bytes->Type Bytes)
   (lambda [braw [offset 0]]
     (define end : Index (bytes-length braw))
     (values (subbytes braw offset end)
             end)))
 
-(define ssh-cookie : (->* () (Positive-Byte) Bytes)
+(define ssh-cookie : (->* () (Byte) Bytes)
   (lambda [[n 16]]
     (define cookie : Bytes (make-bytes n))
 
-    (let shuffle ([idx+1 : Positive-Byte n])
-      (define idx : Byte (- idx+1 1))
-      (when (> idx 0)
-        (bytes-set! cookie idx (random 256))
-        (shuffle idx)))
+    (let pad ([rest : Nonnegative-Fixnum n])
+      (define idx-8 : Fixnum (- rest 8))
+      (define idx-4 : Fixnum (- rest 4))
+      (define idx-1 : Fixnum (- rest 1))
+      (cond [(> idx-8 0)
+             (real->floating-point-bytes (random) 8 #true cookie idx-8)
+             (pad idx-8)]
+            [(> idx-4 0)
+             (real->floating-point-bytes (random) 4 #true cookie idx-4)
+             (pad idx-4)]
+            [(> idx-1 0)
+             (bytes-set! cookie idx-1 (random 256))
+             (pad idx-1)]))
     
     cookie))

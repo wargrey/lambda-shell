@@ -12,6 +12,7 @@
 (struct exn:ssh:eof exn:ssh ())
 (struct exn:ssh:defense exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
+(struct exn:ssh:overload exn:ssh ())
 
 (define ssh-error-logger-topic : Symbol 'exn:ssh)
 

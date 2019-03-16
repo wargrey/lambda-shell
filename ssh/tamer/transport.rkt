@@ -35,7 +35,8 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
  (ssh-message (make-ssh:msg:disconnect #:reason 'SSH_DISCONNECT_RESERVED #:language 'en_US))
  (ssh-message (make-ssh:msg:ignore #:data "Ignored Data Message"))
  (ssh-message (make-ssh:msg:debug #:display? #true #:message "调试信息 in ISO-10646 UTF-8 encoding [RFC3629]" #:language 'zh_CN))
- (ssh-message (make-ssh:msg:unimplemented #:number 0))]
+ (ssh-message (make-ssh:msg:unimplemented #:number 0))
+ (ssh-message (make-ssh:msg:newkeys))]
 
 
 @handbook-reference[]
@@ -57,14 +58,14 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
        (require "../digitama/transport/identification.rkt")
        (require "../assignment.rkt")
 
-       (define-values (default-identification defsize) (make-identification-string 2.0 "" #false))
+       (define-values (default-identification defsize) (ssh-make-identification-string 2.0 "" #false))
 
        (define ssh-peer-identification
          (lambda [idstring]
            (define-values (/dev/sshin /dev/sshout) (make-pipe #false '/dev/sshin '/dev/sshout))
-           (write-message /dev/sshout idstring (string-length idstring))
+           (ssh-write-message /dev/sshout idstring (string-length idstring))
            (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
-             (read-client-identification /dev/sshin))))
+             (ssh-read-client-identification /dev/sshin))))
 
        (define ssh-message
          (lambda [self]
