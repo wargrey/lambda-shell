@@ -12,6 +12,7 @@
 (require "../assignment.rkt")
 
 (define SSH-LONGEST-PAYLOAD-LENGTH : Positive-Index 32768)
+(define SSH-LONGEST-PACKET-LENGTH  : Positive-Index 35000)
 
 #| uint32    packet_length  (the next 3 fields)               -
    byte      padding_length (in the range of [4, 255])         \ the size of these 4 fields should be multiple of
@@ -41,7 +42,7 @@
     (define-values (packet-length _) (ssh-bytes->uint32 length-bs))
 
     ; 35000 is useless since it is much larger than the SSH-LONGEST-PAYLOAD-LENGTH
-    (when (> packet-length (+ SSH-LONGEST-PAYLOAD-LENGTH 255 1))
+    (when (> packet-length (- SSH-LONGEST-PACKET-LENGTH mac-length 4))
       (throw exn:ssh:defense /dev/sshin 'read-binary-packet
              "packet overlength: ~a" packet-length))
 
@@ -54,8 +55,8 @@
              "invalid payload length: ~a" (unsafe-fx- payload-end 1)))
 
     (values (subbytes padded-payload 1 payload-end)
-            (cond [(= mac-length 0) (subbytes padded-payload payload-end)]
-                  [else (ssh-read-bytes /dev/sshin mac-length)]))))
+            (cond [(> mac-length 0) (ssh-read-bytes /dev/sshin mac-length)]
+                  [else #""]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define resolve-package-length : (-> Index Byte (Values Index Byte))

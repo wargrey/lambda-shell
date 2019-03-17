@@ -18,7 +18,7 @@
 (struct SSH-Identification
   ([protoversion : Positive-Flonum]
    [softwareversion : String]
-   [comments : (Option String)]
+   [comments : String]
    [raw : String])
   #:transparent)
 
@@ -121,7 +121,6 @@
          [protoversion : (Option Positive-Flonum) #false]
          [softwareversion : (Option String) #false]
          [comments : (Option String) #false]
-         [minus? : Boolean #false]
          [space? : Boolean #false])
         (define next-idx : Positive-Fixnum (+ idx 1))
         (cond [(> next-idx idx-max) (values #false #false #false #false)]
@@ -129,33 +128,25 @@
                       (cond [(eq? maybe-ch #\return)
                              (read-loop next-idx end-idx token-idx protoversion
                                         (or softwareversion (maybe-substring destline token-idx end-idx))
-                                        (and softwareversion (maybe-substring destline token-idx end-idx))
-                                        minus? space?)]
+                                        (and softwareversion space? (maybe-substring destline token-idx end-idx))
+                                        space?)]
                             [(or (eq? maybe-ch #\linefeed) (eof-object? maybe-ch))
                              (values end-idx protoversion
                                      (or softwareversion (maybe-substring destline token-idx end-idx))
-                                     (and softwareversion (or comments (maybe-substring destline token-idx end-idx))))]
+                                     (and softwareversion space? (or comments (maybe-substring destline token-idx end-idx))))]
                             [(eq? maybe-ch #\-)
                              (string-set! destline idx maybe-ch)
-                             (define maybe-protoversion : (Option Positive-Flonum) (maybe-subfloat destline token-idx idx))
-                             (when (not space?)
-                               (when (and minus?)
-                                 (throw exn:ssh:identification /dev/sshin 'protocol-exchange
-                                        "invalid softwareversion: ~s" (substring destline 0 next-idx)))
-                               (unless maybe-protoversion
-                                 (throw exn:ssh:identification /dev/sshin 'protocol-exchange
-                                        "invalid protoversion: ~s" (substring destline 0 idx))))
-                             (read-loop next-idx end-idx (if space? token-idx next-idx)
-                                        (or protoversion maybe-protoversion) softwareversion comments #true space?)]
+                             (read-loop next-idx next-idx (if (not protoversion) next-idx token-idx)
+                                        (or protoversion (maybe-subfloat destline token-idx idx)) softwareversion comments space?)]
                             [(eq? maybe-ch #\space)
                              (string-set! destline idx maybe-ch)
                              (read-loop next-idx end-idx (if space? token-idx next-idx)
                                         protoversion (or softwareversion (maybe-substring destline token-idx idx))
-                                        comments minus? #true)]
+                                        comments #true)]
                             [else (string-set! destline idx maybe-ch)
-                                  (read-loop next-idx next-idx token-idx protoversion softwareversion comments minus? space?)]))])))
+                                  (read-loop next-idx next-idx token-idx protoversion softwareversion comments space?)]))])))
     (or (and maybe-end-idx maybe-protoversion maybe-softwareversion
-             (SSH-Identification maybe-protoversion maybe-softwareversion maybe-comments
-                                 (substring destline 0 maybe-end-idx)))
+             (SSH-Identification maybe-protoversion maybe-softwareversion
+                                 (or maybe-comments "") (substring destline 0 maybe-end-idx)))
         (throw exn:ssh:identification /dev/sshin 'protocol-exchange
                "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))

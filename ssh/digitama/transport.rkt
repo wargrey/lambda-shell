@@ -67,7 +67,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
   (with-handlers ([exn? (λ [[e : exn]] (displayln (exn-message e)))])
-    (ssh-connect "127.0.0.1" 22 #:timeout 0.618))
+    (ssh-connect "github.com" 22))
 
   #;(define sshd : TCP-Listener (tcp-listen 2222 4 #true))
   #;(ssh-accept sshd #:timeout 0.618))

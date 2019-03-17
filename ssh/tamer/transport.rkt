@@ -18,12 +18,12 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
 
 @tamer-action[
  default-identification
- (ssh-peer-identification default-identification)]
+ (ssh-peer-identification default-identification)
+ (ssh-peer-identification "SSH-2.0--")]
 
 @tamer-action[
  (ssh-peer-identification "SSL-2.0-Bad_Prefix")
  (ssh-peer-identification "SSH-1.b-Bad_Protocol")
- (ssh-peer-identification "SSH-2.0--")
  (ssh-peer-identification (~a "SSH-2.0-tl_dr " (make-string SSH-LONGEST-IDENTIFICATION-LENGTH #\.)))]
 
 @handbook-scenario{Additional Messages}
