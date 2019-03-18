@@ -14,7 +14,6 @@
 
 (provide SSH-Server-Message-Handler SSH-Message)
 
-(provide ssh-connect ssh-accept)
 (provide (all-from-out "assignment.rkt"))
 
 (require "assignment.rkt")

@@ -5,10 +5,13 @@
 (define pkg-desc "SSH: The Secure Shell Protocol")
 (define pkg-authors '(wargrey))
 
-(define software-version 'λsh_SSH)
+(define software-version 'λsh)
 
 (define version "1.0")
-(define deps '("base" "typed-racket-lib" "typed-racket-more"))
+(define deps '("base" "digimon" "typed-racket-lib" "typed-racket-more"))
 (define build-deps '("digimon" "scribble-lib" "racket-doc"))
+
+#;(define raco-commands '(["ssh"  ssh/digivice/ssh  "yet another ssh client" #false]
+                          ["sshd" ssh/digivice/sshd "yet another ssh server" #false]))
 
 (define scribblings '(["tamer/SSH.scrbl" (main-doc) (net-library)]))

@@ -14,7 +14,7 @@
 (struct exn:ssh:identification exn:ssh ())
 (struct exn:ssh:overload exn:ssh ())
 
-(define ssh-error-logger-topic : Symbol 'exn:ssh)
+(define ssh-logger-topic : Symbol 'λsh:ssh)
 
 (define-syntax (throw stx)
   (syntax-parse stx
@@ -37,10 +37,18 @@
     (throw exn:ssh:eof /dev/ssh func "~a" message)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-log-message : (->* (Log-Level String) (#:data Any) #:rest Any Void)
+  (lambda [level msgfmt #:data [data #false] . argl]
+    (log-message (current-logger)
+                 level
+                 ssh-logger-topic
+                 (if (null? argl) msgfmt (apply format msgfmt argl))
+                 data)))
+
 (define ssh-log-error : (->* (SSH-Error) (Log-Level) Void)
   (lambda [errobj [level 'error]]
     (log-message (current-logger)
                  level
-                 ssh-error-logger-topic
+                 ssh-logger-topic
                  (format "~a: ~a" (object-name errobj) (exn-message errobj))
                  errobj)))

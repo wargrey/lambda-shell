@@ -11,7 +11,7 @@
 
 (require typed/setup/getinfo)
 
-(require "../exception.rkt")
+(require "../diagnostics.rkt")
 
 (define-type SSH-Server-Message-Handler (-> String Void))
 
@@ -28,7 +28,7 @@
 (define default-ssh-server-message-handler : (Parameterof SSH-Server-Message-Handler) (make-parameter void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-make-identification-string : (-> Positive-Flonum String (Option String) (Values String Fixnum))
+(define ssh-identification-string : (-> Positive-Flonum String (Option String) (Values String Fixnum))
   (lambda [protocol maybe-version maybe-comments]
     (define version : String (if (string=? maybe-version "") (default-software-version) maybe-version))
     (define comments : String (or maybe-comments (default-comments)))
@@ -38,8 +38,8 @@
     (define-values (idsize maxsize) (values (string-length identification) (- SSH-LONGEST-IDENTIFICATION-LENGTH 2)))
     (values identification (min idsize maxsize))))
 
-(define ssh-write-message : (-> Output-Port String Fixnum Void)
-  (lambda [/dev/sshout idstring idsize]
+(define ssh-write-text : (->* (Output-Port String) (Fixnum) Void)
+  (lambda [/dev/sshout idstring [idsize (string-length idstring)]]
     (write-string idstring /dev/sshout 0 idsize)
     (write-char #\return /dev/sshout)
     (write-char #\linefeed /dev/sshout)
@@ -63,7 +63,7 @@
     (define line : String (make-string SSH-LONGEST-IDENTIFICATION-LENGTH))
     (read-string! line /dev/sshin 0 4)
     (cond [(string-prefix? line "SSH-") (read-peer-identification! /dev/sshin line 4 SSH-LONGEST-IDENTIFICATION-LENGTH)]
-          [else (throw exn:ssh:identification /dev/sshin 'protocol-exchange "not an SSH peer: ~s" (substring line 0 4))])))
+          [else (throw exn:ssh:identification /dev/sshin 'protocol-exchange "not a SSH peer: ~s" (substring line 0 4))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-software-version : (-> String)

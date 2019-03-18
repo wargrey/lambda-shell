@@ -58,12 +58,12 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
        (require "../digitama/transport/identification.rkt")
        (require "../assignment.rkt")
 
-       (define-values (default-identification defsize) (ssh-make-identification-string 2.0 "" #false))
+       (define-values (default-identification defsize) (ssh-identification-string 2.0 "" #false))
 
        (define ssh-peer-identification
          (lambda [idstring]
            (define-values (/dev/sshin /dev/sshout) (make-pipe #false '/dev/sshin '/dev/sshout))
-           (ssh-write-message /dev/sshout idstring (string-length idstring))
+           (ssh-write-text /dev/sshout idstring (string-length idstring))
            (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
              (ssh-read-client-identification /dev/sshin))))
 

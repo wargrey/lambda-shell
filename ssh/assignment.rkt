@@ -51,13 +51,23 @@
                                          [guessing-follow? : Boolean #false]
                                          [reserved : Index 0])]
   [SSH_MSG_NEWKEYS                   21 ()]
-  
+
+  ; https://www.rfc-editor.org/errata_search.php?rfc=4253
+  [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
+  [SSH_MSG_KEXDH_REPLY               31 ([K-S : String] [f : Integer] [H : String])]
+
+  ; https://tools.ietf.org/html/rfc8308 
+  [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
+  [SSH_MSG_NEWCOMPRESS                8 ()])
+
+(define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
   [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol] [method : Symbol] [extra : Bytes])]
   [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (Listof Symbol)] [partially? : Boolean])]
   [SSH_MSG_USERAUTH_SUCCESS          52 ()]
-  [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
-  
+  [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])])
+
+(define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4254
   [SSH_MSG_GLOBAL_REQUEST            80 ([name : Index] [replay? : Boolean] [extra : Bytes])]
   [SSH_MSG_REQUEST_SUCCESS           81 ([extra : Bytes])]
@@ -173,13 +183,13 @@
     (or (and message->bytes (message->bytes self))
 
          #|this should not happen|#
-         (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
+         (ssh:msg:ignore->bytes (make-ssh:msg:ignore (format "~s" self))))))
 
 (define ssh-bytes->message : (->* (Bytes) (Index) SSH-Message)
   (lambda [bmsg [offset 0]]
     (define id : Byte (bytes-ref bmsg offset))
     (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (cond [(not unsafe-bytes->message) (make-ssh:msg:unimplemented #:number id)]
+    (cond [(not unsafe-bytes->message) (make-ssh:msg:unimplemented id)]
           [else (unsafe-bytes->message bmsg offset)])))
 
 (define ssh-bytes->message* : (->* (Bytes (Pairof Byte Byte)) (Index) (Option SSH-Message))

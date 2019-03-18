@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "exception.rkt")
+(require "diagnostics.rkt")
 
 (define ssh-read-bytes : (-> Input-Port Integer Bytes)
   (lambda [/dev/sshin amt]

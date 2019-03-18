@@ -6,68 +6,50 @@
 (require racket/port)
 
 (require "transport/identification.rkt")
-(require "transport/message.rkt")
+(require "transport/packet.rkt")
 
-(require "assignment.rkt")
-(require "exception.rkt")
-(require "stdin.rkt")
+(require "../assignment.rkt")
+(require "diagnostics.rkt")
 
-(define ssh-connect : (-> String Integer
-                          [#:protocol Positive-Flonum] [#:version (Option String)] [#:comments (Option String)] [#:timeout (Option Nonnegative-Real)]
-                          (Values Input-Port Output-Port))
-  (lambda [hostname port #:protocol [protoversion 2.0] #:version [softwareversion #false] #:comments [comments #false] #:timeout [timeout #false]]
-    (parameterize ([current-custodian (make-custodian)])
-      (define-values (/dev/pin /dev/pout) (make-pipe-with-specials 1 hostname hostname))
-      (define protocol-exchange : Thread
-        (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/pout))])
-                        (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
-                        (define-values (identification idsize) (ssh-make-identification-string protoversion (or softwareversion "") comments))
-                        (write-special /dev/tcpin /dev/pout)
-                        (write-special /dev/tcpout /dev/pout)
-                        (ssh-write-message /dev/tcpout identification idsize)
-                        (write-special (ssh-read-server-identification /dev/tcpin) /dev/pout)
-                        (write-special (ssh-read-transport-message /dev/tcpin) /dev/pout)
-                        (thread-receive)))))
-      (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all (current-custodian)) (raise e))])
-        (define /dev/tcpin : Input-Port (assert (read-byte-or-special /dev/pin) input-port?))
-        (define /dev/tcpout : Output-Port (assert (read-byte-or-special /dev/pin) output-port?))
-        (define server-id : SSH-Identification (ssh-read-special /dev/pin timeout SSH-Identification? 'ssh-connect))
-        (displayln server-id)
-        (define server-key : SSH-Message (ssh-read-special /dev/pin timeout SSH-Message? 'ssh-accept))
-        (unless (= (SSH-Identification-protoversion server-id) protoversion)
-          (throw exn:ssh:identification /dev/tcpin 'ssh-connect
-                 "incompatible protoversion: ~a" (SSH-Identification-protoversion server-id)))
-        (displayln server-key)
-        (values /dev/tcpin /dev/tcpout)))))
+(struct SSH-Listener
+  ([custodian : Custodian]
+   [watchdog : TCP-Listener]
+   [identification : String]))
 
-(define ssh-accept : (-> TCP-Listener
-                         [#:protocol Positive-Flonum] [#:version (Option String)] [#:comments (Option String)] [#:timeout (Option Nonnegative-Real)]
-                         (Values Input-Port Output-Port))
-  (lambda [listener #:protocol [protoversion 2.0] #:version [softwareversion #false] #:comments [comments #false] #:timeout [timeout #false]]
-    (parameterize ([current-custodian (make-custodian)])
-      (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break listener))
-      (define-values (/dev/pin /dev/pout) (make-pipe-with-specials))
-      (define protocol-exchange : Thread
-        (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/pout))])
-                        (write-special (ssh-read-client-identification /dev/tcpin) /dev/pout)
-                        (write-special (ssh-read-transport-message /dev/tcpin) /dev/pout)))))
-      (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all (current-custodian)) (raise e))])
-        (define peer-id : SSH-Identification (ssh-read-special /dev/pin timeout SSH-Identification? 'ssh-accept))
-        (displayln peer-id)
-        (define peer-key : SSH-Message (ssh-read-special /dev/pin timeout SSH-Message? 'ssh-accept))
-        (unless (= (SSH-Identification-protoversion peer-id) protoversion)
-          (define message : String (format "incompatible protoversion: ~a" (SSH-Identification-protoversion peer-id)))
-          (ssh-write-message /dev/tcpout message (string-length message))
-          (throw exn:ssh:identification /dev/tcpin 'ssh-connect "~a" message))
-        (define-values (identification idsize) (ssh-make-identification-string protoversion (or softwareversion "") comments))
-        (ssh-write-message /dev/tcpout identification idsize)
-        (displayln peer-key)
-        (values /dev/tcpin /dev/tcpout)))))
+(struct SSH-Port
+  ([custodian : Custodian]
+   [ghostcat : Thread]
+   [/dev/sshin : Input-Port]))
+
+(define sshc-ghostcat : (-> Output-Port String Natural Positive-Flonum (Option String) (Option String) Index Thread)
+  (lambda [/dev/sshout hostname port protoversion softwareversion comments payload-capacity]
+    (thread
+     (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/sshout))])
+             (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
+             (define-values (identification idsize) (ssh-identification-string protoversion (or softwareversion "") comments))
+             (ssh-write-text /dev/tcpout identification idsize)
+             (write-special (ssh-read-server-identification /dev/tcpin) /dev/sshout)
+
+             (let ([maybe-kexinit (thread-receive)])
+               (when (SSH-Message? maybe-kexinit)
+                 (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes maybe-kexinit) 0 payload-capacity 0)
+                 (write-special (ssh-read-transport-message /dev/tcpin payload-capacity 0) /dev/sshout))))))))
+
+(define sshd-ghostcat : (-> String Input-Port Output-Port Index Output-Port Thread)
+  (lambda [identification /dev/tcpin /dev/tcpout payload-capacity /dev/sshout]
+    (thread
+     (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/sshout))])
+             (ssh-write-text /dev/tcpout identification)
+             (write-special (ssh-read-client-identification /dev/tcpin) /dev/sshout)
+
+             (let ([maybe-kexinit (thread-receive)])
+               (when (SSH-Message? maybe-kexinit)
+                 (write-special (ssh-read-transport-message /dev/tcpin payload-capacity 0) /dev/sshout)
+                 (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes maybe-kexinit) 0 payload-capacity 0))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(module+ main
-  (with-handlers ([exn? (λ [[e : exn]] (displayln (exn-message e)))])
-    (ssh-connect "github.com" 22))
-
-  #;(define sshd : TCP-Listener (tcp-listen 2222 4 #true))
-  #;(ssh-accept sshd #:timeout 0.618))
+(define ssh-read-transport-message : (-> Input-Port Index Index (U SSH-Message Bytes))
+  (lambda [/dev/sshin payload-capacity mac-length]
+    (define-values (payload mac) (ssh-read-binary-packet /dev/sshin payload-capacity 0))
+    (or (ssh-bytes->message* payload ssh-msg-range/transport)
+        payload)))
