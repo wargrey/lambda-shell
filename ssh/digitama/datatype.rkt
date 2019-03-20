@@ -12,7 +12,7 @@
 
 (define-type (SSH-Bytes n) Bytes)
 (define-type (SSH-Symbol ns) ns)
-(define-type (SSH-Namelist ns) (Listof ns))
+(define-type (SSH-Algorithm-Listof t) (Listof (Pairof Symbol (Option t))))
 (define-type (SSH-Bytes->Type t) (->* (Bytes) (Natural) (Values t Natural)))
 
 (unsafe-require/typed racket/base

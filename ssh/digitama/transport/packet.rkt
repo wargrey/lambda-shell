@@ -2,7 +2,7 @@
 
 ;;; https://tools.ietf.org/html/rfc4253#section-6
 
-(provide (all-defined-out))
+(provide (all-defined-out) ~size)
 
 (require racket/unsafe/ops)
 
@@ -21,7 +21,7 @@
  byte[m]   mac (Message Authentication Code - MAC); m = mac_length
 |#
 
-(define ssh-write-binary-packet : (-> Output-Port Bytes Byte Index Byte Void)
+(define ssh-write-binary-packet : (-> Output-Port Bytes Byte Index Byte Nonnegative-Fixnum)
   (lambda [/dev/sshout payload cipher-blocksize payload-capacity mac-length]
     (define payload-length : Index (bytes-length payload))
 
@@ -34,10 +34,15 @@
     (define-values (packet-length padding-length) (resolve-package-length payload-length cipher-blocksize))
     (define packet : Bytes (bytes-append (ssh-uint32->bytes packet-length) (bytes padding-length) payload (ssh-cookie padding-length)))
 
-    (write-bytes packet /dev/sshout)
-    (flush-output /dev/sshout)))
+    (define sent : Nonnegative-Fixnum
+      (+ (write-bytes packet /dev/sshout)
+         mac-length))
+    
+    (flush-output /dev/sshout)
 
-(define ssh-read-binary-packet : (-> Input-Port Index Byte (Values Bytes Bytes))
+    sent))
+
+(define ssh-read-binary-packet : (-> Input-Port Index Byte (Values Bytes Bytes Nonnegative-Fixnum))
   (lambda [/dev/sshin payload-capacity mac-length]
     (define length-bs : Bytes (ssh-read-bytes /dev/sshin 4))
     (define packet-capacity : Nonnegative-Fixnum (+ payload-capacity 4))
@@ -58,7 +63,8 @@
 
     (values (subbytes padded-payload 1 payload-end)
             (cond [(> mac-length 0) (ssh-read-bytes /dev/sshin mac-length)]
-                  [else #""]))))
+                  [else #""])
+            (+ packet-length mac-length 4))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define resolve-package-length : (-> Index Byte (Values Index Byte))

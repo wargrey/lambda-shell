@@ -6,7 +6,6 @@
 (provide (all-defined-out))
 
 (require "datatype.rkt")
-(require "diagnostics.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/string))
@@ -37,9 +36,9 @@
     [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
                          [$type (format-id #'T "$~a" (syntax-e #'T))])
             (case (syntax-e #'TypeOf)
-              [(SSH-Bytes)    (list #'values #'values              (ssh-make-nbytes->bytes #'T) #'values)]
-              [(SSH-Symbol)   (list #'$type  #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
-              [(SSH-Namelist) (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
+              [(SSH-Bytes)            (list #'values                #'values              (ssh-make-nbytes->bytes #'T) #'values)]
+              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
+              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
               [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
                         (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
                         (raise-syntax-error 'define-ssh-message-field "invalid SSH data type" <FType>))]))]))
@@ -52,6 +51,8 @@
   (define-values (<argls> <value>)
     (syntax-case <declaration> []
       [(field FieldType) (values #'[field : FieldType] #'field)]
+
+      ; TODO: why it fails when `defval` is using other field name?
       [(field FieldType defval) (values #'[field : (Option FieldType) #false] #'(or field defval))]
       [_ (raise-syntax-error 'define-ssh-message-field "malformed field declaration" <declaration>)]))
   (values <kw-name> <argls> <value>))
@@ -66,22 +67,12 @@
                   (λ [v] (cond [(symbol? v) (case v [(enum name) val] ... [else 0])]
                                [else (case v [(val) 'name] ... [else (error 'TypeU "unrecognized assignment: ~a" v)])])))))]))
 
-(define-syntax (define-ssh-name-list stx)
+(define-syntax (define-ssh-algorithm stx)
   (syntax-case stx [:]
-    [(_ id : TypeU ([enum0 group0 comments0 ...] [enum group comments ...] ...))
-     (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
-                   [id-list (format-id #'id "~a-list" (syntax-e #'id))]
-                   [$TypeU (format-id #'id "$~a" (syntax-e #'TypeU))]
-                   [TypeU* (format-id #'TypeU "~a*" (syntax-e #'TypeU))])
-     #'(begin (define-type TypeU (U 'enum0 'enum ...))
-              (define-type TypeU* (Listof TypeU))
-              (define id-list : (Pairof TypeU TypeU*) (cons 'enum0 (list 'enum ...)))
-              
-              (define id? : (-> Any Boolean : TypeU)
-                (λ [v] (cond [(eq? v 'enum0) #true] [(eq? v 'enum) #true] ... [else #false])))
-
-              (define $TypeU : (-> (Listof Any) (SSH-Namelist TypeU))
-                (λ [vs] (filter id? vs)))))]))
+    [(_ &database ([name comments ... #:=> procedure]))
+     #'(set-box! &database (cons (cons 'name procedure) (unbox &database)))]
+    [(_ &database ([name comments ...]))
+    #'(void)]))
 
 (define-syntax (define-message stx)
   (syntax-case stx [:]
@@ -139,6 +130,36 @@
                 (hash-set! ssh-message->bytes-database val SSH:MSG->bytes)
                 (hash-set! ssh-message-name-database val 'SSH-MSG)))]))
 
+(define-syntax (define-ssh-algorithm-database stx)
+  (syntax-case stx [:]
+    [(_ id : SSH-Type #:as Type)
+     (with-syntax ([&id (format-id #'id "&~a" (syntax-e #'id))]
+                   [$SSH-Type (format-id #'SSH-Type "$~a" (syntax-e #'SSH-Type))])
+       #'(begin (define-type SSH-Type Type)
+                
+                (define &id : (Boxof (Listof (Pairof Symbol SSH-Type))) (box null))
+                
+                (define id : (case-> [-> (Listof (Pairof Symbol SSH-Type))]
+                                     [(Listof Symbol) -> (Listof (Pairof Symbol SSH-Type))])
+                  (case-lambda
+                    [() (reverse (unbox &id))]
+                    [(name-list) (let ([base (id)])
+                                   (let filter ([algorithms : (Listof (Pairof Symbol SSH-Type)) null]
+                                                [seman : (Listof Symbol) (reverse name-list)])
+                                     (cond [(null? seman) algorithms]
+                                           [else (let ([maybe (assq (car seman) base)]
+                                                       [rest (cdr seman)])
+                                                   (cond [(not maybe) (filter algorithms rest)]
+                                                         [else (filter (cons maybe algorithms) rest)]))])))]))
+
+                (define $SSH-Type : (-> (Listof Symbol) (SSH-Algorithm-Listof SSH-Type))
+                  (lambda [name-list]
+                    (define base : (Listof (Pairof Symbol SSH-Type)) (id))
+                    (for/list : (SSH-Algorithm-Listof SSH-Type) ([name (in-list name-list)])
+                      (define maybe : (Option (Pairof Symbol SSH-Type)) (assq name base))
+                      (cond [(not maybe) (cons name maybe)]
+                            [else maybe]))))))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
@@ -155,11 +176,32 @@
 (define ssh-message->bytes-database : (HashTable Index SSH-Message->Bytes) (make-hasheq))
 (define ssh-message-name-database : (HashTable Index Symbol) (make-hasheq))
 
+(define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (-> Bytes Bytes))
+(define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
+(define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
+(define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (->* (Bytes) (Natural (Option Natural)) Bytes))
+(define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (-> Bytes Bytes))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-values : (SSH-Bytes->Type Bytes)
   (lambda [braw [offset 0]]
     (define end : Index (bytes-length braw))
     (values (subbytes braw offset end)
             end)))
+
+(define ssh-algorithms->names : (All (a) (-> (SSH-Algorithm-Listof a) (Listof Symbol)))
+  (lambda [algorithms]
+    (let filter ([names : (Listof Symbol) null]
+                 [smhtirogla : (SSH-Algorithm-Listof a) (reverse algorithms)])
+      (cond [(null? smhtirogla) names]
+            [else (let ([algorithm (car smhtirogla)]
+                        [rest (cdr smhtirogla)])
+                    (cond [(cdr algorithm) (filter (cons (car algorithm) names) rest)]
+                          [else (filter names rest)]))]))))
+
+(define ssh-hmac-none-bytes : SSH-HMAC
+  (lambda [in [start 0] [end #false]]
+    #""))
 
 (define ssh-cookie : (->* () (Byte) Bytes)
   (lambda [[n 16]]

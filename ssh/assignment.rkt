@@ -4,8 +4,9 @@
 ;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
-(provide (struct-out SSH-Message))
-(provide define-ssh-symbols define-ssh-name-list)
+(provide SSH-Message SSH-HMAC)
+(provide ssh-hmac-algorithms)
+(provide define-ssh-symbols)
 
 (require "digitama/assignment.rkt")
 (require "digitama/datatype.rkt")
@@ -16,6 +17,20 @@
   (syntax-case stx [: of]
     [(_ [enum val ([field : FieldType defval ...] ...)] ...)
      #'(begin (define-message enum val ([field : FieldType defval ...] ...)) ...)]))
+
+(define-syntax (define-ssh-algorithms stx)
+  (syntax-case stx [:]
+    [(_ #:kex (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-kex-algorithms (definition)) ...)]
+    [(_ #:hostkey (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-hostkey-algorithms (definition)) ...)]
+    [(_ #:cipher (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-cipher-algorithms (definition)) ...)]
+    [(_ #:hmac (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-hmac-algorithms (definition)) ...)]
+    [(_ #:compression (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-compression-algorithms (definition)) ...)]
+    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unknonw algorithm type, expected #:hmac, #:cipher, or #:compression" #'keyword)]))
 
 ;; https://tools.ietf.org/html/rfc4251#section-7
 (define ssh-msg-range/all : (Pairof Byte Byte) (cons 1 255))
@@ -38,17 +53,17 @@
   [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
   [SSH_MSG_SERVICE_ACCEPT             6 ([name : Symbol])]
   [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16) (ssh-cookie)]
-                                         [kex-methods : (Listof Symbol) ssh-kex-method-list]
-                                         [key-formats : (Listof Symbol) ssh-publickey-format-list]
-                                         [c2s-ciphers : (Listof Symbol) ssh-cipher-list]
-                                         [s2c-ciphers : (Listof Symbol) ssh-cipher-list]
-                                         [c2s-mac-algorithms : (Listof Symbol) ssh-mac-algorithm-list]
-                                         [s2c-mac-algorithms : (Listof Symbol) ssh-mac-algorithm-list]
-                                         [c2s-compression-methods : (Listof Symbol) ssh-compression-method-list]
-                                         [s2c-compression-methods : (Listof Symbol) ssh-compression-method-list]
-                                         [c2s-language : (Listof Symbol) null]
-                                         [s2c-language : (Listof Symbol) null]
-                                         [guessing-follow? : Boolean #false]
+                                         [kex-methods : (SSH-Algorithm-Listof SSH-Kex) (ssh-kex-algorithms)]
+                                         [key-formats : (SSH-Algorithm-Listof SSH-HostKey) (ssh-hostkey-algorithms)]
+                                         [c2s-ciphers : (SSH-Algorithm-Listof SSH-Cipher) (ssh-cipher-algorithms)]
+                                         [s2c-ciphers : (SSH-Algorithm-Listof SSH-Cipher) (ssh-cipher-algorithms)]
+                                         [c2s-mac-algorithms : (SSH-Algorithm-Listof SSH-HMAC) (ssh-hmac-algorithms)]
+                                         [s2c-mac-algorithms : (SSH-Algorithm-Listof SSH-HMAC) (ssh-hmac-algorithms)]
+                                         [c2s-compression-methods : (SSH-Algorithm-Listof SSH-Compression) (ssh-compression-algorithms)]
+                                         [s2c-compression-methods : (SSH-Algorithm-Listof SSH-Compression) (ssh-compression-algorithms)]
+                                         [c2s-languages : (Listof Symbol) null]
+                                         [s2c-languages : (Listof Symbol) null]
+                                         [guessing-follows? : Boolean #false]
                                          [reserved : Index 0])]
   [SSH_MSG_NEWKEYS                   21 ()]
 
@@ -118,55 +133,62 @@
   ([SSH_EXTENDED_DATA_STDERR                            1]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-name-list ssh-cipher : SSH-Cipher
+(define-ssh-algorithms #:cipher
   ; http://tools.ietf.org/html/rfc4253#section-6.3
-  ([3des-cbc                    REQUIRED        three-key 3DES in CBC mode]
-   [blowfish-cbc                OPTIONAL        Blowfish in CBC mode]
-   [twofish256-cbc              OPTIONAL        Twofish in CBC mode with a 256-bit key]
-   [twofish-cbc                 OPTIONAL        alias for twofish256-cbc]
-   [twofish192-cbc              OPTIONAL        Twofish with a 192-bit key]
-   [twofish128-cbc              OPTIONAL        Twofish with a 128-bit key]
-   [aes256-cbc                  OPTIONAL        AES in CBC mode with a 256-bit key]
-   ;[aes192-cbc                  OPTIONAL        AES with a 192-bit key]
-   ;[aes128-cbc                  RECOMMENDED     AES with a 128-bit key]
-   [aes192-ctr                  OPTIONAL        AES with a 192-bit key]
-   [aes128-ctr                  RECOMMENDED     AES with a 128-bit key]
-   [serpent256-cbc              OPTIONAL        Serpent in CBC mode with a 256-bit key]
-   [serpent192-cbc              OPTIONAL        Serpent with a 192-bit key]
-   [serpent128-cbc              OPTIONAL        Serpent with a 128-bit key]
-   [arcfour                     OPTIONAL        the ARCFOUR stream cipher with a 128-bit key]
-   [idea-cbc                    OPTIONAL        IDEA in CBC mode]
-   [cast128-cbc                 OPTIONAL        CAST-128 in CBC mode]
-   [none                        OPTIONAL        no encryption]))
+  ([3des-cbc                       REQUIRED        three-key 3DES in CBC mode]
+   [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode]
+   [twofish256-cbc                 OPTIONAL        Twofish in CBC mode with a 256-bit key]
+   [twofish-cbc                    OPTIONAL        alias for twofish256-cbc]
+   [twofish192-cbc                 OPTIONAL        Twofish with a 192-bit key]
+   [twofish128-cbc                 OPTIONAL        Twofish with a 128-bit key]
+   [aes256-cbc                     OPTIONAL        AES in CBC mode with a 256-bit key]
+   ;[aes192-cbc                     OPTIONAL        AES with a 192-bit key]
+   ;[aes128-cbc                     RECOMMENDED     AES with a 128-bit key]
+   [aes192-ctr                     OPTIONAL        AES with a 192-bit key                                           #:=> values]
+   [aes128-ctr                     RECOMMENDED     AES with a 128-bit key                                           #:=> values]
+   [serpent256-cbc                 OPTIONAL        Serpent in CBC mode with a 256-bit key]
+   [serpent192-cbc                 OPTIONAL        Serpent with a 192-bit key]
+   [serpent128-cbc                 OPTIONAL        Serpent with a 128-bit key]
+   [arcfour                        OPTIONAL        the ARCFOUR stream cipher with a 128-bit key]
+   [idea-cbc                       OPTIONAL        IDEA in CBC mode]
+   [cast128-cbc                    OPTIONAL        CAST-128 in CBC mode]
+   [none                           OPTIONAL        no encryption]))
 
-(define-ssh-name-list ssh-mac-algorithm : SSH-MAC-Algorithm
+(define-ssh-algorithms #:hmac
   ; http://tools.ietf.org/html/rfc4253#section-6.4
-  ([hmac-sha1                   REQUIRED        HMAC-SHA1 (digest length = key length = 20)]
-   [hmac-sha1-96                RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20)]
-   [hmac-md5                    OPTIONAL        HMAC-MD5 (digest length = key length = 16)]
-   [hmac-md5-96                 OPTIONAL        first 96 bits of HMAC-MD5 (digest length = 12, key length = 16)]
-   [none                        OPTIONAL        no MAC]
+  ([hmac-sha1                      REQUIRED        HMAC-SHA1 (digest length = key length = 20)                      #:=> sha1-bytes]
+   [hmac-sha1-96                   RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20)]
+   [hmac-md5                       OPTIONAL        HMAC-MD5 (digest length = key length = 16)]
+   [hmac-md5-96                    OPTIONAL        first 96 bits of HMAC-MD5 (digest length = 12, key length = 16)]
    
-  ; http://tools.ietf.org/html/rfc6668#section-2
-   [hmac-sha2-256               RECOMMENDED     HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)]
-   [hmac-sha2-512               OPTIONAL        HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)]))
+   ; http://tools.ietf.org/html/rfc6668#section-2
+   [hmac-sha2-256                  RECOMMENDED     HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)   #:=> sha256-bytes]
+   [hmac-sha2-512                  OPTIONAL        HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)]
 
-(define-ssh-name-list ssh-publickey-format : SSH-Publickey-Format
+   [none                           OPTIONAL        no MAC, NOT RECOMMANDED                                          #:=> ssh-hmac-none-bytes]))
+
+(define-ssh-algorithms #:hostkey
   ; http://tools.ietf.org/html/rfc4253#section-6.6
-  ([ssh-dss                     REQUIRED        sign   Raw DSS Key]
-   [ssh-rsa                     RECOMMENDED     sign   Raw RSA Key]
-   [pgp-sign-rsa                OPTIONAL        sign   OpenPGP certificates (RSA key)]
-   [pgp-sign-dss                OPTIONAL        sign   OpenPGP certificates (DSS key)]))
+  ([ssh-dss                        REQUIRED        sign   Raw DSS Key]
+   [ssh-rsa                        RECOMMENDED     sign   Raw RSA Key                                               #:=> values]
+   [pgp-sign-rsa                   OPTIONAL        sign   OpenPGP certificates (RSA key)]
+   [pgp-sign-dss                   OPTIONAL        sign   OpenPGP certificates (DSS key)]))
 
-(define-ssh-name-list ssh-compression-method : SSH-Compression-Method
+(define-ssh-algorithms #:compression
   ; http://tools.ietf.org/html/rfc4253#section-6.2
-  ([none                        REQUIRED        no compression]
-   [zlib                        OPTIONAL        ZLIB (LZ77) compression]))
+  ([none                           REQUIRED        no compression                                                   #:=> values]
+   [zlib                           OPTIONAL        ZLIB (LZ77) compression]))
 
-(define-ssh-name-list ssh-kex-method : SSH-Kex-Method
+(define-ssh-algorithms #:kex
   ; http://tools.ietf.org/html/rfc4253#section-8
-  ([diffie-hellman-group1-sha1  REQUIRED]
-   [diffie-hellman-group14-sha1 REQUIRED]))
+  ([diffie-hellman-group14-sha1    REQUIRED                                                                         #:=> values]
+
+   ; https://tools.ietf.org/html/rfc8268#section-3
+   [diffie-hellman-group14-sha256  RECOMMENDED]
+   [diffie-hellman-group15-sha512  OPTIONAL]
+   [diffie-hellman-group16-sha512  OPTIONAL]
+   [diffie-hellman-group17-sha512  OPTIONAL]
+   [diffie-hellman-group18-sha512  OPTIONAL]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-message-number : (-> SSH-Message Byte)

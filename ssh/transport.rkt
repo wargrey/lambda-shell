@@ -41,6 +41,8 @@
         (define server-key : SSH-MSG-KEXINIT (ssh-read-special /dev/pin timeout ssh:msg:kexinit? 'ssh-connect))
         (ssh-log-kexinit server-key "server")
 
+        (displayln (ssh-read-special /dev/pin timeout ssh:msg:kexdh:init? 'ssh-connect))
+
         (SSH-Port sshc-custodian sshc /dev/pin server-name)))))
 
 (define ssh-listen : (->* (Natural)
@@ -89,6 +91,8 @@
         
         (define client-key : SSH-MSG-KEXINIT (ssh-read-special /dev/pin timeout ssh:msg:kexinit? 'ssh-accept))
         (ssh-log-kexinit client-key "client")
+
+        (displayln (ssh-read-special /dev/pin timeout ssh:msg:kexdh:init? 'ssh-connect))
         
         (SSH-Port sshd-custodian sshd /dev/tcpin client-name)))))
 
