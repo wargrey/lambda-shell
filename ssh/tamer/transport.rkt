@@ -29,14 +29,14 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
 @handbook-scenario{Additional Messages}
 
 @tamer-action[
- (ssh-message (create-ssh:msg:kexinit))]
+ (ssh-message (make-ssh:msg:kexinit))]
 
 @tamer-action[
- (ssh-message (create-ssh:msg:disconnect #:reason 'SSH_DISCONNECT_RESERVED #:language 'en_US))
- (ssh-message (create-ssh:msg:ignore #:data "Ignored Data Message"))
- (ssh-message (create-ssh:msg:debug #:display? #true #:message "调试信息 in ISO-10646 UTF-8 encoding [RFC3629]" #:language 'zh_CN))
- (ssh-message (create-ssh:msg:unimplemented #:number 0))
- (ssh-message (create-ssh:msg:newkeys))]
+ (ssh-message (make-ssh:msg:disconnect #:reason 'SSH_DISCONNECT_RESERVED #:language 'en_US))
+ (ssh-message (make-ssh:msg:ignore #:data "Ignored Data Message"))
+ (ssh-message (make-ssh:msg:debug #:display? #true #:message "调试信息 in ISO-10646 UTF-8 encoding [RFC3629]" #:language 'zh_CN))
+ (ssh-message (make-ssh:msg:unimplemented #:number 0))
+ (ssh-message (make-ssh:msg:newkeys))]
 
 
 @handbook-reference[]
@@ -56,9 +56,10 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
 
 @chunk[<identification>
        (require "../digitama/transport/identification.rkt")
+       (require "../digitama/option.rkt")
        (require "../assignment.rkt")
 
-       (define-values (default-identification defsize) (ssh-identification-string 2.0 "" #false))
+       (define-values (default-identification defsize) (ssh-identification-string (make-ssh-option)))
 
        (define ssh-peer-identification
          (lambda [idstring]

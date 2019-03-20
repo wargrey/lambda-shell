@@ -11,6 +11,7 @@
 
 (require typed/setup/getinfo)
 
+(require "../option.rkt")
 (require "../diagnostics.rkt")
 
 (define-type SSH-Server-Message-Handler (-> String Void))
@@ -28,13 +29,13 @@
 (define default-ssh-server-message-handler : (Parameterof SSH-Server-Message-Handler) (make-parameter void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-identification-string : (-> Positive-Flonum String (Option String) (Values String Fixnum))
-  (lambda [protocol maybe-version maybe-comments]
-    (define version : String (if (string=? maybe-version "") (default-software-version) maybe-version))
-    (define comments : String (or maybe-comments (default-comments)))
+(define ssh-identification-string : (-> SSH-Option (Values String Fixnum))
+  (lambda [option]
+    (define version : String (if (string=? (ssh-option-softwareversion option) "") (default-software-version) (ssh-option-softwareversion option)))
+    (define comments : String (or (ssh-option-comments option) (default-comments)))
     (define identification : String
-      (cond [(string=? comments "") (format "SSH-~a-~a" protocol version)]
-            [else (format "SSH-~a-~a ~a" protocol version comments)]))
+      (cond [(string=? comments "") (format "SSH-~a-~a" (ssh-option-protoversion option) version)]
+            [else (format "SSH-~a-~a ~a" (ssh-option-protoversion option) version comments)]))
     (define-values (idsize maxsize) (values (string-length identification) (- SSH-LONGEST-IDENTIFICATION-LENGTH 2)))
     (values identification (min idsize maxsize))))
 

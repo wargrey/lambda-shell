@@ -83,7 +83,6 @@
                     [SSH:MSG->bytes (format-id #'ssh:msg "~a" (gensym 'ssh:msg:))]
                     [ssh:msg? (format-id #'ssh:msg "~a?" (syntax-e #'ssh:msg))]
                     [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
-                    [create-ssh:msg (format-id #'ssh:msg "create-~a" (syntax-e #'ssh:msg))]
                     [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
                     [([kw-args ...] [init-values ...])
@@ -103,10 +102,7 @@
                 (struct ssh:msg SSH-Message ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor)
 
-                (define (make-ssh:msg [field : FieldType] ...) : SSH-MSG
-                  (constructor val field ...))
-                
-                (define (create-ssh:msg kw-args ...) : SSH-MSG
+                (define (make-ssh:msg kw-args ...) : SSH-MSG
                   (constructor val init-values ...))
 
                 (define ssh:msg->bytes : (-> SSH-MSG Bytes)

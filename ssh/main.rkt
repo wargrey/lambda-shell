@@ -18,8 +18,10 @@
 (provide SSH-Server-Message-Handler SSH-Message)
 
 (provide (all-from-out "assignment.rkt"))
+(provide (all-from-out "digitama/option.rkt"))
 
 (require "assignment.rkt")
 
+(require "digitama/option.rkt")
 (require "digitama/transport.rkt")
 (require "digitama/transport/identification.rkt")

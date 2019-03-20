@@ -207,13 +207,13 @@
     (or (and message->bytes (message->bytes self))
 
          #|this should not happen|#
-         (ssh:msg:ignore->bytes (make-ssh:msg:ignore (format "~s" self))))))
+         (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
 
 (define ssh-bytes->message : (->* (Bytes) (Index) SSH-Message)
   (lambda [bmsg [offset 0]]
     (define id : Byte (bytes-ref bmsg offset))
     (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (cond [(not unsafe-bytes->message) (make-ssh:msg:unimplemented id)]
+    (cond [(not unsafe-bytes->message) (make-ssh:msg:unimplemented #:number id)]
           [else (unsafe-bytes->message bmsg offset)])))
 
 (define ssh-bytes->message* : (->* (Bytes (Pairof Byte Byte)) (Index) (Option SSH-Message))
