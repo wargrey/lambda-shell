@@ -4,9 +4,9 @@
 ;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
-(provide SSH-Message SSH-HMAC)
-(provide ssh-hmac-algorithms)
-(provide define-ssh-symbols)
+(provide SSH-Message SSH-HMAC define-ssh-symbols ssh-message?)
+(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms
+         ssh-hmac-algorithms ssh-compression-algorithms)
 
 (require "digitama/assignment.rkt")
 (require "digitama/datatype.rkt")
@@ -193,16 +193,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-message-number : (-> SSH-Message Byte)
   (lambda [self]
-    (SSH-Message-id self)))
+    (ssh-message-id self)))
 
 (define ssh-message-name : (-> SSH-Message Symbol)
   (lambda [self]
-    (or (ssh-message-number->name (SSH-Message-id self))
-        (assert (object-name struct:SSH-Message) symbol?))))
+    (or (ssh-message-number->name (ssh-message-id self))
+        (assert (object-name struct:ssh-message) symbol?))))
 
 (define ssh-message->bytes : (-> SSH-Message Bytes)
   (lambda [self]
-    (define id : Byte (SSH-Message-id self))
+    (define id : Byte (ssh-message-id self))
     (define message->bytes : (Option SSH-Message->Bytes) (hash-ref ssh-message->bytes-database id (λ [] #false)))
     (or (and message->bytes (message->bytes self))
 

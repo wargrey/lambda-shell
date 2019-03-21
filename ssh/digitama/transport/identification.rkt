@@ -11,32 +11,26 @@
 
 (require typed/setup/getinfo)
 
-(require "../option.rkt")
+(require "../configuration.rkt")
 (require "../diagnostics.rkt")
 
-(define-type SSH-Server-Message-Handler (-> String Void))
-
-(struct SSH-Identification
+(struct ssh-identification
   ([protoversion : Positive-Flonum]
    [softwareversion : String]
    [comments : String]
    [raw : String])
-  #:transparent)
-
-(define SSH-LONGEST-IDENTIFICATION-LENGTH : Positive-Index 255)
-(define SSH-LONGEST-SERVER-MESSAGE-LENGTH : Positive-Index 1024)
-
-(define default-ssh-server-message-handler : (Parameterof SSH-Server-Message-Handler) (make-parameter void))
+  #:transparent
+  #:type-name SSH-Identification)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-identification-string : (-> SSH-Option (Values String Fixnum))
-  (lambda [option]
-    (define version : String (if (string=? (ssh-option-softwareversion option) "") (default-software-version) (ssh-option-softwareversion option)))
-    (define comments : String (or (ssh-option-comments option) (default-comments)))
+(define ssh-identification-string : (-> SSH-Configuration (Values String Fixnum))
+  (lambda [rfc]
+    (define version : String (if (string=? ($ssh-softwareversion rfc) "") (default-software-version) ($ssh-softwareversion rfc)))
+    (define comments : String (or ($ssh-comments rfc) (default-comments)))
     (define identification : String
-      (cond [(string=? comments "") (format "SSH-~a-~a" (ssh-option-protoversion option) version)]
-            [else (format "SSH-~a-~a ~a" (ssh-option-protoversion option) version comments)]))
-    (define-values (idsize maxsize) (values (string-length identification) (- SSH-LONGEST-IDENTIFICATION-LENGTH 2)))
+      (cond [(string=? comments "") (format "SSH-~a-~a" ($ssh-protoversion rfc) version)]
+            [else (format "SSH-~a-~a ~a" ($ssh-protoversion rfc) version comments)]))
+    (define-values (idsize maxsize) (values (string-length identification) (- ($ssh-longest-identification-length rfc) 2)))
     (values identification (min idsize maxsize))))
 
 (define ssh-write-text : (->* (Output-Port String) (Fixnum) Void)
@@ -46,24 +40,24 @@
     (write-char #\linefeed /dev/sshout)
     (flush-output /dev/sshout)))
 
-(define ssh-read-server-identification : (-> Input-Port SSH-Identification)
-  (lambda [/dev/sshin]
-    (define line : String (make-string (max SSH-LONGEST-IDENTIFICATION-LENGTH SSH-LONGEST-SERVER-MESSAGE-LENGTH)))
-    (define message-handler : SSH-Server-Message-Handler (default-ssh-server-message-handler))
+(define ssh-read-server-identification : (-> Input-Port SSH-Configuration SSH-Identification)
+  (lambda [/dev/sshin option]
+    (define line : String (make-string (max ($ssh-longest-identification-length option) ($ssh-longest-server-line-length option))))
+    (define message-handler : SSH-Server-Line-Handler ($ssh-server-line-handler option))
     (let read-check-notify-loop ()
       (read-string! line /dev/sshin 0 4)
       (unless (string-prefix? line "SSH-")
-        (let ([maybe-end-index (read-server-message /dev/sshin line 4 SSH-LONGEST-SERVER-MESSAGE-LENGTH)])
+        (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-line-length option))])
           (cond [(not maybe-end-index) (throw exn:ssh:defense /dev/sshin 'protocol-exchange "message overlength: ~s" line)]
                 [else (message-handler (substring line 0 maybe-end-index))])
           (read-check-notify-loop))))
-    (read-peer-identification! /dev/sshin line 4 SSH-LONGEST-IDENTIFICATION-LENGTH)))
+    (read-peer-identification! /dev/sshin line 4 ($ssh-longest-identification-length option))))
 
-(define ssh-read-client-identification : (-> Input-Port SSH-Identification)
-  (lambda [/dev/sshin]
-    (define line : String (make-string SSH-LONGEST-IDENTIFICATION-LENGTH))
+(define ssh-read-client-identification : (-> Input-Port SSH-Configuration SSH-Identification)
+  (lambda [/dev/sshin option]
+    (define line : String (make-string ($ssh-longest-identification-length option)))
     (read-string! line /dev/sshin 0 4)
-    (cond [(string-prefix? line "SSH-") (read-peer-identification! /dev/sshin line 4 SSH-LONGEST-IDENTIFICATION-LENGTH)]
+    (cond [(string-prefix? line "SSH-") (read-peer-identification! /dev/sshin line 4 ($ssh-longest-identification-length option))]
           [else (throw exn:ssh:identification /dev/sshin 'protocol-exchange "not a SSH peer: ~s" (substring line 0 4))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -147,7 +141,7 @@
                             [else (string-set! destline idx maybe-ch)
                                   (read-loop next-idx next-idx token-idx protoversion softwareversion comments space?)]))])))
     (or (and maybe-end-idx maybe-protoversion maybe-softwareversion
-             (SSH-Identification maybe-protoversion maybe-softwareversion
+             (ssh-identification maybe-protoversion maybe-softwareversion
                                  (or maybe-comments "") (substring destline 0 maybe-end-idx)))
         (throw exn:ssh:identification /dev/sshin 'protocol-exchange
                "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))

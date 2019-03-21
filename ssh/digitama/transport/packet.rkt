@@ -22,47 +22,47 @@
 |#
 
 (define ssh-write-binary-packet : (-> Output-Port Bytes Byte Index Byte Nonnegative-Fixnum)
-  (lambda [/dev/sshout payload cipher-blocksize payload-capacity mac-length]
+  (lambda [/dev/tcpout payload cipher-blocksize payload-capacity mac-length]
     (define payload-length : Index (bytes-length payload))
 
+    ;; NOTE: we do not forbid the overloaded packet since we do not know the payload capacity that the peer holds.
     (when (> payload-length payload-capacity)
-      (throw exn:ssh:defense /dev/sshout 'write-binary-packet
-             "packet overload: ~a > ~a; message: ~a"
-             (~size payload-length) (~size payload-capacity)
-             (ssh-message-number->name (bytes-ref payload 0))))
+      (ssh-log-message 'debug "packet[~a] may overload based on local preference(~a > ~a), nonetheless, the peer may hold a much larger capacity"
+             (ssh-message-number->name (bytes-ref payload 0))
+             (~size payload-length) (~size payload-capacity)))
 
     (define-values (packet-length padding-length) (resolve-package-length payload-length cipher-blocksize))
     (define packet : Bytes (bytes-append (ssh-uint32->bytes packet-length) (bytes padding-length) payload (ssh-cookie padding-length)))
 
     (define sent : Nonnegative-Fixnum
-      (+ (write-bytes packet /dev/sshout)
+      (+ (write-bytes packet /dev/tcpout)
          mac-length))
     
-    (flush-output /dev/sshout)
+    (flush-output /dev/tcpout)
 
     sent))
 
 (define ssh-read-binary-packet : (-> Input-Port Index Byte (Values Bytes Bytes Nonnegative-Fixnum))
-  (lambda [/dev/sshin payload-capacity mac-length]
-    (define length-bs : Bytes (ssh-read-bytes /dev/sshin 4))
+  (lambda [/dev/tcpin payload-capacity mac-length]
+    (define length-bs : Bytes (ssh-read-bytes /dev/tcpin 4))
     (define packet-capacity : Nonnegative-Fixnum (+ payload-capacity 4))
     (define-values (packet-length _) (ssh-bytes->uint32 length-bs))
 
     (when (> packet-length packet-capacity)
-      (throw exn:ssh:defense /dev/sshin 'read-binary-packet
+      (throw exn:ssh:defense /dev/tcpin 'read-binary-packet
              "packet overlength: ~a > ~a"
              (~size packet-length) (~size packet-capacity)))
 
-    (define padded-payload : Bytes (ssh-read-bytes /dev/sshin packet-length))
+    (define padded-payload : Bytes (ssh-read-bytes /dev/tcpin packet-length))
     (define padding-length : Byte (bytes-ref padded-payload 0))
     (define payload-end : Fixnum (- packet-length padding-length))
 
     (when (< payload-end 1)
-      (throw exn:ssh:defense /dev/sshin 'read-binary-packet
+      (throw exn:ssh:defense /dev/tcpin 'read-binary-packet
              "invalid payload length: ~a" (unsafe-fx- payload-end 1)))
 
     (values (subbytes padded-payload 1 payload-end)
-            (cond [(> mac-length 0) (ssh-read-bytes /dev/sshin mac-length)]
+            (cond [(> mac-length 0) (ssh-read-bytes /dev/tcpin mac-length)]
                   [else #""])
             (+ packet-length mac-length 4))))
 

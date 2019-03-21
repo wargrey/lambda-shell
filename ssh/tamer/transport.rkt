@@ -24,7 +24,7 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
 @tamer-action[
  (ssh-peer-identification "SSL-2.0-Bad_Prefix")
  (ssh-peer-identification "SSH-1.b-Bad_Protocol")
- (ssh-peer-identification (~a "SSH-2.0-tl_dr " (make-string SSH-LONGEST-IDENTIFICATION-LENGTH #\.)))]
+ (ssh-peer-identification (~a "SSH-2.0-tl_dr " (make-string ($ssh-longest-identification-length rfc) #\.)))]
 
 @handbook-scenario{Additional Messages}
 
@@ -56,17 +56,18 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
 
 @chunk[<identification>
        (require "../digitama/transport/identification.rkt")
-       (require "../digitama/option.rkt")
+       (require "../digitama/configuration.rkt")
        (require "../assignment.rkt")
 
-       (define-values (default-identification defsize) (ssh-identification-string (make-ssh-option)))
+       (define rfc (make-ssh-configuration))
+       (define-values (default-identification defsize) (ssh-identification-string rfc))
 
        (define ssh-peer-identification
          (lambda [idstring]
            (define-values (/dev/sshin /dev/sshout) (make-pipe #false '/dev/sshin '/dev/sshout))
            (ssh-write-text /dev/sshout idstring (string-length idstring))
            (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
-             (ssh-read-client-identification /dev/sshin))))
+             (ssh-read-client-identification /dev/sshin rfc))))
 
        (define ssh-message
          (lambda [self]

@@ -98,9 +98,8 @@
                                 [<FType> (in-syntax #'(FieldType ...))])
                        (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
                              (ssh-datum-pipeline <FType>)))])
-       #'(begin (define-type SSH-MSG ssh:msg)
-                (struct ssh:msg SSH-Message ([field : FieldType] ...)
-                  #:transparent #:constructor-name constructor)
+       #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
+                  #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 
                 (define (make-ssh:msg kw-args ...) : SSH-MSG
                   (constructor val init-values ...))
@@ -157,10 +156,11 @@
                             [else maybe]))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type SSH-Message ssh-message)
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
-(struct SSH-Message ([id : Byte]))
+(struct ssh-message ([id : Byte]))
 
 (define ssh-message-number->name : (-> Byte (Option Symbol))
   (lambda [id]

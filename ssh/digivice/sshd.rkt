@@ -23,8 +23,8 @@
 
 (define sshd-serve
   (lambda [sshc]
-    (sleep 4)
-    (ssh-port-wait sshc)))
+    (ssh-port-wait sshc)
+    (displayln 'here)))
 
 (define main
   (lambda [argument-list]
@@ -35,9 +35,9 @@
      (λ [!voids]
        (with-logging-to-port (current-output-port)
          (λ [] (let ([sshd (ssh-listen (ssh-target-port))])
-                 (with-handlers ([exn:break? (λ [e] (ssh-shutdown sshd))]
-                                 [exn? (λ [e] (eprintf "~a~n" (exn-message e)))])
-                   (parameterize ([current-custodian (ssh-listener-custodian sshd)])
+                 (parameterize ([current-custodian (ssh-custodian sshd)])
+                   (with-handlers ([exn:break? (λ [e] (ssh-shutdown sshd))]
+                                   [exn? (λ [e] (eprintf "~a~n" (exn-message e)))])
                      (let accept-server-loop ()
                        (with-handlers ([exn:fail? (λ [e] (eprintf "~a~n" (exn-message e)))])
                          (let ([sshc (ssh-accept sshd)])
