@@ -24,12 +24,13 @@
       (ssh-log-message 'debug "connecting to ~a:~a" hostname port)
       
       (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 server-name server-name))
-      (define sshc : Thread (sshc-ghostcat /dev/sshout hostname port rfc))
+      (define identification : String (ssh-identification-string rfc))
+      (ssh-log-message 'debug "local identification string: ~a" identification)       
+      (define sshc : Thread (sshc-ghostcat /dev/sshout identification hostname port kexinit rfc))
 
       (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
         (define server-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? 'ssh-connect))
         (ssh-log-message 'debug "server identification string: ~a" (ssh-identification-raw server-id))
-        (thread-send sshc kexinit)
         (SSH-Port root sshc-custodian rfc sshc /dev/sshin server-name)))))
 
 (define ssh-listen : (->* (Natural) (Index #:custodian Custodian #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration) SSH-Listener)
@@ -39,10 +40,11 @@
     (define listener-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian listener-custodian])
       (define sshd : TCP-Listener (tcp-listen port max-allow-wait #true hostname))
-      (define-values (id idsize) (ssh-identification-string rfc))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses sshd #true))
+      (define identification : String (ssh-identification-string rfc))
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
-      (SSH-Listener root listener-custodian rfc sshd (substring id 0 idsize) kexinit
+      (ssh-log-message 'debug "local identification string: ~a" identification)
+      (SSH-Listener root listener-custodian rfc sshd identification kexinit
                     (format "~a:~a" local-name local-port) local-port))))
 
 (define ssh-accept : (-> SSH-Listener [#:custodian Custodian] SSH-Port)
@@ -56,18 +58,18 @@
 
       (define client-name : String (format "~a:~a" remote-name remote-port))
       (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
-      (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout rfc))
+      (define kexinit : SSH-MSG-KEXINIT  (ssh-listener-kexinit listener))
+      (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
 
       (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
         (define client-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? 'ssh-accept))
-        (ssh-log-message 'debug "client identification string: ~a" (ssh-identification-raw client-id))
+        (ssh-log-message 'debug "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))
         
         (unless (= (ssh-identification-protoversion client-id) ($ssh-protoversion rfc))
           (ssh-sync-disconnect sshd 'SSH_DISCONNECT_PROTOCOL_VERSION_NOT_SUPPORTED)
           (throw exn:ssh:identification /dev/tcpin 'ssh-accept
                  "incompatible protoversion: ~a" (ssh-identification-protoversion client-id)))
 
-        (thread-send sshd (ssh-listener-kexinit listener))
         (SSH-Port root sshd-custodian rfc sshd /dev/sshin client-name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

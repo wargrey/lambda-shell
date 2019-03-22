@@ -23,7 +23,7 @@
   #:type-name SSH-Identification)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-identification-string : (-> SSH-Configuration (Values String Fixnum))
+(define ssh-identification-string : (-> SSH-Configuration String)
   (lambda [rfc]
     (define version : String (if (string=? ($ssh-softwareversion rfc) "") (default-software-version) ($ssh-softwareversion rfc)))
     (define comments : String (or ($ssh-comments rfc) (default-comments)))
@@ -31,7 +31,7 @@
       (cond [(string=? comments "") (format "SSH-~a-~a" ($ssh-protoversion rfc) version)]
             [else (format "SSH-~a-~a ~a" ($ssh-protoversion rfc) version comments)]))
     (define-values (idsize maxsize) (values (string-length identification) (- ($ssh-longest-identification-length rfc) 2)))
-    (values identification (min idsize maxsize))))
+    (substring identification 0 (min idsize maxsize))))
 
 (define ssh-write-text : (->* (Output-Port String) (Fixnum) Void)
   (lambda [/dev/sshout idstring [idsize (string-length idstring)]]

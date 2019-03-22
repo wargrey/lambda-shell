@@ -30,6 +30,7 @@
                   (id (or field (default-ssh-parameter)) ...))))]))
 
 (define-type SSH-Server-Line-Handler (-> String Void))
+(define-type SSH-Debug-Message-Handler (-> Boolean String Symbol Void))
 
 (define-configuration $ssh : SSH-Configuration
   ([protoversion : Positive-Flonum 2.0]
@@ -41,6 +42,8 @@
 
    [timeout : (Option Nonnegative-Real) #false]
    [rekex-traffic : Positive-Integer (* 1024 1024 1024)]
+
+   [debug-message-handler : SSH-Debug-Message-Handler void]
 
    [server-line-handler : SSH-Server-Line-Handler void]
    [longest-server-line-length : Positive-Index 1024]))

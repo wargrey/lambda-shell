@@ -4,14 +4,15 @@
 ;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
-(provide SSH-Message SSH-HMAC define-ssh-symbols ssh-message?)
-(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms
-         ssh-hmac-algorithms ssh-compression-algorithms)
+(provide SSH-Message SSH-Kex SSH-Cipher SSH-HostKey SSH-Compression SSH-HMAC)
+(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-hmac-algorithms ssh-compression-algorithms)
+(provide ssh-message? ssh-message-undefined? define-ssh-symbols)
 
 (require "digitama/assignment.rkt")
 (require "digitama/datatype.rkt")
 
 (require (for-syntax racket/base))
+(require (for-syntax racket/syntax))
 
 (define-syntax (define-ssh-messages stx)
   (syntax-case stx [: of]
@@ -32,13 +33,27 @@
      #'(begin (define-ssh-algorithm &ssh-compression-algorithms (definition)) ...)]
     [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unknonw algorithm type, expected #:hmac, #:cipher, or #:compression" #'keyword)]))
 
+(define-syntax (define-ssh-message-range stx)
+  (syntax-case stx [:]
+    [(_ type idmin idmax comments ...)
+     (with-syntax ([ssh-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
+                   [ssh-bytes->message* (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))])
+       #'(begin (define ssh-message? : (-> SSH-Message Boolean)
+                  (lambda [self]
+                    (<= idmin (ssh-message-id self) idmax)))
+                
+                (define ssh-bytes->message* : (->* (Bytes) (Index) (Option SSH-Message))
+                  (lambda [bmsg [offset 0]]
+                    (and (<= idmin (bytes-ref bmsg offset) idmax)
+                         (ssh-bytes->message bmsg offset))))))]))
+
 ;; https://tools.ietf.org/html/rfc4251#section-7
-(define ssh-msg-range/all : (Pairof Byte Byte) (cons 1 255))
-(define ssh-msg-range/transport : (Pairof Byte Byte) (cons 1 49))
-(define ssh-msg-range/authentication : (Pairof Byte Byte) (cons 50 79))
-(define ssh-msg-range/connection : (Pairof Byte Byte) (cons 80 127))
-(define ssh-msg-range/client : (Pairof Byte Byte) (cons 128 191))
-(define ssh-msg-range/extension : (Pairof Byte Byte) (cons 192 255))
+(define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
+(define-ssh-message-range transport        1  49   Transport layer protocol)
+(define-ssh-message-range authentication  50  79   User authentication protocol)
+(define-ssh-message-range connection      80 127   Connection protocol)
+(define-ssh-message-range client         128 191   Reserved for client protocols)
+(define-ssh-message-range private        192 255   Local extensions for private use)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; http://tools.ietf.org/html/rfc4250#section-4.1
@@ -53,14 +68,14 @@
   [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
   [SSH_MSG_SERVICE_ACCEPT             6 ([name : Symbol])]
   [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16) (ssh-cookie)]
-                                         [kex-methods : (SSH-Algorithm-Listof SSH-Kex) (ssh-kex-algorithms)]
-                                         [key-formats : (SSH-Algorithm-Listof SSH-HostKey) (ssh-hostkey-algorithms)]
+                                         [kexes : (SSH-Algorithm-Listof SSH-Kex) (ssh-kex-algorithms)]
+                                         [hostkeys : (SSH-Algorithm-Listof SSH-HostKey) (ssh-hostkey-algorithms)]
                                          [c2s-ciphers : (SSH-Algorithm-Listof SSH-Cipher) (ssh-cipher-algorithms)]
                                          [s2c-ciphers : (SSH-Algorithm-Listof SSH-Cipher) (ssh-cipher-algorithms)]
-                                         [c2s-mac-algorithms : (SSH-Algorithm-Listof SSH-HMAC) (ssh-hmac-algorithms)]
-                                         [s2c-mac-algorithms : (SSH-Algorithm-Listof SSH-HMAC) (ssh-hmac-algorithms)]
-                                         [c2s-compression-methods : (SSH-Algorithm-Listof SSH-Compression) (ssh-compression-algorithms)]
-                                         [s2c-compression-methods : (SSH-Algorithm-Listof SSH-Compression) (ssh-compression-algorithms)]
+                                         [c2s-macs : (SSH-Algorithm-Listof SSH-HMAC) (ssh-hmac-algorithms)]
+                                         [s2c-macs : (SSH-Algorithm-Listof SSH-HMAC) (ssh-hmac-algorithms)]
+                                         [c2s-compressions : (SSH-Algorithm-Listof SSH-Compression) (ssh-compression-algorithms)]
+                                         [s2c-compressions : (SSH-Algorithm-Listof SSH-Compression) (ssh-compression-algorithms)]
                                          [c2s-languages : (Listof Symbol) null]
                                          [s2c-languages : (Listof Symbol) null]
                                          [guessing-follows? : Boolean #false]
@@ -213,10 +228,5 @@
   (lambda [bmsg [offset 0]]
     (define id : Byte (bytes-ref bmsg offset))
     (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (cond [(not unsafe-bytes->message) (make-ssh:msg:unimplemented #:number id)]
+    (cond [(not unsafe-bytes->message) (ssh-message-undefined id)]
           [else (unsafe-bytes->message bmsg offset)])))
-
-(define ssh-bytes->message* : (->* (Bytes (Pairof Byte Byte)) (Index) (Option SSH-Message))
-  (lambda [bmsg range [offset 0]]
-    (and (<= (car range) (bytes-ref bmsg offset) (cdr range))
-         (ssh-bytes->message bmsg offset))))

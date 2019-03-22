@@ -151,16 +151,15 @@
                   (lambda [name-list]
                     (define base : (Listof (Pairof Symbol SSH-Type)) (id))
                     (for/list : (SSH-Algorithm-Listof SSH-Type) ([name (in-list name-list)])
-                      (define maybe : (Option (Pairof Symbol SSH-Type)) (assq name base))
-                      (cond [(not maybe) (cons name maybe)]
-                            [else maybe]))))))]))
+                      (or (assq name base)
+                          (cons name #false)))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-Message ssh-message)
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
-(struct ssh-message ([id : Byte]))
+(struct ssh-message ([id : Byte]) #:type-name SSH-Message)
+(struct ssh-message-undefined ssh-message () #:type-name SSH-Message-Undefined)
 
 (define ssh-message-number->name : (-> Byte (Option Symbol))
   (lambda [id]
@@ -172,18 +171,23 @@
 (define ssh-message->bytes-database : (HashTable Index SSH-Message->Bytes) (make-hasheq))
 (define ssh-message-name-database : (HashTable Index Symbol) (make-hasheq))
 
+(struct ssh-algorithms
+  ([kex : (Pairof Symbol SSH-Kex)]
+   [hostkey : (Pairof Symbol SSH-HostKey)]
+   [c2s-cipher : (Pairof Symbol SSH-Cipher)]
+   [s2c-cipher : (Pairof Symbol SSH-Cipher)]
+   [c2s-mac : (Pairof Symbol SSH-HMAC)]
+   [s2c-mac : (Pairof Symbol SSH-HMAC)]
+   [c2s-compression : (Pairof Symbol SSH-Compression)]
+   [s2c-compression : (Pairof Symbol SSH-Compression)])
+  #:transparent
+  #:type-name SSH-Algorithms)
+
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (->* (Bytes) (Natural (Option Natural)) Bytes))
 (define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (-> Bytes Bytes))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-values : (SSH-Bytes->Type Bytes)
-  (lambda [braw [offset 0]]
-    (define end : Index (bytes-length braw))
-    (values (subbytes braw offset end)
-            end)))
 
 (define ssh-algorithms->names : (All (a) (-> (SSH-Algorithm-Listof a) (Listof Symbol)))
   (lambda [algorithms]
@@ -194,6 +198,23 @@
                         [rest (cdr smhtirogla)])
                     (cond [(cdr algorithm) (filter (cons (car algorithm) names) rest)]
                           [else (filter names rest)]))]))))
+
+(define ssh-algorithms-clean : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof* a)))
+  (lambda [dirty-list]
+    (let filter ([algorithms : (Listof (Pairof Symbol a)) null]
+                 [smhtirogla : (SSH-Algorithm-Listof a) (reverse dirty-list)])
+      (cond [(null? smhtirogla) algorithms]
+            [else (let ([algorithm (car smhtirogla)]
+                        [rest (cdr smhtirogla)])
+                    (cond [(cdr algorithm) (filter (cons algorithm algorithms) rest)]
+                          [else (filter algorithms rest)]))]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-values : (SSH-Bytes->Type Bytes)
+  (lambda [braw [offset 0]]
+    (define end : Index (bytes-length braw))
+    (values (subbytes braw offset end)
+            end)))
 
 (define ssh-hmac-none-bytes : SSH-HMAC
   (lambda [in [start 0] [end #false]]

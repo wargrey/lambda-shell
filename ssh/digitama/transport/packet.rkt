@@ -21,6 +21,7 @@
  byte[m]   mac (Message Authentication Code - MAC); m = mac_length
 |#
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-binary-packet : (-> Output-Port Bytes Byte Index Byte Nonnegative-Fixnum)
   (lambda [/dev/tcpout payload cipher-blocksize payload-capacity mac-length]
     (define payload-length : Index (bytes-length payload))

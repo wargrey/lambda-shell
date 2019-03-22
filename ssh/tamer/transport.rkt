@@ -60,7 +60,7 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
        (require "../assignment.rkt")
 
        (define rfc (make-ssh-configuration))
-       (define-values (default-identification defsize) (ssh-identification-string rfc))
+       (define default-identification (ssh-identification-string rfc))
 
        (define ssh-peer-identification
          (lambda [idstring]

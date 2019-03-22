@@ -35,65 +35,66 @@
    [peer-name : String])
   #:type-name SSH-Port)
 
-(define sshc-ghostcat : (-> Output-Port String Natural SSH-Configuration Thread)
-  (lambda [/dev/sshout hostname port rfc]
+(define sshc-ghostcat : (-> Output-Port String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
+  (lambda [/dev/sshout identification hostname port kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
-             (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
-             (define-values (identification idsize) (ssh-identification-string rfc))
-             (ssh-log-message 'debug "local identification string: ~a" (substring identification 0 idsize))
-             (ssh-write-text /dev/tcpout identification idsize)
+             (ssh-write-text /dev/tcpout identification)
              (write-special (ssh-read-server-identification /dev/tcpin rfc) /dev/sshout)
 
-             (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout rfc))))))
+             (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #false))))))
 
-(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-Configuration Thread)
-  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout rfc]
+(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
+  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/sshout))])
              (ssh-write-text /dev/tcpout identification)
              (write-special (ssh-read-client-identification /dev/tcpin rfc) /dev/sshout)
              
-             (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout rfc))))))
+             (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #true))))))
 
-(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-Configuration Void)
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshout rfc]
-    ;(ssh-log-kexinit kexinit "local")
-    ;(define server-key : SSH-MSG-KEXINIT (ssh-read-special /dev/pin ($ssh-timeout rfc) ssh:msg:kexinit? 'ssh-connect))
-    ;(ssh-log-kexinit server-key "server")
-    ;(displayln (ssh-read-special /dev/pin ($ssh-timeout rfc) ssh:msg:kexdh:init? 'ssh-connect))
-    (define-values (/dev/keyin /dev/keyout) (make-pipe-with-specials))
+(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
-    (let sync-handle-feedback-loop : Void ([maybe-task : (Option Thread) #false]
+    (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) (ssh-kex/starts-with-self kexinit /dev/tcpin /dev/tcpout rfc server?)]
+                                           [kexinit : SSH-MSG-KEXINIT kexinit]
                                            [traffic : Natural 0])
-      (define-values (rekex-task traffic-delta)
-        (cond [(> traffic ($ssh-rekex-traffic rfc)) (values maybe-task 0)]
-              [else (let ([evt (sync/enable-break /dev/sshin (if maybe-task /dev/keyin /dev/tcpin))])
-                      (cond [(input-port? evt) (ssh-deal-with-incoming-message /dev/tcpin /dev/sshout rfc)]
-                            [(ssh-message? evt) (ssh-deal-with-outgoing-message /dev/tcpout rfc maybe-task)]
-                            [(key? evt) (ssh-deal-with-outgoing-message /dev/tcpout rfc maybe-task)]
-                            [else (values maybe-task 0)]))]))
-      (sync-handle-feedback-loop rekex-task (+ traffic traffic-delta)))))
+      (define evt : Any
+        (cond [(and (not maybe-rekex) (> traffic ($ssh-rekex-traffic rfc))) kexinit]
+              [else (sync/enable-break /dev/sshin (or maybe-rekex /dev/tcpin))]))
 
-(define ssh-deal-with-outgoing-message : (-> Output-Port SSH-Configuration (Option Thread) (Values (Option Thread) Nonnegative-Fixnum))
-  (lambda [/dev/tcpout rfc maybe-task]
-    (define msg/key (thread-receive))
-    (cond [(key? msg/key) (void)]
-          [else (values maybe-task 0)])
-    (values maybe-task 0)))
+      (define-values (maybe-task traffic++)
+        (cond [(input-port? evt) (ssh-deal-with-incoming-message /dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?)]
+              [(ssh-message? evt) (ssh-deal-with-outgoing-message evt /dev/tcpout rfc /dev/tcpin maybe-rekex server?)]
+              #;[(key? evtobj) (ssh-deal-with-outgoing-message /dev/tcpout rfc maybe-rekex)]
+              #;[(thread? evt) ()] ; unexpected termination of rekex thread, peer has disconnected 
+              [else (values maybe-rekex 0)]))
+      
+      (sync-handle-feedback-loop maybe-task
+                                 (if (ssh:msg:kexinit? evt) evt kexinit)
+                                 (+ (if maybe-task 0 traffic)
+                                    traffic++)))))
 
-(define ssh-deal-with-incoming-message : (-> Input-Port Output-Port SSH-Configuration (Values (Option Thread) Nonnegative-Fixnum))
-  (lambda [/dev/tcpin /dev/sshout rfc]
+(define ssh-deal-with-outgoing-message : (-> SSH-Message Output-Port SSH-Configuration Input-Port (Option Thread) Boolean (Values (Option Thread) Nonnegative-Fixnum))
+  (lambda [msg /dev/tcpout rfc /dev/tcpin maybe-rekex server?]
+    (define-values (maybe-new-rekex traffic)
+      (if (not maybe-rekex)
+          (cond [(ssh:msg:kexinit? msg) (values (ssh-kex/starts-with-self msg /dev/tcpin /dev/tcpout rfc server?) 0)]
+                [else (values maybe-rekex (ssh-write-message /dev/tcpout msg rfc))])
+          (cond [(ssh-kex-transparent-message? msg) (values maybe-rekex (ssh-write-message /dev/tcpout msg rfc))]
+                [else (thread-send maybe-rekex msg) (values maybe-rekex 0)])))
+    (values maybe-new-rekex traffic)))
+
+(define ssh-deal-with-incoming-message : (-> Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Output-Port Boolean (Values (Option Thread) Nonnegative-Fixnum))
+  (lambda [/dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?]
     (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin rfc))
     (define maybe-task : Any
       (cond [(bytes? msg) (write-special msg /dev/sshout)]
-            [(ssh:msg:disconnect? msg) (ssh-log-disconnection msg "peer") (write-special eof /dev/sshout)]
-            [(ssh:msg:ignore? msg) (void 'ignored)]
-            [(ssh:msg:debug? msg) (ssh-log-debug msg "peer")]
-            [(ssh:msg:unimplemented? msg) (void 'ignored)]
-            [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer (current-thread) msg /dev/tcpin rfc)]
-            [else (displayln msg)]))
+            [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc server?)]
+            [(ssh:msg:disconnect? msg) (write-special eof /dev/sshout)]
+            [(ssh-message-undefined? msg) (thread-send (current-thread) (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
+            [(not (ssh-ignored-incoming-message? msg)) (write-special msg /dev/sshout)]))
     (values (and (thread? maybe-task) maybe-task) traffic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
