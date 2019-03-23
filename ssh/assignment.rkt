@@ -85,20 +85,31 @@
                                          [reserved : Index 0])]
   [SSH_MSG_NEWKEYS                   21 ()]
 
+  ; https://tools.ietf.org/html/rfc8308 
+  [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
+  [SSH_MSG_NEWCOMPRESS                8 ()]
+  
+  ;; [30, 49] can be reused for different authentication methods)
   ; https://www.rfc-editor.org/errata_search.php?rfc=4253
   [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
   [SSH_MSG_KEXDH_REPLY               31 ([K-S : String] [f : Integer] [H : String])]
 
-  ; https://tools.ietf.org/html/rfc8308 
-  [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
-  [SSH_MSG_NEWCOMPRESS                8 ()])
+  ; https://tools.ietf.org/html/rfc4419
+  [SSH_MSG_KEY_DH_GEX_REQUEST_OLD    30 ([n : Index])]
+  [SSH_MSG_KEY_DH_GEX_REQUEST        34 ([min : Index] [n : Index] [max : Index])]
+  [SSH_MSG_KEY_DH_GEX_GROUP          31 ([p : Integer] [g : Integer])]
+  [SSH_MSG_KEY_DH_GEX_INIT           32 ([e : Integer])]
+  [SSH_MSG_KEY_DH_GEX_REPLY          33 ([K-S : String] [f : Integer] [H : String])])
 
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
   [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol] [method : Symbol] [extra : Bytes])]
   [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (Listof Symbol)] [partially? : Boolean])]
   [SSH_MSG_USERAUTH_SUCCESS          52 ()]
-  [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])])
+  [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
+
+  ;; [60, 79] can be reused for different authentication methods
+  )
 
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4254

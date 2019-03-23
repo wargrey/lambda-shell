@@ -44,7 +44,7 @@
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
     
-    #;(ssh-negotiation peer-kexinit self-kexinit)
+    (define-values (kex hostkey c2s s2c) (ssh-negotiation peer-kexinit self-kexinit))
 
     (let kex ([traffic : Natural traffic])
       (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
@@ -57,15 +57,15 @@
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
-    #;(ssh-negotiation self-kexinit peer-kexinit)
-
+    (define-values (kex hostkey c2s s2c) (ssh-negotiation self-kexinit peer-kexinit))
+    
     (let kex ([traffic : Natural traffic])
       (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
-      #;(displayln msg)
+      (displayln msg)
       (kex (+ traffic traffic++)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#;(define ssh-negotiation : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
+(define ssh-negotiation : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
   (lambda [ckexinit skexinit]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes ckexinit) (ssh:msg:kexinit-kexes skexinit) "algorithm")
@@ -82,20 +82,20 @@
     (define-values (c2s-compression s2c-compression)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-compressions ckexinit) (ssh:msg:kexinit-c2s-compressions skexinit) "client to server compression algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-s2c-compressions ckexinit) (ssh:msg:kexinit-s2c-compressions skexinit) "server to client compression algorithm")))
-    
-    (values key hostkey
-            (ssh-package-algorithms c2s-cipher c2s-hmac c2s-compression)
-            (ssh-package-algorithms s2c-cipher s2c-hmac s2c-compression))))
+
+    (cond [(and kex hostkey c2s-cipher c2s-hmac c2s-compression s2c-cipher s2c-hmac s2c-compression)
+           (ssh-log-message 'debug "kex: algorithm: ~a" (car kex))
+           (ssh-log-message 'debug "kex: public key format: ~a" (car hostkey))
+           (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-hmac) (car s2c-compression))
+           (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-hmac) (car c2s-compression))
+           (values kex hostkey (ssh-package-algorithms c2s-cipher c2s-hmac c2s-compression) (ssh-package-algorithms s2c-cipher s2c-hmac s2c-compression))]
+          [else (error 'TODO)])))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]
     (define cs : (SSH-Algorithm-Listof* a) (ssh-algorithms-clean cs-dirty))
     (define ss : (Listof Symbol) (ssh-algorithms->names ss-dirty))
-    (define algorithm : (Option (Pairof Symbol a)) (findf (λ [[c : (Pairof Symbol a)]] (and (memv (car c) ss) #true)) cs))
-
-    (ssh-log-message 'debug "kex: ~a: ~a" type (if (not algorithm) "(no match)" (car algorithm)))
-    
-    algorithm))
+    (findf (λ [[c : (Pairof Symbol a)]] (and (memv (car c) ss) #true)) cs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-deal-with-generic-message : (-> SSH-Message Void)

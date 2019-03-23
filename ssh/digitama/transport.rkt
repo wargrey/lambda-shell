@@ -68,7 +68,7 @@
         (cond [(input-port? evt) (ssh-deal-with-incoming-message /dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?)]
               [(ssh-message? evt) (ssh-deal-with-outgoing-message evt /dev/tcpout rfc /dev/tcpin maybe-rekex server?)]
               #;[(key? evtobj) (ssh-deal-with-outgoing-message /dev/tcpout rfc maybe-rekex)]
-              #;[(thread? evt) ()] ; unexpected termination of rekex thread, peer has disconnected 
+              [(thread? evt) (throw exn:ssh:eof /dev/tcpin 'rekex "unexpected termination of rekex thread")] 
               [else (values maybe-rekex 0)]))
       
       (sync-handle-feedback-loop maybe-task
