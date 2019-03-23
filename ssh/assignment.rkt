@@ -4,9 +4,12 @@
 ;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
-(provide SSH-Message SSH-Kex SSH-Cipher SSH-HostKey SSH-Compression SSH-HMAC)
+(provide SSH-Message SSH-Kex SSH-Cipher SSH-HostKey SSH-Compression SSH-HMAC Unsafe-SSH-Bytes->Message)
 (provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-hmac-algorithms ssh-compression-algorithms)
 (provide ssh-message? ssh-message-undefined? define-ssh-symbols)
+
+(provide ssh-message-name
+         (rename-out [ssh-message-id ssh-message-number]))
 
 (require "digitama/assignment.rkt")
 (require "digitama/datatype.rkt")
@@ -42,10 +45,10 @@
                   (lambda [self]
                     (<= idmin (ssh-message-id self) idmax)))
                 
-                (define ssh-bytes->message* : (->* (Bytes) (Index) (Option SSH-Message))
-                  (lambda [bmsg [offset 0]]
+                (define ssh-bytes->message* : (->* (Bytes) (Index #:alternatives (Listof (Pairof Byte Unsafe-SSH-Bytes->Message))) (Option SSH-Message))
+                  (lambda [bmsg [offset 0] #:alternatives [options null]]
                     (and (<= idmin (bytes-ref bmsg offset) idmax)
-                         (ssh-bytes->message bmsg offset))))))]))
+                         (ssh-bytes->message bmsg offset #:alternatives options))))))]))
 
 ;; https://tools.ietf.org/html/rfc4251#section-7
 (define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
@@ -206,27 +209,21 @@
    [diffie-hellman-group18-sha512  OPTIONAL]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-message-number : (-> SSH-Message Byte)
-  (lambda [self]
-    (ssh-message-id self)))
-
-(define ssh-message-name : (-> SSH-Message Symbol)
-  (lambda [self]
-    (or (ssh-message-number->name (ssh-message-id self))
-        (assert (object-name struct:ssh-message) symbol?))))
-
 (define ssh-message->bytes : (-> SSH-Message Bytes)
   (lambda [self]
-    (define id : Byte (ssh-message-id self))
-    (define message->bytes : (Option SSH-Message->Bytes) (hash-ref ssh-message->bytes-database id (λ [] #false)))
+    (define name : Symbol (ssh-message-name self))
+    (define message->bytes : (Option SSH-Message->Bytes) (hash-ref ssh-message->bytes-database name (λ [] #false)))
     (or (and message->bytes (message->bytes self))
 
          #|this should not happen|#
          (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
 
-(define ssh-bytes->message : (->* (Bytes) (Index) SSH-Message)
-  (lambda [bmsg [offset 0]]
+(define ssh-bytes->message : (->* (Bytes) (Index #:alternatives (Listof (Pairof Byte Unsafe-SSH-Bytes->Message))) SSH-Message)
+  (lambda [bmsg [offset 0] #:alternatives [options null]]
     (define id : Byte (bytes-ref bmsg offset))
-    (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (cond [(not unsafe-bytes->message) (ssh-message-undefined id)]
-          [else (unsafe-bytes->message bmsg offset)])))
+    (define unsafe-bytes->messages : (Listof Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] null)))
+    (cond [(null? unsafe-bytes->messages) (ssh-undefined-message id)]
+          [(null? (cdr unsafe-bytes->messages)) ((car unsafe-bytes->messages) bmsg offset)]
+          [else (let ([maybe-alternative (assq id options)])
+                  (cond [(not maybe-alternative) ((car unsafe-bytes->messages) bmsg offset)]
+                        [else ((cdr maybe-alternative) bmsg offset)]))])))

@@ -28,9 +28,8 @@
 
     ;; NOTE: we do not forbid the overloaded packet since we do not know the payload capacity that the peer holds.
     (when (> payload-length payload-capacity)
-      (ssh-log-message 'debug "packet[~a] may overload based on local preference(~a > ~a), nonetheless, the peer may hold a much larger capacity"
-             (ssh-message-number->name (bytes-ref payload 0))
-             (~size payload-length) (~size payload-capacity)))
+      (ssh-log-message 'debug "packet may overload based on local preference(~a > ~a), nonetheless, the peer may hold a much larger capacity"
+                       (~size payload-length) (~size payload-capacity)))
 
     (define-values (packet-length padding-length) (resolve-package-length payload-length cipher-blocksize))
     (define packet : Bytes (bytes-append (ssh-uint32->bytes packet-length) (bytes padding-length) payload (ssh-cookie padding-length)))

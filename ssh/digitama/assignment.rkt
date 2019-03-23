@@ -74,57 +74,6 @@
     [(_ &database ([name comments ...]))
     #'(void)]))
 
-(define-syntax (define-message stx)
-  (syntax-case stx [:]
-    [(_ id val ([field : FieldType defval ...] ...))
-     (with-syntax* ([SSH-MSG (ssh-typename #'id)]
-                    [ssh:msg (ssh-typeid #'id)]
-                    [constructor (format-id #'id "~a" (gensym 'ssh:msg:))]
-                    [SSH:MSG->bytes (format-id #'ssh:msg "~a" (gensym 'ssh:msg:))]
-                    [ssh:msg? (format-id #'ssh:msg "~a?" (syntax-e #'ssh:msg))]
-                    [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
-                    [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
-                    [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
-                    [([kw-args ...] [init-values ...])
-                     (let-values ([(kw-args seulav)
-                                   (for/fold ([syns null] [slav null])
-                                             ([<declaration> (in-syntax #'([field FieldType defval ...] ...))])
-                                     (define-values (<kw-name> <argls> <value>) (ssh-message-field <declaration>))
-                                     (values (cons <kw-name> (cons <argls> syns))
-                                             (cons <value> slav)))])
-                       (list kw-args (reverse seulav)))]
-                    [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket)] ...)
-                     (for/list ([<field> (in-syntax #'(field ...))]
-                                [<FType> (in-syntax #'(FieldType ...))])
-                       (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
-                             (ssh-datum-pipeline <FType>)))])
-       #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
-                  #:transparent #:constructor-name constructor #:type-name SSH-MSG)
-
-                (define (make-ssh:msg kw-args ...) : SSH-MSG
-                  (constructor val init-values ...))
-
-                (define ssh:msg->bytes : (-> SSH-MSG Bytes)
-                  (lambda [self]
-                    (bytes-append (bytes val)
-                                  (ssh->bytes (racket->ssh (field-ref self)))
-                                  ...)))
-
-                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) SSH-MSG)
-                  (lambda [bmsg [offset 0]]
-                    (let*-values ([(offset) (+ offset 1)]
-                                  [(field offset) (bytes->ssh bmsg offset)] ...)
-                      (constructor val (ssh->racket field) ...))))
-
-                (define SSH:MSG->bytes : (-> SSH-Message (Option Bytes))
-                  (lambda [self]
-                    (and (ssh:msg? self)
-                         (ssh:msg->bytes self))))
-                
-                (hash-set! ssh-bytes->message-database val unsafe-bytes->ssh:msg)
-                (hash-set! ssh-message->bytes-database val SSH:MSG->bytes)
-                (hash-set! ssh-message-name-database val 'SSH-MSG)))]))
-
 (define-syntax (define-ssh-algorithm-database stx)
   (syntax-case stx [:]
     [(_ id : SSH-Type #:as Type)
@@ -154,34 +103,74 @@
                       (or (assq name base)
                           (cons name #false)))))))]))
 
+(define-syntax (define-message stx)
+  (syntax-case stx [:]
+    [(_ id val ([field : FieldType defval ...] ...))
+     (with-syntax* ([SSH-MSG (ssh-typename #'id)]
+                    [ssh:msg (ssh-typeid #'id)]
+                    [constructor (format-id #'id "~a" (gensym 'ssh:msg:))]
+                    [SSH:MSG->bytes (format-id #'ssh:msg "~a" (gensym 'ssh:msg:))]
+                    [ssh:msg? (format-id #'ssh:msg "~a?" (syntax-e #'ssh:msg))]
+                    [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
+                    [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
+                    [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
+                    [([kw-args ...] [init-values ...])
+                     (let-values ([(kw-args seulav)
+                                   (for/fold ([syns null] [slav null])
+                                             ([<declaration> (in-syntax #'([field FieldType defval ...] ...))])
+                                     (define-values (<kw-name> <argls> <value>) (ssh-message-field <declaration>))
+                                     (values (cons <kw-name> (cons <argls> syns))
+                                             (cons <value> slav)))])
+                       (list kw-args (reverse seulav)))]
+                    [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket)] ...)
+                     (for/list ([<field> (in-syntax #'(field ...))]
+                                [<FType> (in-syntax #'(FieldType ...))])
+                       (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
+                             (ssh-datum-pipeline <FType>)))])
+       #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
+                  #:transparent #:constructor-name constructor #:type-name SSH-MSG)
+
+                (define (make-ssh:msg kw-args ...) : SSH-MSG
+                  (constructor val 'SSH-MSG init-values ...))
+
+                (define ssh:msg->bytes : (-> SSH-MSG Bytes)
+                  (lambda [self]
+                    (bytes-append (bytes val)
+                                  (ssh->bytes (racket->ssh (field-ref self)))
+                                  ...)))
+
+                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) SSH-MSG)
+                  (lambda [bmsg [offset 0]]
+                    (let*-values ([(offset) (+ offset 1)]
+                                  [(field offset) (bytes->ssh bmsg offset)] ...)
+                      (constructor val 'SSH-MSG (ssh->racket field) ...))))
+
+                (define SSH:MSG->bytes : (-> SSH-Message (Option Bytes))
+                  (lambda [self]
+                    (and (ssh:msg? self)
+                         (ssh:msg->bytes self))))
+                
+                (hash-set! ssh-message->bytes-database 'SSH-MSG SSH:MSG->bytes)
+                (hash-set! ssh-bytes->message-database val
+                           (cons unsafe-bytes->ssh:msg (hash-ref ssh-bytes->message-database val (λ [] null))))))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
-(struct ssh-message ([id : Byte]) #:type-name SSH-Message)
+(struct ssh-message ([id : Byte] [name : Symbol]) #:type-name SSH-Message)
 (struct ssh-message-undefined ssh-message () #:type-name SSH-Message-Undefined)
 
-(define ssh-message-number->name : (-> Byte (Option Symbol))
-  (lambda [id]
-    (hash-ref ssh-message-name-database id
-              (λ [] #false))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
-(define ssh-message->bytes-database : (HashTable Index SSH-Message->Bytes) (make-hasheq))
-(define ssh-message-name-database : (HashTable Index Symbol) (make-hasheq))
+(define ssh-bytes->message-database : (HashTable Index (Listof Unsafe-SSH-Bytes->Message)) (make-hasheq))
+(define ssh-message->bytes-database : (HashTable Symbol SSH-Message->Bytes) (make-hasheq))
 
-(struct ssh-algorithms
-  ([kex : (Pairof Symbol SSH-Kex)]
-   [hostkey : (Pairof Symbol SSH-HostKey)]
-   [c2s-cipher : (Pairof Symbol SSH-Cipher)]
-   [s2c-cipher : (Pairof Symbol SSH-Cipher)]
-   [c2s-mac : (Pairof Symbol SSH-HMAC)]
-   [s2c-mac : (Pairof Symbol SSH-HMAC)]
-   [c2s-compression : (Pairof Symbol SSH-Compression)]
-   [s2c-compression : (Pairof Symbol SSH-Compression)])
+(struct ssh-package-algorithms
+  ([cipher : (Pairof Symbol SSH-Cipher)]
+   [mac : (Pairof Symbol SSH-HMAC)]
+   [compression : (Pairof Symbol SSH-Compression)])
   #:transparent
-  #:type-name SSH-Algorithms)
+  #:type-name SSH-Package-Algorithms)
 
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
@@ -210,6 +199,10 @@
                           [else (filter algorithms rest)]))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-undefined-message : (-> Byte SSH-Message-Undefined)
+  (lambda [id]
+    (ssh-message-undefined id 'SSH-MSG-UNIMPLEMENTED)))
+
 (define ssh-values : (SSH-Bytes->Type Bytes)
   (lambda [braw [offset 0]]
     (define end : Index (bytes-length braw))

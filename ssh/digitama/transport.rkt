@@ -88,7 +88,7 @@
 
 (define ssh-deal-with-incoming-message : (-> Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Output-Port Boolean (Values (Option Thread) Nonnegative-Fixnum))
   (lambda [/dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?]
-    (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin rfc))
+    (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin rfc null))
     (define maybe-task : Any
       (cond [(bytes? msg) (write-special msg /dev/sshout)]
             [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc server?)]

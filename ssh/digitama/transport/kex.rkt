@@ -35,7 +35,7 @@
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define sent : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
-    (thread (λ [] (let-values ([(msg traffic) (ssh-read-transport-message /dev/tcpin rfc)])
+    (thread (λ [] (let-values ([(msg traffic) (ssh-read-transport-message /dev/tcpin rfc null)])
                     (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout rfc (+ sent traffic))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,10 +44,10 @@
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
     
-    (ssh-negotiation peer-kexinit self-kexinit)
+    #;(ssh-negotiation peer-kexinit self-kexinit)
 
     (let kex ([traffic : Natural traffic])
-      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc))
+      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
       (cond [(ssh:msg:kexdh:init? msg) (displayln msg)])
       (kex (+ traffic traffic++)))))
 
@@ -57,15 +57,15 @@
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
-    (ssh-negotiation self-kexinit peer-kexinit)
+    #;(ssh-negotiation self-kexinit peer-kexinit)
 
     (let kex ([traffic : Natural traffic])
-      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc))
+      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
       #;(displayln msg)
       (kex (+ traffic traffic++)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-negotiation : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values SSH-Kex SSH-HMAC))
+#;(define ssh-negotiation : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
   (lambda [ckexinit skexinit]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes ckexinit) (ssh:msg:kexinit-kexes skexinit) "algorithm")
@@ -83,7 +83,9 @@
       (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-compressions ckexinit) (ssh:msg:kexinit-c2s-compressions skexinit) "client to server compression algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-s2c-compressions ckexinit) (ssh:msg:kexinit-s2c-compressions skexinit) "server to client compression algorithm")))
     
-    (values sha1-bytes sha1-bytes)))
+    (values key hostkey
+            (ssh-package-algorithms c2s-cipher c2s-hmac c2s-compression)
+            (ssh-package-algorithms s2c-cipher s2c-hmac s2c-compression))))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]

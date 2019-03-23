@@ -17,13 +17,13 @@
     (ssh-log-sent-message msg traffic 'debug)
     traffic))
 
-(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
-  (lambda [/dev/tcpin rfc]
+(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Listof (Pairof Byte Unsafe-SSH-Bytes->Message)) (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
+  (lambda [/dev/tcpin rfc options]
     (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc) 0))
     (define message-id : Byte (bytes-ref payload 0))
-    (define message-type : (U Symbol String) (or (ssh-message-number->name message-id) (format "unrecognized message[~a]" message-id)))
     (define maybe-trans-msg : (Option SSH-Message) (ssh-bytes->transport-message payload))
-    (ssh-log-message 'debug "received ~a [~a]" message-type (~size traffic))
+    (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
+    (ssh-log-message 'debug "received transport layer message ~a [~a]" message-type (~size traffic))
     (unless (not maybe-trans-msg)
       (ssh-log-received-message maybe-trans-msg traffic 'debug)
       (when (ssh:msg:debug? maybe-trans-msg)
@@ -74,6 +74,4 @@
                             (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
            (let ([id (ssh:msg:unimplemented-number msg)])
-             (ssh-log-message level "peer cannot deal with message ~a"
-                              (cond [(and (byte? id) (ssh-message-number->name id)) => values]
-                                    [else id])))])))
+             (ssh-log-message level "peer cannot deal with message ~a" id))])))

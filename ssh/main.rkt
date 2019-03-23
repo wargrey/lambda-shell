@@ -8,7 +8,9 @@
 ;;; https://tools.ietf.org/html/rfc4254, The Secure Shell Connection Protocol                                            ;;;
 ;;;                                                                                                                      ;;;
 ;;;                                                                                                                      ;;;
+;;;                                                                                                                      ;;;
 ;;; https://tools.ietf.org/html/rfc3526, More Modular Exponential Diffie-Hellman groups for Internet Key Exchange        ;;;
+;;; https://tools.ietf.org/html/rfc4419, Diffie-Hellman Group Exchange for the Secure Shell Transport Layer Protocol     ;;;
 ;;; https://tools.ietf.org/html/rfc6668, The Secure Shell Transport Layer Protocol with SHA-2                            ;;;
 ;;; https://tools.ietf.org/html/rfc8268, More Modular Exponentiation Diffie-Hellman Key Exchange Groups for Secure Shell ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
