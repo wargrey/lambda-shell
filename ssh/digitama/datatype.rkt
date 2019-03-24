@@ -25,7 +25,7 @@
 
 (define ssh-bytes->boolean : (SSH-Bytes->Type Boolean)
   (lambda [bbool [offset 0]]
-    (values (not (zero? (unsafe-bytes-ref bbool offset)))
+    (values (not (zero? (bytes-ref bbool offset)))
             (unsafe-fx+ offset 1))))
 
 (define ssh-uint32->bytes : (-> Index Bytes)
@@ -68,9 +68,9 @@
                         [size+1 : Index (assert (+ size 1) index?)])
                    (for ([idx (in-range size)])
                      (unsafe-bytes-set! buffer idx (bitwise-and (arithmetic-shift mpi (unsafe-fx* (unsafe-fx- size (unsafe-fx+ idx 1)) -8)) #xFF)))
-                   (cond [(and (positive? mpi) (= (unsafe-bytes-ref buffer 0) #b10000000))
+                   (cond [(and (positive? mpi) (= (bytes-ref buffer 0) #b10000000))
                           (bytes-append (ssh-uint32->bytes size+1) (bytes #x00) buffer)]
-                         [(and (negative? mpi) (not (bitwise-bit-set? (unsafe-bytes-ref buffer 0) 7)))
+                         [(and (negative? mpi) (not (bitwise-bit-set? (bytes-ref buffer 0) 7)))
                           (bytes-append (ssh-uint32->bytes size+1) (bytes #xFF) buffer)]
                          [else (bytes-append (ssh-uint32->bytes size) buffer)]))])))
 
@@ -80,12 +80,12 @@
     (define end : Nonnegative-Fixnum (unsafe-fx+ size offset++))
     (cond [(zero? size) (values 0 end)]
           [else (let bytes->mpint ([idx : Fixnum (unsafe-fx+ offset++ 1)]
-                                   [mpint : Integer (let ([mpi0 (unsafe-bytes-ref bmpi offset++)])
+                                   [mpint : Integer (let ([mpi0 (bytes-ref bmpi offset++)])
                                                       (if (> mpi0 #b01111111) (- mpi0 #x100) mpi0))])
                   (cond [(zero? (unsafe-fx- idx end)) (values mpint end)]
                         [else (bytes->mpint (unsafe-fx+ idx 1)
                                             (bitwise-ior (arithmetic-shift mpint 8)
-                                                         (unsafe-bytes-ref bmpi idx)))]))])))
+                                                         (bytes-ref bmpi idx)))]))])))
 
 (define ssh-name->bytes : (-> Symbol Bytes)
   (lambda [name]

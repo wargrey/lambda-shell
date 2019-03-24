@@ -132,6 +132,7 @@
   [SSH_MSG_CHANNEL_FAILURE          100 ([channel : Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Symbols in [0xFE000000, 0xFFFFFFFF] are left for private use.
 (define-ssh-symbols SSH-Disconnection-Reason : Index
   ; https://tools.ietf.org/html/rfc4250#section-4.2.2
   ([SSH_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT          1]

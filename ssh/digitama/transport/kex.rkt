@@ -28,14 +28,16 @@
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define traffic : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
-    (thread (λ [] (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc traffic)))))
+    (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
+                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc traffic))))))
 
 (define ssh-kex/starts-with-self : (-> SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Boolean Thread)
   (lambda [self-kexinit /dev/tcpin /dev/tcpout rfc server?]
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define sent : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
-    (thread (λ [] (let-values ([(msg traffic) (ssh-read-transport-message /dev/tcpin rfc null)])
+    (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
+                    (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin rfc null))
                     (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout rfc (+ sent traffic))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

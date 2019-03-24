@@ -26,12 +26,12 @@
    [identification : String]
    [kexinit : SSH-MSG-KEXINIT]
    [name : String]
-   [port : Index])
+   [port-number : Index])
   #:type-name SSH-Listener)
 
 (struct ssh-port ssh-transport
   ([ghostcat : Thread]
-   [/dev/sshin : Input-Port]
+   [sshin : Input-Port]
    [peer-name : String])
   #:type-name SSH-Port)
 
@@ -57,7 +57,7 @@
 (define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
   (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
-    (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) (ssh-kex/starts-with-self kexinit /dev/tcpin /dev/tcpout rfc server?)]
+    (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) #false]
                                            [kexinit : SSH-MSG-KEXINIT kexinit]
                                            [traffic : Natural 0])
       (define evt : Any
@@ -68,7 +68,7 @@
         (cond [(tcp-port? evt) (ssh-deal-with-incoming-message /dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?)]
               [(ssh-message? evt) (ssh-deal-with-outgoing-message evt /dev/tcpout rfc /dev/tcpin maybe-rekex server?)]
               #;[(key? evtobj) (ssh-deal-with-outgoing-message /dev/tcpout rfc maybe-rekex)]
-              [(thread? evt) (throw exn:ssh:eof /dev/tcpin 'rekex "unexpected termination of rekex thread")] 
+              [(exn? evt) (throw exn:ssh:eof /dev/sshout 'rekex "~a" (exn-message evt))] 
               [else (values maybe-rekex 0)]))
       
       (sync-handle-feedback-loop maybe-task

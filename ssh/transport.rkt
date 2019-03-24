@@ -6,6 +6,11 @@
 (require racket/tcp)
 (require racket/port)
 
+(require typed/racket/unsafe)
+
+(unsafe-require/typed racket/base
+                      [read-byte-or-special (-> Input-Port SSH-Datum)])
+
 (require "digitama/transport/identification.rkt")
 (require "digitama/transport/message.rkt")
 (require "digitama/transport.rkt")
@@ -16,6 +21,9 @@
 
 (require "assignment.rkt")
 
+(define-type SSH-Datum (U SSH-Message Bytes EOF exn))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-connect : (-> String Natural [#:custodian Custodian] [#:configuration SSH-Configuration] [#:kexinit SSH-MSG-KEXINIT] SSH-Port)
   (lambda [hostname port #:custodian [root (make-custodian)] #:configuration [rfc (make-ssh-configuration)] #:kexinit [kexinit (make-ssh:msg:kexinit)]]
     (define sshc-custodian : Custodian (make-custodian root))
@@ -73,9 +81,18 @@
         (SSH-Port root sshd-custodian rfc sshd /dev/sshin client-name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-port-wait : (-> SSH-Port Void)
+(define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
   (lambda [self]
-    (thread-wait (ssh-port-ghostcat self))))
+    (wrap-evt (ssh-port-read-evt self)
+              (λ _ (ssh-port-read self)))))
+
+(define ssh-port-read-evt : (-> SSH-Port (Evtof Input-Port))
+  (lambda [self]
+    (ssh-port-sshin self)))
+
+(define ssh-port-read : (-> SSH-Port SSH-Datum)
+  (lambda [self]
+    (read-byte-or-special (ssh-port-sshin self))))
 
 (define ssh-port-send : (-> SSH-Port Any Void)
   (lambda [self payload]

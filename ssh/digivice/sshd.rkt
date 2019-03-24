@@ -23,8 +23,10 @@
 
 (define sshd-serve
   (lambda [sshc]
-    (ssh-port-wait sshc)
-    (displayln 'here)))
+    (let sync-read-display-loop ()
+      (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
+      (unless (or (eof-object? datum) (exn? datum))
+        (sync-read-display-loop)))))
 
 (define main
   (lambda [argument-list]
