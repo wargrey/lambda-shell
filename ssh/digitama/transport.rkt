@@ -65,7 +65,7 @@
               [else (sync/enable-break /dev/sshin (or maybe-rekex /dev/tcpin))]))
 
       (define-values (maybe-task traffic++)
-        (cond [(input-port? evt) (ssh-deal-with-incoming-message /dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?)]
+        (cond [(tcp-port? evt) (ssh-deal-with-incoming-message /dev/tcpin /dev/sshout kexinit rfc /dev/tcpout server?)]
               [(ssh-message? evt) (ssh-deal-with-outgoing-message evt /dev/tcpout rfc /dev/tcpin maybe-rekex server?)]
               #;[(key? evtobj) (ssh-deal-with-outgoing-message /dev/tcpout rfc maybe-rekex)]
               [(thread? evt) (throw exn:ssh:eof /dev/tcpin 'rekex "unexpected termination of rekex thread")] 

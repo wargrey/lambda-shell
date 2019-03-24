@@ -4,11 +4,11 @@
 ;;; https://tools.ietf.org/html/rfc4419 [TODO]
 
 (provide (all-defined-out))
-(provide (all-from-out "rfc3256.rkt"))
+(provide (all-from-out "oakley-group.rkt"))
 
 (require math/number-theory)
 
-(require "rfc3256.rkt")
+(require "oakley-group.rkt")
 
 #|
  p is a large safe prime

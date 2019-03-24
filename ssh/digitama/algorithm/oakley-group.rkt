@@ -1,5 +1,8 @@
 #lang typed/racket/base
 
+;;; https://tools.ietf.org/html/rfc2409
+;;; https://tools.ietf.org/html/rfc3256
+
 (provide (except-out (all-defined-out) define-modp-dh-group))
 
 (require "prime.rkt")
@@ -22,6 +25,28 @@
   #:transparent
   #:type-name DH-MODP-Group)
 
+;; RFC2409
+(define-modp-dh-group dh768
+  #:group 1 #:magic 149686
+  #:generator 2
+  [#:prime
+   FFFFFFFF   FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1
+   |29024E08| 8A67CC74 020BBEA6 3B139B22 514A0879 8E3404DD
+   EF9519B3   CD3A431B 302B0A6D F25F1437 4FE1356D 6D51C245
+   E485B576   625E7EC6 F44C42E9 A63A3620 FFFFFFFF FFFFFFFF])
+
+(define-modp-dh-group dh1024
+  #:group 2 #:magic 129093
+  #:generator 2
+  [#:prime
+   FFFFFFFF   FFFFFFFF C90FDAA2 2168C234 C4C6628B   80DC1CD1
+   |29024E08| 8A67CC74 020BBEA6 3B139B22 514A0879   8E3404DD
+   EF9519B3   CD3A431B 302B0A6D F25F1437 4FE1356D   6D51C245
+   E485B576   625E7EC6 F44C42E9 A637ED6B 0BFF5CB6   F406B7ED
+   EE386BFB   5A899FA5 AE9F2411 7C4B1FE6 |49286651| ECE65381
+   FFFFFFFF   FFFFFFFF])
+
+;; RFC3256
 (define-modp-dh-group dh1536
   #:group 5 #:magic 741804
   #:generator 2
