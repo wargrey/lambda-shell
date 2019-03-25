@@ -103,7 +103,7 @@
                       (or (assq name base)
                           (cons name #false)))))))]))
 
-(define-syntax (define-message stx)
+(define-syntax (define-message-interface stx)
   (syntax-case stx [:]
     [(_ id val ([field : FieldType defval ...] ...))
      (with-syntax* ([SSH-MSG (ssh-typename #'id)]
@@ -150,9 +150,23 @@
                     (and (ssh:msg? self)
                          (ssh:msg->bytes self))))
                 
-                (hash-set! ssh-message->bytes-database 'SSH-MSG SSH:MSG->bytes)
-                (hash-set! ssh-bytes->message-database val
-                           (cons unsafe-bytes->ssh:msg (hash-ref ssh-bytes->message-database val (λ [] null))))))]))
+                (hash-set! ssh-message->bytes-database 'SSH-MSG SSH:MSG->bytes)))]))
+
+(define-syntax (define-message stx)
+  (syntax-case stx [:]
+    [(_ id val #:group gid (field-definition ...))
+     (with-syntax* ([ssh:msg (ssh-typeid #'id)]
+                    [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
+       #'(begin (define-message-interface id val (field-definition ...))
+                
+                (let ([database ((inst hash-ref! Symbol (HashTable Index Unsafe-SSH-Bytes->Message))
+                                 ssh-bytes->shared-message-database 'gid (λ [] (make-hasheq)))])
+                  (hash-set! database val unsafe-bytes->ssh:msg))))]
+    [(_ id val (field-definition ...))
+     (with-syntax* ([ssh:msg (ssh-typeid #'id)]
+                    [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
+       #'(begin (define-message-interface id val (field-definition ...))
+                (hash-set! ssh-bytes->message-database val unsafe-bytes->ssh:msg)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
@@ -162,7 +176,8 @@
 (struct ssh-message-undefined ssh-message () #:type-name SSH-Message-Undefined)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-bytes->message-database : (HashTable Index (Listof Unsafe-SSH-Bytes->Message)) (make-hasheq))
+(define ssh-bytes->shared-message-database : (HashTable Symbol (HashTable Index Unsafe-SSH-Bytes->Message)) (make-hasheq))
+(define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
 (define ssh-message->bytes-database : (HashTable Symbol SSH-Message->Bytes) (make-hasheq))
 
 (struct ssh-package-algorithms
@@ -197,6 +212,12 @@
                         [rest (cdr smhtirogla)])
                     (cond [(cdr algorithm) (filter (cons algorithm algorithms) rest)]
                           [else (filter algorithms rest)]))]))))
+
+(define ssh-bytes->shared-message : (-> Symbol Index (Option Unsafe-SSH-Bytes->Message))
+  (lambda [gid no]
+    (define maybe-db : (Option (HashTable Index Unsafe-SSH-Bytes->Message)) (hash-ref ssh-bytes->shared-message-database gid (λ [] #false)))
+    (and (hash? maybe-db)
+         (hash-ref maybe-db no (λ [] #false))))) 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-undefined-message : (-> Byte SSH-Message-Undefined)

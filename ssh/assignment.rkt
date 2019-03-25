@@ -16,11 +16,17 @@
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
+(require (for-syntax syntax/parse))
 
 (define-syntax (define-ssh-messages stx)
-  (syntax-case stx [: of]
-    [(_ [enum val ([field : FieldType defval ...] ...)] ...)
+  (syntax-parse stx #:literals [:]
+    [(_ [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
      #'(begin (define-message enum val ([field : FieldType defval ...] ...)) ...)]))
+
+(define-syntax (define-ssh-shared-messages stx)
+  (syntax-parse stx #:literals [:]
+    [(_ group-name:id [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
+     #'(begin (define-message enum val #:group group-name ([field : FieldType defval ...] ...)) ...)]))
 
 (define-syntax (define-ssh-algorithms stx)
   (syntax-case stx [:]
@@ -45,10 +51,10 @@
                   (lambda [self]
                     (<= idmin (ssh-message-id self) idmax)))
                 
-                (define ssh-bytes->message* : (->* (Bytes) (Index #:alternatives (Listof (Pairof Byte Unsafe-SSH-Bytes->Message))) (Option SSH-Message))
-                  (lambda [bmsg [offset 0] #:alternatives [options null]]
+                (define ssh-bytes->message* : (->* (Bytes) (Index #:groups (Listof Symbol)) (Option SSH-Message))
+                  (lambda [bmsg [offset 0] #:groups [groups '(diffie-hellman-exchange)]]
                     (and (<= idmin (bytes-ref bmsg offset) idmax)
-                         (ssh-bytes->message bmsg offset #:alternatives options))))))]))
+                         (ssh-bytes->message bmsg offset #:groups groups))))))]))
 
 ;; https://tools.ietf.org/html/rfc4251#section-7
 (define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
@@ -87,13 +93,15 @@
 
   ; https://tools.ietf.org/html/rfc8308 
   [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
-  [SSH_MSG_NEWCOMPRESS                8 ()]
+  [SSH_MSG_NEWCOMPRESS                8 ()])
   
-  ;; [30, 49] can be reused for different authentication methods)
+  ;; [30, 49] can be reused for different authentication methods
+(define-ssh-shared-messages diffie-hellman-exchange
   ; https://www.rfc-editor.org/errata_search.php?rfc=4253
   [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
-  [SSH_MSG_KEXDH_REPLY               31 ([K-S : String] [f : Integer] [H : String])]
+  [SSH_MSG_KEXDH_REPLY               31 ([K-S : String] [f : Integer] [H : String])])
 
+(define-ssh-shared-messages diffie-hellman-group-exchange
   ; https://tools.ietf.org/html/rfc4419
   [SSH_MSG_KEY_DH_GEX_REQUEST_OLD    30 ([n : Index])]
   [SSH_MSG_KEY_DH_GEX_REQUEST        34 ([min : Index] [n : Index] [max : Index])]
@@ -230,12 +238,14 @@
          #|this should not happen|#
          (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
 
-(define ssh-bytes->message : (->* (Bytes) (Index #:alternatives (Listof (Pairof Byte Unsafe-SSH-Bytes->Message))) SSH-Message)
-  (lambda [bmsg [offset 0] #:alternatives [options null]]
+(define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
+  (lambda [bmsg [offset 0] #:groups [groups '(diffie-hellman-exchange)]]
     (define id : Byte (bytes-ref bmsg offset))
-    (define unsafe-bytes->messages : (Listof Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] null)))
-    (cond [(null? unsafe-bytes->messages) (ssh-undefined-message id)]
-          [(null? (cdr unsafe-bytes->messages)) ((car unsafe-bytes->messages) bmsg offset)]
-          [else (let ([maybe-alternative (assq id options)])
-                  (cond [(not maybe-alternative) ((car unsafe-bytes->messages) bmsg offset)]
-                        [else ((cdr maybe-alternative) bmsg offset)]))])))
+    (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
+    (or (and unsafe-bytes->message (unsafe-bytes->message bmsg offset))
+        (let query : (Option SSH-Message) ([groups : (Listof Symbol) groups])
+          (and (pair? groups)
+               (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
+                 (or (and bytes->message (bytes->message bmsg offset))
+                     (query (cdr groups))))))
+        (ssh-undefined-message id))))
