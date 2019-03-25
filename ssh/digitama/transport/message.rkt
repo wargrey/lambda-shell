@@ -10,25 +10,27 @@
 (require "../diagnostics.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration Nonnegative-Fixnum)
-  (lambda [/dev/tcpout msg rfc]
-    (define traffic : Nonnegative-Fixnum (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes msg) 0 ($ssh-payload-capacity rfc) 0))
+(define ssh-write-message : (-> Output-Port SSH-Message Symbol SSH-Configuration Nonnegative-Fixnum)
+  (lambda [/dev/tcpout msg peer-name rfc]
+    (define traffic : Nonnegative-Fixnum (ssh-write-binary-packet /dev/tcpout peer-name (ssh-message->bytes msg) 0 ($ssh-payload-capacity rfc) 0))
     (ssh-log-message 'debug "sent ~a [~a]" (ssh-message-name msg) (~size traffic))
     (ssh-log-sent-message msg traffic 'debug)
     traffic))
 
-(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Listof Symbol) (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
-  (lambda [/dev/tcpin rfc groups]
-    (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc) 0))
+(define ssh-read-transport-message : (-> Input-Port Symbol SSH-Configuration (Listof Symbol) (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
+  (lambda [/dev/tcpin peer-name rfc groups]
+    (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin peer-name ($ssh-payload-capacity rfc) 0))
     (define message-id : Byte (bytes-ref payload 0))
-    (define maybe-trans-msg : (Option SSH-Message) (ssh-bytes->transport-message payload))
+    (define maybe-trans-msg : (Option SSH-Message) (ssh-bytes->transport-message payload #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
     (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
+    
     (unless (not maybe-trans-msg)
       (ssh-log-received-message maybe-trans-msg traffic 'debug)
       (when (ssh:msg:debug? maybe-trans-msg)
         (($ssh-debug-message-handler rfc)
          (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))))
+
     (values (or maybe-trans-msg payload) traffic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

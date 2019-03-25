@@ -11,6 +11,7 @@
 (require (for-syntax racket/string))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
+(require (for-syntax syntax/parse))
 
 (define-for-syntax (ssh-typename <id>)
   (format-id <id> "~a" (string-replace (symbol->string (syntax-e <id>)) "_" "-")))
@@ -69,6 +70,8 @@
 
 (define-syntax (define-ssh-algorithm stx)
   (syntax-case stx [:]
+    [(_ &database ([name comments ... #:=> [args ...]]))
+     #'(set-box! &database (cons (cons 'name (vector-immutable args ...)) (unbox &database)))]
     [(_ &database ([name comments ... #:=> procedure]))
      #'(set-box! &database (cons (cons 'name procedure) (unbox &database)))]
     [(_ &database ([name comments ...]))
@@ -168,6 +171,16 @@
        #'(begin (define-message-interface id val (field-definition ...))
                 (hash-set! ssh-bytes->message-database val unsafe-bytes->ssh:msg)))]))
 
+(define-syntax (define-ssh-messages stx)
+  (syntax-parse stx #:literals [:]
+    [(_ [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
+     #'(begin (define-message enum val ([field : FieldType defval ...] ...)) ...)]))
+
+(define-syntax (define-ssh-shared-messages stx)
+  (syntax-parse stx #:literals [:]
+    [(_ group-name:id [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
+     #'(begin (define-message enum val #:group group-name ([field : FieldType defval ...] ...)) ...)]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
@@ -187,7 +200,7 @@
   #:transparent
   #:type-name SSH-Package-Algorithms)
 
-(define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as Symbol)
+(define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector Symbol (-> SSH-Message String String Bytes Bytes String (Option SSH-Message))))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (->* (Bytes) (Natural (Option Natural)) Bytes))

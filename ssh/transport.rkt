@@ -15,9 +15,7 @@
 (require "digitama/transport/message.rkt")
 (require "digitama/transport.rkt")
 (require "digitama/configuration.rkt")
-
 (require "digitama/diagnostics.rkt")
-(require "digitama/stdin.rkt")
 
 (require "assignment.rkt")
 
@@ -37,7 +35,7 @@
       (define sshc : Thread (sshc-ghostcat /dev/sshout identification hostname port kexinit server-name rfc))
 
       (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
-        (define server-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? 'ssh-connect))
+        (define server-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect server-name))
         (ssh-log-message 'debug "server identification string: ~a" (ssh-identification-raw server-id))
         (SSH-Port root sshc-custodian rfc sshc /dev/sshin)))))
 
@@ -70,7 +68,7 @@
       (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit client-name rfc))
 
       (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
-        (define client-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? 'ssh-accept))
+        (define client-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept client-name))
         (ssh-log-message 'debug "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))
         
         (unless (= (ssh-identification-protoversion client-id) ($ssh-protoversion rfc))

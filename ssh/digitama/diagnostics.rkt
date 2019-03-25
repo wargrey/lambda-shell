@@ -24,16 +24,16 @@
          (ssh-log-error errobj)
          (raise errobj))]))
 
-(define ssh-raise-timeout-error : (->* (Port Symbol Real) (String) Nothing)
-  (lambda [/dev/ssh func seconds [message "timer break"]]
-    (raise (make-exn:break (format "~a: ~a: ~a: ~as" (object-name /dev/ssh) func message seconds)
+(define ssh-raise-timeout-error : (->* (Procedure Symbol Real) (String) Nothing)
+  (lambda [func peer-name seconds [message "timer break"]]
+    (raise (make-exn:break (format "~a: [~a]: ~a: ~as" (object-name func) peer-name message seconds)
                            (current-continuation-marks)
                            (call-with-escape-continuation
                                (λ [[ec : Procedure]] ec))))))
 
-(define ssh-raise-eof-error : (->* (Port Symbol) (String) Nothing)
-  (lambda [/dev/ssh func [message "peer has lost"]]
-    (throw exn:ssh:eof /dev/ssh func "~a" message)))
+(define ssh-raise-eof-error : (->* (Procedure Symbol) (String) Nothing)
+  (lambda [func peer-name [message "peer has lost"]]
+    (throw exn:ssh:eof func peer-name "~a" message)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-message : (->* (Log-Level String) (#:data Any) #:rest Any Void)

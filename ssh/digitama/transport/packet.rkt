@@ -8,7 +8,6 @@
 
 (require digimon/format)
 
-(require "../stdin.rkt")
 (require "../datatype.rkt")
 (require "../diagnostics.rkt")
 (require "../assignment.rkt")
@@ -22,8 +21,8 @@
 |#
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-write-binary-packet : (-> Output-Port Bytes Byte Index Byte Nonnegative-Fixnum)
-  (lambda [/dev/tcpout payload cipher-blocksize payload-capacity mac-length]
+(define ssh-write-binary-packet : (-> Output-Port Symbol Bytes Byte Index Byte Nonnegative-Fixnum)
+  (lambda [/dev/tcpout peer-name payload cipher-blocksize payload-capacity mac-length]
     (define payload-length : Index (bytes-length payload))
 
     ;; NOTE: we do not forbid the overloaded packet since we do not know the payload capacity that the peer holds.
@@ -42,27 +41,27 @@
 
     sent))
 
-(define ssh-read-binary-packet : (-> Input-Port Index Byte (Values Bytes Bytes Nonnegative-Fixnum))
-  (lambda [/dev/tcpin payload-capacity mac-length]
-    (define length-bs : Bytes (ssh-read-bytes /dev/tcpin 4))
+(define ssh-read-binary-packet : (-> Input-Port Symbol Index Byte (Values Bytes Bytes Nonnegative-Fixnum))
+  (lambda [/dev/tcpin peer-name payload-capacity mac-length]
+    (define length-bs : Bytes (ssh-read-bytes /dev/tcpin 4 peer-name))
     (define packet-capacity : Nonnegative-Fixnum (+ payload-capacity 4))
     (define-values (packet-length _) (ssh-bytes->uint32 length-bs))
 
     (when (> packet-length packet-capacity)
-      (throw exn:ssh:defense /dev/tcpin 'read-binary-packet
+      (throw exn:ssh:defense ssh-read-binary-packet peer-name
              "packet overlength: ~a > ~a"
              (~size packet-length) (~size packet-capacity)))
 
-    (define padded-payload : Bytes (ssh-read-bytes /dev/tcpin packet-length))
+    (define padded-payload : Bytes (ssh-read-bytes /dev/tcpin packet-length peer-name))
     (define padding-length : Byte (bytes-ref padded-payload 0))
     (define payload-end : Fixnum (- packet-length padding-length))
 
     (when (< payload-end 1)
-      (throw exn:ssh:defense /dev/tcpin 'read-binary-packet
+      (throw exn:ssh:defense ssh-read-binary-packet peer-name
              "invalid payload length: ~a" (unsafe-fx- payload-end 1)))
 
     (values (subbytes padded-payload 1 payload-end)
-            (cond [(> mac-length 0) (ssh-read-bytes /dev/tcpin mac-length)]
+            (cond [(> mac-length 0) (ssh-read-bytes /dev/tcpin mac-length peer-name)]
                   [else #""])
             (+ packet-length mac-length 4))))
 
@@ -77,3 +76,9 @@
            [random-length (unsafe-fx+ padding-draft (unsafe-fx* idsize (random (unsafe-fx+ thwarting-capacity 1))))])
       (values (assert (unsafe-fx- (unsafe-fx+ packet-draft random-length) 4) index?)
               (assert random-length byte?)))))
+
+(define ssh-read-bytes : (-> Input-Port Integer Symbol Bytes)
+  (lambda [/dev/sshin amt peer-name]
+    (define bs : (U Bytes EOF) (read-bytes amt /dev/sshin))
+    (cond [(eof-object? bs) (ssh-raise-eof-error ssh-read-binary-packet peer-name)]
+          [else bs])))

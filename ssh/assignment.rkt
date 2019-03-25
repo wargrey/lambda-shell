@@ -6,27 +6,18 @@
 (provide (all-defined-out))
 (provide SSH-Message SSH-Kex SSH-Cipher SSH-HostKey SSH-Compression SSH-HMAC Unsafe-SSH-Bytes->Message)
 (provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-hmac-algorithms ssh-compression-algorithms)
-(provide ssh-message? ssh-message-undefined? define-ssh-symbols)
+(provide ssh-message? ssh-message-undefined?)
+(provide define-ssh-symbols define-ssh-messages define-ssh-shared-messages)
 
 (provide ssh-message-name
          (rename-out [ssh-message-id ssh-message-number]))
 
 (require "digitama/assignment.rkt")
 (require "digitama/datatype.rkt")
+(require "digitama/algorithm/diffie-hellman.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
-(require (for-syntax syntax/parse))
-
-(define-syntax (define-ssh-messages stx)
-  (syntax-parse stx #:literals [:]
-    [(_ [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
-     #'(begin (define-message enum val ([field : FieldType defval ...] ...)) ...)]))
-
-(define-syntax (define-ssh-shared-messages stx)
-  (syntax-parse stx #:literals [:]
-    [(_ group-name:id [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
-     #'(begin (define-message enum val #:group group-name ([field : FieldType defval ...] ...)) ...)]))
 
 (define-syntax (define-ssh-algorithms stx)
   (syntax-case stx [:]
@@ -57,12 +48,14 @@
                          (ssh-bytes->message bmsg offset #:groups groups))))))]))
 
 ;; https://tools.ietf.org/html/rfc4251#section-7
-(define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
 (define-ssh-message-range transport        1  49   Transport layer protocol)
 (define-ssh-message-range authentication  50  79   User authentication protocol)
 (define-ssh-message-range connection      80 127   Connection protocol)
 (define-ssh-message-range client         128 191   Reserved for client protocols)
 (define-ssh-message-range private        192 255   Local extensions for private use)
+
+(define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
+(define-ssh-message-range key-exchange    30  49   Key exchange method specific (numbers can be reused for different authentication methods))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; http://tools.ietf.org/html/rfc4250#section-4.1
@@ -71,7 +64,7 @@
   [SSH_MSG_DISCONNECT                 1 ([reason : (SSH-Symbol SSH-Disconnection-Reason)]
                                          [description : String (symbol->string reason)]
                                          [language : Symbol '||])]
-  [SSH_MSG_IGNORE                     2 ([data : String])]
+  [SSH_MSG_IGNORE                     2 ([data : String ""])]
   [SSH_MSG_UNIMPLEMENTED              3 ([number : Index])]
   [SSH_MSG_DEBUG                      4 ([display? : Boolean #false] [message : String] [language : Symbol '||])]
   [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
@@ -95,19 +88,7 @@
   [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
   [SSH_MSG_NEWCOMPRESS                8 ()])
   
-  ;; [30, 49] can be reused for different authentication methods
-(define-ssh-shared-messages diffie-hellman-exchange
-  ; https://www.rfc-editor.org/errata_search.php?rfc=4253
-  [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
-  [SSH_MSG_KEXDH_REPLY               31 ([K-S : String] [f : Integer] [H : String])])
-
-(define-ssh-shared-messages diffie-hellman-group-exchange
-  ; https://tools.ietf.org/html/rfc4419
-  [SSH_MSG_KEY_DH_GEX_REQUEST_OLD    30 ([n : Index])]
-  [SSH_MSG_KEY_DH_GEX_REQUEST        34 ([min : Index] [n : Index] [max : Index])]
-  [SSH_MSG_KEY_DH_GEX_GROUP          31 ([p : Integer] [g : Integer])]
-  [SSH_MSG_KEY_DH_GEX_INIT           32 ([e : Integer])]
-  [SSH_MSG_KEY_DH_GEX_REPLY          33 ([K-S : String] [f : Integer] [H : String])])
+(void #| [30, 49] can be reused for different authentication methods |# 'see ssh-dh-g14-sha1-kex)
 
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
@@ -219,7 +200,7 @@
 
 (define-ssh-algorithms #:kex
   ; http://tools.ietf.org/html/rfc4253#section-8
-  ([diffie-hellman-group14-sha1    REQUIRED                                                                         #:=> 'diffie-hellman-exchange]
+  ([diffie-hellman-group14-sha1    REQUIRED                                                                         #:=> ['diffie-hellman-exchange ssh-dh-g14-sha1-kex]]
 
    ; https://tools.ietf.org/html/rfc8268#section-3
    [diffie-hellman-group14-sha256  RECOMMENDED]

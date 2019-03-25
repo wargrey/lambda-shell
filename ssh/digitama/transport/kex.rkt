@@ -23,48 +23,57 @@
   #:transparent
   #:type-name Key)
 
-(define ssh-kex/starts-with-peer : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Boolean Thread)
-  (lambda [peer-kexinit self-kexinit /dev/tcpin /dev/tcpout peer-name rfc server?]
+(define ssh-kex/starts-with-peer : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Boolean Thread)
+  (lambda [peer-kexinit self-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs server?]
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
-    (define traffic : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
+    (define traffic : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit peer-name rfc))
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
-                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc traffic))))))
+                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs traffic))))))
 
-(define ssh-kex/starts-with-self : (-> SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Boolean Thread)
-  (lambda [self-kexinit /dev/tcpin /dev/tcpout peer-name rfc server?]
+(define ssh-kex/starts-with-self : (-> SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Boolean Thread)
+  (lambda [self-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs server?]
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
-    (define sent : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
+    (define sent : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit peer-name rfc))
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
-                    (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin rfc null))
-                    (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout peer-name rfc (+ sent traffic))]))))))
+                    (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin peer-name rfc null))
+                    (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout peer-name rfc Vc Vs (+ sent traffic))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Natural Void)
-  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc traffic]
+(define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Natural Void)
+  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs traffic]
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
     
-    (define-values (kex hostkey c2s s2c) (ssh-negotiate peer-kexinit self-kexinit peer-name))
-
-    (let kex ([traffic : Natural traffic])
-      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
-      (cond [(ssh:msg:kexdh:init? msg) (displayln msg)])
-      (kex (+ traffic traffic++)))))
+    (let-values ([(kex hostkey c2s s2c) (ssh-negotiate peer-kexinit self-kexinit peer-name)])
+      (ssh-kex parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs peer-kexinit self-kexinit traffic))))
 
 
-(define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Natural Void)
-  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc traffic]
+(define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Natural Void)
+  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs traffic]
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
-    (define-values (kex hostkey c2s s2c) (ssh-negotiate self-kexinit peer-kexinit peer-name))
-    
-    (let kex ([traffic : Natural traffic])
-      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
-      (displayln msg)
-      (kex (+ traffic traffic++)))))
+    (let-values ([(kex hostkey c2s s2c) (ssh-negotiate self-kexinit peer-kexinit peer-name)])
+      (ssh-kex parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs self-kexinit peer-kexinit traffic))))
+
+(define ssh-kex : (-> Thread (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms
+                      Input-Port Output-Port Symbol SSH-Configuration String String SSH-MSG-KEXINIT SSH-MSG-KEXINIT Natural Void)
+  (lambda [parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Mc Ms traffic]
+    (define kex-msg-group : (Listof Symbol) (list (vector-ref (cdr kex) 0)))
+    (define exchange : (-> SSH-Message String String Bytes Bytes String (Option SSH-Message)) (vector-ref (cdr kex) 1))
+    (define Ic : Bytes (ssh:msg:kexinit->bytes Mc))
+    (define Is : Bytes (ssh:msg:kexinit->bytes Ms))
+    (define Ks : String "")
+
+    (let rekex ([traffic : Natural traffic])
+      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin peer-name rfc kex-msg-group))
+      (cond [(and (ssh-message? msg) (ssh-key-exchange-message? msg) (exchange msg Vc Vs Ic Is Ks))
+             => (λ [[m : SSH-Message]] (ssh-write-message /dev/tcpout m peer-name rfc))]
+            [else (let ([undefined (make-ssh:msg:unimplemented #:number (if (bytes? msg) (bytes-ref msg 0) (ssh-message-number msg)))])
+                    (ssh-write-message /dev/tcpout undefined peer-name rfc))])
+      (rekex (+ traffic traffic++)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Symbol
