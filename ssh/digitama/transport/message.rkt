@@ -17,13 +17,13 @@
     (ssh-log-sent-message msg traffic 'debug)
     traffic))
 
-(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Listof (Pairof Byte Unsafe-SSH-Bytes->Message)) (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
-  (lambda [/dev/tcpin rfc options]
+(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Listof Symbol) (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
+  (lambda [/dev/tcpin rfc groups]
     (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc) 0))
     (define message-id : Byte (bytes-ref payload 0))
     (define maybe-trans-msg : (Option SSH-Message) (ssh-bytes->transport-message payload))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
-    (ssh-log-message 'debug "received transport layer message ~a [~a]" message-type (~size traffic))
+    (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
     (unless (not maybe-trans-msg)
       (ssh-log-received-message maybe-trans-msg traffic 'debug)
       (when (ssh:msg:debug? maybe-trans-msg)
@@ -60,7 +60,7 @@
 (define ssh-log-sent-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
   (lambda [msg traffic [level 'debug]]
     (cond [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "terminate the connection because of ~a(~a)"
+           (ssh-log-message level "terminate the connection because of ~a, details: ~a"
                             (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           #;[])))
 

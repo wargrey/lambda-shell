@@ -23,30 +23,30 @@
   #:transparent
   #:type-name Key)
 
-(define ssh-kex/starts-with-peer : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Boolean Thread)
-  (lambda [peer-kexinit self-kexinit /dev/tcpin /dev/tcpout rfc server?]
+(define ssh-kex/starts-with-peer : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Boolean Thread)
+  (lambda [peer-kexinit self-kexinit /dev/tcpin /dev/tcpout peer-name rfc server?]
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define traffic : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
-                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc traffic))))))
+                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc traffic))))))
 
-(define ssh-kex/starts-with-self : (-> SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Boolean Thread)
-  (lambda [self-kexinit /dev/tcpin /dev/tcpout rfc server?]
+(define ssh-kex/starts-with-self : (-> SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Boolean Thread)
+  (lambda [self-kexinit /dev/tcpin /dev/tcpout peer-name rfc server?]
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define sent : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit rfc))
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
                     (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin rfc null))
-                    (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout rfc (+ sent traffic))]))))))
+                    (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout peer-name rfc (+ sent traffic))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Natural Void)
-  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc traffic]
+(define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Natural Void)
+  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc traffic]
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
     
-    (define-values (kex hostkey c2s s2c) (ssh-negotiation peer-kexinit self-kexinit))
+    (define-values (kex hostkey c2s s2c) (ssh-negotiate peer-kexinit self-kexinit peer-name))
 
     (let kex ([traffic : Natural traffic])
       (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
@@ -54,12 +54,12 @@
       (kex (+ traffic traffic++)))))
 
 
-(define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Natural Void)
-  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc traffic]
+(define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration Natural Void)
+  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc traffic]
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
-    (define-values (kex hostkey c2s s2c) (ssh-negotiation self-kexinit peer-kexinit))
+    (define-values (kex hostkey c2s s2c) (ssh-negotiate self-kexinit peer-kexinit peer-name))
     
     (let kex ([traffic : Natural traffic])
       (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin rfc null))
@@ -67,8 +67,9 @@
       (kex (+ traffic traffic++)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-negotiation : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
-  (lambda [ckexinit skexinit]
+(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Symbol
+                              (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
+  (lambda [ckexinit skexinit peer-name]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes ckexinit) (ssh:msg:kexinit-kexes skexinit) "algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-hostkeys ckexinit) (ssh:msg:kexinit-hostkeys skexinit) "host key format")))
@@ -91,7 +92,14 @@
            (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-hmac) (car s2c-compression))
            (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-hmac) (car c2s-compression))
            (values kex hostkey (ssh-package-algorithms c2s-cipher c2s-hmac c2s-compression) (ssh-package-algorithms s2c-cipher s2c-hmac s2c-compression))]
-          [else (error 'TODO)])))
+          [(not c2s-compression) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching client to server compression algorithm")]
+          [(not s2c-compression) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching server to client compression algorithm")]
+          [(not c2s-hmac) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching client to server MAC algorithm")]
+          [(not s2c-hmac) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching server to client MAC algorithm")]
+          [(not c2s-cipher) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching client to server cipher")]
+          [(not s2c-cipher) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching server to client cipher")]
+          [(not hostkey) (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching public key format")]
+          [else (throw exn:ssh:kex ssh-negotiate peer-name "kex: no matching algorihtm")])))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]

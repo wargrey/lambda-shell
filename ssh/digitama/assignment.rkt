@@ -187,7 +187,7 @@
   #:transparent
   #:type-name SSH-Package-Algorithms)
 
-(define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (-> Bytes Bytes))
+(define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as Symbol)
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (->* (Bytes) (Natural (Option Natural)) Bytes))
@@ -211,18 +211,18 @@
             [else (let ([algorithm (car smhtirogla)]
                         [rest (cdr smhtirogla)])
                     (cond [(cdr algorithm) (filter (cons algorithm algorithms) rest)]
-                          [else (filter algorithms rest)]))]))))
+                          [else (filter algorithms rest)]))])))) 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-undefined-message : (-> Byte SSH-Message-Undefined)
+  (lambda [id]
+    (ssh-message-undefined id 'SSH-MSG-UNDEFINED)))
 
 (define ssh-bytes->shared-message : (-> Symbol Index (Option Unsafe-SSH-Bytes->Message))
   (lambda [gid no]
     (define maybe-db : (Option (HashTable Index Unsafe-SSH-Bytes->Message)) (hash-ref ssh-bytes->shared-message-database gid (λ [] #false)))
     (and (hash? maybe-db)
-         (hash-ref maybe-db no (λ [] #false))))) 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-undefined-message : (-> Byte SSH-Message-Undefined)
-  (lambda [id]
-    (ssh-message-undefined id 'SSH-MSG-UNIMPLEMENTED)))
+         (hash-ref maybe-db no (λ [] #false)))))
 
 (define ssh-values : (SSH-Bytes->Type Bytes)
   (lambda [braw [offset 0]]

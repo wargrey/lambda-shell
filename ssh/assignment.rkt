@@ -46,13 +46,13 @@
   (syntax-case stx [:]
     [(_ type idmin idmax comments ...)
      (with-syntax ([ssh-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
-                   [ssh-bytes->message* (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))])
+                   [ssh-bytes->range-message (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))])
        #'(begin (define ssh-message? : (-> SSH-Message Boolean)
                   (lambda [self]
                     (<= idmin (ssh-message-id self) idmax)))
                 
-                (define ssh-bytes->message* : (->* (Bytes) (Index #:groups (Listof Symbol)) (Option SSH-Message))
-                  (lambda [bmsg [offset 0] #:groups [groups '(diffie-hellman-exchange)]]
+                (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Option SSH-Message))
+                  (lambda [bmsg [offset 0] #:groups [groups null]]
                     (and (<= idmin (bytes-ref bmsg offset) idmax)
                          (ssh-bytes->message bmsg offset #:groups groups))))))]))
 
@@ -219,7 +219,7 @@
 
 (define-ssh-algorithms #:kex
   ; http://tools.ietf.org/html/rfc4253#section-8
-  ([diffie-hellman-group14-sha1    REQUIRED                                                                         #:=> values]
+  ([diffie-hellman-group14-sha1    REQUIRED                                                                         #:=> 'diffie-hellman-exchange]
 
    ; https://tools.ietf.org/html/rfc8268#section-3
    [diffie-hellman-group14-sha256  RECOMMENDED]
@@ -235,11 +235,11 @@
     (define message->bytes : (Option SSH-Message->Bytes) (hash-ref ssh-message->bytes-database name (λ [] #false)))
     (or (and message->bytes (message->bytes self))
 
-         #|this should not happen|#
-         (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
+        #|this should not happen|#
+        (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
 
 (define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
-  (lambda [bmsg [offset 0] #:groups [groups '(diffie-hellman-exchange)]]
+  (lambda [bmsg [offset 0] #:groups [groups null]]
     (define id : Byte (bytes-ref bmsg offset))
     (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
     (or (and unsafe-bytes->message (unsafe-bytes->message bmsg offset))

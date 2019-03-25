@@ -3,7 +3,6 @@
 (provide (all-defined-out))
 
 (require (for-syntax racket/base))
-(require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
 (define-type SSH-Error exn:ssh)
@@ -12,16 +11,16 @@
 (struct exn:ssh:eof exn:ssh ())
 (struct exn:ssh:defense exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
-(struct exn:ssh:overload exn:ssh ())
+(struct exn:ssh:kex exn:ssh ())
 
 (define ssh-logger-topic : Symbol 'λsh:ssh)
 
 (define-syntax (throw stx)
   (syntax-parse stx
-    [(_ st:id /dev/ssh rest ...)
-     #'(throw [st] /dev/ssh rest ...)]
-    [(_ [st:id argl ...] /dev/ssh src frmt:str v ...)
-     #'(let ([errobj (st (format (string-append "~a: ~s: " frmt) (object-name /dev/ssh) src v ...) (current-continuation-marks) argl ...)])
+    [(_ st:id rest ...)
+     #'(throw [st] rest ...)]
+    [(_ [st:id argl ...] src:id peer-name frmt:str v ...)
+     #'(let ([errobj (st (format (string-append "~a: [~a]: " frmt) (object-name src) peer-name v ...) (current-continuation-marks) argl ...)])
          (ssh-log-error errobj)
          (raise errobj))]))
 
