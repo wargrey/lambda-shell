@@ -203,7 +203,7 @@
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector Symbol (-> SSH-Message String String Bytes Bytes String (Option SSH-Message))))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
-(define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (->* (Bytes) (Natural (Option Natural)) Bytes))
+(define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (-> Bytes Bytes Bytes))
 (define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (-> Bytes Bytes))
 
 (define ssh-algorithms->names : (All (a) (-> (SSH-Algorithm-Listof a) (Listof Symbol)))
@@ -242,10 +242,6 @@
     (define end : Index (bytes-length braw))
     (values (subbytes braw offset end)
             end)))
-
-(define ssh-hmac-none-bytes : SSH-HMAC
-  (lambda [in [start 0] [end #false]]
-    #""))
 
 (define ssh-cookie : (->* () (Byte) Bytes)
   (lambda [[n 16]]

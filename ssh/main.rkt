@@ -9,6 +9,7 @@
 ;;;                                                                                                                      ;;;
 ;;;                                                                                                                      ;;;
 ;;;                                                                                                                      ;;;
+;;; https://tools.ietf.org/html/rfc2104, HMAC: Keyed-Hashing for Message Authentication                                  ;;;
 ;;; https://tools.ietf.org/html/rfc3526, More Modular Exponential Diffie-Hellman groups for Internet Key Exchange        ;;;
 ;;; https://tools.ietf.org/html/rfc4419, Diffie-Hellman Group Exchange for the Secure Shell Transport Layer Protocol     ;;;
 ;;; https://tools.ietf.org/html/rfc5114, Additional Diffie-Hellman Groups for Use with IETF Standards                    ;;;

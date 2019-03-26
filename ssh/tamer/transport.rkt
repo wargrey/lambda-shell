@@ -38,7 +38,6 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
  (ssh-message (make-ssh:msg:unimplemented #:number 0))
  (ssh-message (make-ssh:msg:newkeys))]
 
-
 @handbook-reference[]
 
 @; Chunks after `handbook-reference[]` will never be rendered in documents

@@ -14,7 +14,9 @@
 
 (require "digitama/assignment.rkt")
 (require "digitama/datatype.rkt")
+
 (require "digitama/algorithm/diffie-hellman.rkt")
+(require "digitama/algorithm/hmac.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -175,18 +177,19 @@
 
 (define-ssh-algorithms #:hmac
   ; http://tools.ietf.org/html/rfc4253#section-6.4
-  ([hmac-sha1                      REQUIRED        HMAC-SHA1 (digest length = key length = 20)                      #:=> sha1-bytes]
-   [hmac-sha1-96                   RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20)]
+  ([hmac-sha1                      REQUIRED        HMAC-SHA1 (digest length = key length = 20)                      #:=> ssh-hmac-sha1]
+   [hmac-sha1-96                   RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20) #:=? ssh-hmac-sha1-96]
    [hmac-md5                       OPTIONAL        HMAC-MD5 (digest length = key length = 16)]
    [hmac-md5-96                    OPTIONAL        first 96 bits of HMAC-MD5 (digest length = 12, key length = 16)]
    
    ; http://tools.ietf.org/html/rfc6668#section-2
-   [hmac-sha2-256                  RECOMMENDED     HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)   #:=> sha256-bytes]
+   [hmac-sha2-256                  RECOMMENDED     HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)   #:=> ssh-hmac-sha256]
    [hmac-sha2-512                  OPTIONAL        HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)]
 
-   [none                           OPTIONAL        no MAC, NOT RECOMMANDED                                          #:=> ssh-hmac-none-bytes]))
+   [none                           OPTIONAL        no MAC, NOT RECOMMANDED                                          #:=> ssh-hmac-none]))
 
 (define-ssh-algorithms #:hostkey
+  ; https://tools.ietf.org/html/rfc4251#section-4.1
   ; http://tools.ietf.org/html/rfc4253#section-6.6
   ([ssh-dss                        REQUIRED        sign   Raw DSS Key]
    [ssh-rsa                        RECOMMENDED     sign   Raw RSA Key                                               #:=> values]
