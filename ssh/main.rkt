@@ -12,6 +12,7 @@
 ;;; https://tools.ietf.org/html/rfc2104, HMAC: Keyed-Hashing for Message Authentication                                  ;;;
 ;;; https://tools.ietf.org/html/rfc3526, More Modular Exponential Diffie-Hellman groups for Internet Key Exchange        ;;;
 ;;; https://tools.ietf.org/html/rfc4419, Diffie-Hellman Group Exchange for the Secure Shell Transport Layer Protocol     ;;;
+;;; https://tools.ietf.org/html/rfc4432, RSA Key Exchange for the Secure Shell Transport Layer Protocol                  ;;;
 ;;; https://tools.ietf.org/html/rfc5114, Additional Diffie-Hellman Groups for Use with IETF Standards                    ;;;
 ;;; https://tools.ietf.org/html/rfc6668, The Secure Shell Transport Layer Protocol with SHA-2                            ;;;
 ;;; https://tools.ietf.org/html/rfc8268, More Modular Exponentiation Diffie-Hellman Key Exchange Groups for Secure Shell ;;;
@@ -19,11 +20,11 @@
 
 (provide (all-defined-out))
 
-(provide (all-from-out "assignment.rkt"))
-(provide (all-from-out "digitama/configuration.rkt"))
+(provide (all-from-out "message.rkt" "assignment.rkt"))
+(provide (all-from-out "configuration.rkt"))
 
+(require "message.rkt")
 (require "assignment.rkt")
+(require "transport.rkt")
 
-(require "digitama/configuration.rkt")
-(require "digitama/transport.rkt")
-(require "digitama/transport/identification.rkt")
+(require "configuration.rkt")

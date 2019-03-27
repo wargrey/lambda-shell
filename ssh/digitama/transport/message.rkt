@@ -4,10 +4,10 @@
 
 (require "packet.rkt")
 
-(require "../../assignment.rkt")
-(require "../assignment.rkt")
-(require "../configuration.rkt")
 (require "../diagnostics.rkt")
+
+(require "../../message.rkt")
+(require "../../configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-message : (-> Output-Port SSH-Message Symbol SSH-Configuration Nonnegative-Fixnum)

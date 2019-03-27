@@ -5,7 +5,6 @@
 (provide (all-defined-out))
 
 (require racket/string)
-(require racket/math)
 
 (require racket/unsafe/ops)
 (require typed/racket/unsafe)
@@ -105,3 +104,23 @@
     (define-values (names end) (ssh-bytes->string bascii offset))
     (values (map string->symbol (string-split names ","))
             end)))
+
+(define ssh-algorithms->names : (All (a) (-> (SSH-Algorithm-Listof a) (Listof Symbol)))
+  (lambda [algorithms]
+    (let filter ([names : (Listof Symbol) null]
+                 [smhtirogla : (SSH-Algorithm-Listof a) (reverse algorithms)])
+      (cond [(null? smhtirogla) names]
+            [else (let ([algorithm (car smhtirogla)]
+                        [rest (cdr smhtirogla)])
+                    (cond [(cdr algorithm) (filter (cons (car algorithm) names) rest)]
+                          [else (filter names rest)]))]))))
+
+(define ssh-algorithms-clean : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof* a)))
+  (lambda [dirty-list]
+    (let filter ([algorithms : (Listof (Pairof Symbol a)) null]
+                 [smhtirogla : (SSH-Algorithm-Listof a) (reverse dirty-list)])
+      (cond [(null? smhtirogla) algorithms]
+            [else (let ([algorithm (car smhtirogla)]
+                        [rest (cdr smhtirogla)])
+                    (cond [(cdr algorithm) (filter (cons algorithm algorithms) rest)]
+                          [else (filter algorithms rest)]))]))))

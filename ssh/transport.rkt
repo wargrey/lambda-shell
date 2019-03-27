@@ -14,10 +14,13 @@
 (require "digitama/transport/identification.rkt")
 (require "digitama/transport/message.rkt")
 (require "digitama/transport.rkt")
-(require "digitama/configuration.rkt")
 (require "digitama/diagnostics.rkt")
 
+(require "message.rkt")
 (require "assignment.rkt")
+(require "configuration.rkt")
+
+(require "diffie-hellman.rkt")
 
 (define-type SSH-Datum (U SSH-Message Bytes EOF exn))
 

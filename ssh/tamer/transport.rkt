@@ -55,8 +55,7 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
 
 @chunk[<identification>
        (require "../digitama/transport/identification.rkt")
-       (require "../digitama/configuration.rkt")
-       (require "../assignment.rkt")
+       (require "../main.rkt")
 
        (define rfc (make-ssh-configuration))
        (define default-identification (ssh-identification-string rfc))

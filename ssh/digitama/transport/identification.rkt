@@ -11,8 +11,8 @@
 
 (require typed/setup/getinfo)
 
-(require "../configuration.rkt")
 (require "../diagnostics.rkt")
+(require "../../configuration.rkt")
 
 (struct ssh-identification
   ([protoversion : Positive-Flonum]
@@ -40,18 +40,20 @@
     (write-char #\linefeed /dev/sshout)
     (flush-output /dev/sshout)))
 
-(define ssh-read-server-identification : (-> Input-Port SSH-Configuration SSH-Identification)
-  (lambda [/dev/sshin option]
-    (define line : String (make-string (max ($ssh-longest-identification-length option) ($ssh-longest-server-line-length option))))
-    (define message-handler : SSH-Server-Line-Handler ($ssh-server-line-handler option))
-    (let read-check-notify-loop ()
-      (read-string! line /dev/sshin 0 4)
-      (unless (string-prefix? line "SSH-")
-        (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-line-length option))])
-          (cond [(not maybe-end-index) (throw exn:ssh:defense /dev/sshin 'protocol-exchange "message overlength: ~s" line)]
-                [else (message-handler (substring line 0 maybe-end-index))])
-          (read-check-notify-loop))))
-    (read-peer-identification! /dev/sshin line 4 ($ssh-longest-identification-length option))))
+(define ssh-read-server-identification : (-> Input-Port SSH-Configuration Symbol SSH-Identification)
+  (lambda [/dev/sshin rfc peer-name]
+    (define line : String (make-string (max ($ssh-longest-identification-length rfc) ($ssh-longest-server-banner-length rfc))))
+    (define message-handler : SSH-Server-Line-Handler ($ssh-server-banner-handler rfc))
+    (let read-check-notify-loop ([count : Nonnegative-Fixnum 0])
+      (cond [(< count ($ssh-maximum-server-banner-count rfc))
+             (read-string! line /dev/sshin 0 4)
+             (unless (string-prefix? line "SSH-")
+               (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-banner-length rfc))])
+                 (cond [(not maybe-end-index) (throw exn:ssh:defense ssh-read-server-identification peer-name "banner message overlength: ~s" line)]
+                       [else (message-handler (substring line 0 maybe-end-index))])
+                 (read-check-notify-loop (+ count 1))))]
+            [else (throw exn:ssh:defense ssh-read-server-identification peer-name "too many banner messages")]))
+    (read-peer-identification! /dev/sshin line 4 ($ssh-longest-identification-length rfc))))
 
 (define ssh-read-client-identification : (-> Input-Port SSH-Configuration SSH-Identification)
   (lambda [/dev/sshin option]

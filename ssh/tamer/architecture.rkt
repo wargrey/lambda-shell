@@ -63,7 +63,7 @@ These test cases are defined in @~cite[HMAC-SHA].
          <datatype>)]
 
 @chunk[<datatype>
-       (require "../digitama/datatype.rkt")
+       (require "../datatype.rkt")
        (require "../digitama/algorithm/hmac.rkt")
 
        (define mpint->symbol

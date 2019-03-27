@@ -45,5 +45,6 @@
 
    [debug-message-handler : SSH-Debug-Message-Handler void]
 
-   [server-line-handler : SSH-Server-Line-Handler void]
-   [longest-server-line-length : Positive-Index 1024]))
+   [server-banner-handler : SSH-Server-Line-Handler void]
+   [maximum-server-banner-count : Positive-Index 1024]
+   [longest-server-banner-length : Positive-Index 8192]))

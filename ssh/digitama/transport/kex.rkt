@@ -4,17 +4,20 @@
 
 (provide (all-defined-out))
 
+(require typed/racket/class)
+
 (require racket/tcp)
 (require racket/port)
 
 (require "message.rkt")
 
-(require "../../assignment.rkt")
+(require "../kex.rkt")
 (require "../assignment.rkt")
-
-(require "../datatype.rkt")
-(require "../configuration.rkt")
 (require "../diagnostics.rkt")
+
+(require "../../datatype.rkt")
+(require "../../message.rkt")
+(require "../../configuration.rkt")
 
 (struct key
   ([secret : Bytes]
@@ -61,15 +64,17 @@
 (define ssh-kex : (-> Thread (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms
                       Input-Port Output-Port Symbol SSH-Configuration String String SSH-MSG-KEXINIT SSH-MSG-KEXINIT Natural Void)
   (lambda [parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Mc Ms traffic]
-    (define kex-msg-group : (Listof Symbol) (list (vector-ref (cdr kex) 0)))
-    (define exchange : (-> SSH-Message String String Bytes Bytes String (Option SSH-Message)) (vector-ref (cdr kex) 1))
-    (define Ic : Bytes (ssh:msg:kexinit->bytes Mc))
-    (define Is : Bytes (ssh:msg:kexinit->bytes Ms))
-    (define Ks : String "")
+    (define host-key : String "λ")
+    (define kex-process : (Instance SSH-Key-Exchange<%>)
+      (new (vector-ref (cdr kex) 0)
+           [Vc Vc] [Vs Vs] [Ic (ssh:msg:kexinit->bytes Mc)] [Is (ssh:msg:kexinit->bytes Ms)]
+           [hostkey host-key] [hash (vector-ref (cdr kex) 1)]
+           [peer-name peer-name]))
 
+    (define kex-msg-group : (Listof Symbol) (list (send kex-process tell-message-group)))
     (let rekex ([traffic : Natural traffic])
       (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin peer-name rfc kex-msg-group))
-      (cond [(and (ssh-message? msg) (ssh-key-exchange-message? msg) (exchange msg Vc Vs Ic Is Ks))
+      (cond [(and (ssh-message? msg) (ssh-key-exchange-message? msg) (send kex-process response msg))
              => (λ [[m : SSH-Message]] (ssh-write-message /dev/tcpout m peer-name rfc))]
             [else (let ([undefined (make-ssh:msg:unimplemented #:number (if (bytes? msg) (bytes-ref msg 0) (ssh-message-number msg)))])
                     (ssh-write-message /dev/tcpout undefined peer-name rfc))])
@@ -77,7 +82,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Symbol
-                              (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
+                            (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
   (lambda [ckexinit skexinit peer-name]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes ckexinit) (ssh:msg:kexinit-kexes skexinit) "algorithm")

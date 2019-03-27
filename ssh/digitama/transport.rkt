@@ -10,10 +10,11 @@
 (require "transport/message.rkt")
 (require "transport/kex.rkt")
 
-(require "../assignment.rkt")
-(require "assignment.rkt")
-(require "configuration.rkt")
 (require "diagnostics.rkt")
+
+(require "../message.rkt")
+(require "../assignment.rkt")
+(require "../configuration.rkt")
 
 (struct ssh-transport
   ([root : Custodian] ; useless, just in order to satisfy the `custodian-managed-list`
@@ -39,7 +40,7 @@
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
-             (define peer : SSH-Identification (ssh-read-server-identification /dev/tcpin rfc))
+             (define peer : SSH-Identification (ssh-read-server-identification /dev/tcpin rfc peer-name))
 
              (ssh-write-text /dev/tcpout identification)
              (write-special peer /dev/sshout)
@@ -93,7 +94,7 @@
 
               [(exn? evt)
                (cond [(exn:ssh:kex? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-KEY-EXCHANGE-FAILED peer-name rfc evt)]
-                     [else (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-PROTOCOL-ERROR peer-name rfc evt)])
+                     [(not (exn:ssh:eof? evt)) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-PROTOCOL-ERROR peer-name rfc evt)])
                (raise evt)]
               
               [else (values maybe-rekex 0)]))
