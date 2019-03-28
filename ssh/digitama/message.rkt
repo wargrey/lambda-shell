@@ -6,6 +6,8 @@
 (provide (all-defined-out))
 (provide (for-syntax ssh-typename ssh-typeid))
 
+(require "datatype.rkt")
+
 (require "../datatype.rkt")
 
 (require (for-syntax racket/base))
@@ -14,6 +16,7 @@
 (require (for-syntax racket/sequence))
 (require (for-syntax syntax/parse))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax (ssh-typename <id>)
   (format-id <id> "~a" (string-replace (symbol->string (syntax-e <id>)) "_" "-")))
 
@@ -26,7 +29,7 @@
       (values (subbytes braw offset end)
               end)))
 
-(define-for-syntax (ssh-datum-pipeline <FType>)
+(define-for-syntax (ssh-message-datum-pipeline <FType>)
   (case (syntax->datum <FType>)
     [(Boolean) (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
     [(Index)   (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values)]
@@ -43,21 +46,7 @@
               [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
               [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
                         (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
-                        (raise-syntax-error 'define-ssh-message-field "invalid SSH data type" <FType>))]))]))
-
-
-(define-for-syntax (ssh-message-field <declaration>)
-  (define declaration (syntax-e <declaration>))
-  (define <field> (car declaration))
-  (define <kw-name> (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>)))))
-  (define-values (<argls> <value>)
-    (syntax-case <declaration> []
-      [(field FieldType) (values #'[field : FieldType] #'field)]
-
-      ; TODO: why it fails when `defval` is using other field name?
-      [(field FieldType defval) (values #'[field : (Option FieldType) #false] #'(or field defval))]
-      [_ (raise-syntax-error 'define-ssh-message-field "malformed field declaration" <declaration>)]))
-  (values <kw-name> <argls> <value>))
+                        (raise-syntax-error 'define-ssh-message "invalid SSH data type" <FType>))]))]))
 
 (define-syntax (define-message-interface stx)
   (syntax-case stx [:]
@@ -74,7 +63,7 @@
                      (let-values ([(kw-args seulav)
                                    (for/fold ([syns null] [slav null])
                                              ([<declaration> (in-syntax #'([field FieldType defval ...] ...))])
-                                     (define-values (<kw-name> <argls> <value>) (ssh-message-field <declaration>))
+                                     (define-values (<kw-name> <argls> <value>) (ssh-struct-field <declaration>))
                                      (values (cons <kw-name> (cons <argls> syns))
                                              (cons <value> slav)))])
                        (list kw-args (reverse seulav)))]
@@ -82,7 +71,7 @@
                      (for/list ([<field> (in-syntax #'(field ...))]
                                 [<FType> (in-syntax #'(FieldType ...))])
                        (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
-                             (ssh-datum-pipeline <FType>)))])
+                             (ssh-message-datum-pipeline <FType>)))])
        #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 
@@ -156,29 +145,3 @@
     (define maybe-db : (Option (HashTable Index Unsafe-SSH-Bytes->Message)) (hash-ref ssh-bytes->shared-message-database gid (λ [] #false)))
     (and (hash? maybe-db)
          (hash-ref maybe-db no (λ [] #false)))))
-
-(define ssh-values : (SSH-Bytes->Type Bytes)
-  (lambda [braw [offset 0]]
-    (define end : Index (bytes-length braw))
-    (values (subbytes braw offset end)
-            end)))
-
-(define ssh-cookie : (->* () (Byte) Bytes)
-  (lambda [[n 16]]
-    (define cookie : Bytes (make-bytes n))
-
-    (let pad ([rest : Nonnegative-Fixnum n])
-      (define idx-8 : Fixnum (- rest 8))
-      (define idx-4 : Fixnum (- rest 4))
-      (define idx-1 : Fixnum (- rest 1))
-      (cond [(> idx-8 0)
-             (real->floating-point-bytes (random) 8 #true cookie idx-8)
-             (pad idx-8)]
-            [(> idx-4 0)
-             (real->floating-point-bytes (random) 4 #true cookie idx-4)
-             (pad idx-4)]
-            [(> idx-1 0)
-             (bytes-set! cookie idx-1 (random 256))
-             (pad idx-1)]))
-    
-    cookie))

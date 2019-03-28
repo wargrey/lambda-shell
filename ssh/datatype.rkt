@@ -2,22 +2,74 @@
 
 ;;; http://tools.ietf.org/html/rfc4251#section-5
 
-(provide (all-defined-out))
+(provide (all-defined-out) SSH-Bytes->Type)
 
 (require racket/string)
 
 (require racket/unsafe/ops)
 (require typed/racket/unsafe)
 
+(require "digitama/datatype.rkt")
+
+(require (for-syntax racket/base))
+(require (for-syntax racket/syntax))
+(require (for-syntax racket/sequence))
+
 (define-type (SSH-Bytes n) Bytes)
 (define-type (SSH-Symbol ns) ns)
 (define-type (SSH-Algorithm-Listof t) (Listof (Pairof Symbol (Option t))))
 (define-type (SSH-Algorithm-Listof* t) (Listof (Pairof Symbol t)))
-(define-type (SSH-Bytes->Type t) (->* (Bytes) (Natural) (Values t Natural)))
 
 (unsafe-require/typed racket/base
                       [integer-bytes->integer (-> Bytes Boolean Boolean Natural Natural Index)])
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-for-syntax (ssh-struct-datum-pipeline <FType>)
+  (case (syntax->datum <FType>)
+    [(Boolean) (list #'ssh-boolean->bytes #'ssh-bytes->boolean)]
+    [(Index)   (list #'ssh-uint32->bytes  #'ssh-bytes->uint32)]
+    [(Natural) (list #'ssh-uint64->bytes  #'ssh-bytes->uint64)]
+    [(String)  (list #'ssh-string->bytes  #'ssh-bytes->string)]
+    [(Integer) (list #'ssh-mpint->bytes   #'ssh-bytes->mpint)]
+    [(Symbol)  (list #'ssh-name->bytes    #'ssh-bytes->name)]
+    [(Bytes)   (list #'values             #'ssh-values)]
+    [else (raise-syntax-error 'define-ssh-struct "invalid SSH data type" <FType>)]))
+
+(define-syntax (define-ssh-struct stx)
+  (syntax-case stx [:]
+    [(_ id : ID ([field : FieldType defval ...] ...))
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [id->bytes (format-id #'id "~a->bytes" (syntax-e #'id))]
+                    [bytes->id (format-id #'id "bytes->~a" (syntax-e #'id))]
+                    [([kw-args ...] [init-values ...])
+                     (let-values ([(kw-args seulav)
+                                   (for/fold ([syns null] [slav null])
+                                             ([<declaration> (in-syntax #'([field FieldType defval ...] ...))])
+                                     (define-values (<kw-name> <argls> <value>) (ssh-struct-field <declaration>))
+                                     (values (cons <kw-name> (cons <argls> syns))
+                                             (cons <value> slav)))])
+                       (list kw-args (reverse seulav)))]
+                    [([field-ref (ssh->bytes bytes->ssh)] ...)
+                     (for/list ([<field> (in-syntax #'(field ...))]
+                                [<FType> (in-syntax #'(FieldType ...))])
+                       (list (format-id <field> "~a-~a" (syntax-e #'id) (syntax-e <field>))
+                             (ssh-struct-datum-pipeline <FType>)))])
+       #'(begin (struct id ([field : FieldType] ...) #:transparent #:type-name ID)
+
+                (define (make-id kw-args ...) : ID
+                  (id init-values ...))
+
+                (define id->bytes : (-> ID Bytes)
+                  (lambda [self]
+                    (bytes-append (ssh->bytes (field-ref self))
+                                  ...)))
+
+                (define bytes->id : (->* (Bytes) (Index) ID)
+                  (lambda [bmsg [offset 0]]
+                    (let*-values ([(field offset) (bytes->ssh bmsg offset)] ...)
+                      (id field ...))))))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-boolean->bytes : (-> Any Bytes)
   (lambda [bool]
     (if bool (bytes 1) (bytes 0))))

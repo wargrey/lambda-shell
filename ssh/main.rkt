@@ -16,6 +16,7 @@
 ;;; https://tools.ietf.org/html/rfc5114, Additional Diffie-Hellman Groups for Use with IETF Standards                    ;;;
 ;;; https://tools.ietf.org/html/rfc6668, The Secure Shell Transport Layer Protocol with SHA-2                            ;;;
 ;;; https://tools.ietf.org/html/rfc8268, More Modular Exponentiation Diffie-Hellman Key Exchange Groups for Secure Shell ;;;
+;;; https://tools.ietf.org/html/rfc8268, Use of RSA Keys with SHA-256 and SHA-512 in the Secure Shell Protocol
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (provide (all-defined-out))

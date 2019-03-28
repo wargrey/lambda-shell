@@ -44,8 +44,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-algorithms #:cipher
-  ; http://tools.ietf.org/html/rfc4253#section-6.3
-  ([3des-cbc                       REQUIRED        three-key 3DES in CBC mode]
+  (; http://tools.ietf.org/html/rfc4253#section-6.3
+   [3des-cbc                       REQUIRED        three-key 3DES in CBC mode]
    [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode]
    [twofish256-cbc                 OPTIONAL        Twofish in CBC mode with a 256-bit key]
    [twofish-cbc                    OPTIONAL        alias for twofish256-cbc]
@@ -65,27 +65,27 @@
    [none                           OPTIONAL        no encryption]))
 
 (define-ssh-algorithms #:hmac
-  ; http://tools.ietf.org/html/rfc4253#section-6.4
-  ([hmac-sha1                      REQUIRED        HMAC-SHA1 (digest length = key length = 20)                      #:=> [ssh-hmac-sha1 20]]
+  (; http://tools.ietf.org/html/rfc6668#section-2
+   [hmac-sha2-256                  RECOMMENDED     HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)   #:=> [ssh-hmac-sha256 32]]
+   [hmac-sha2-512                  OPTIONAL        HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)]
+
+   ; http://tools.ietf.org/html/rfc4253#section-6.4
+   [hmac-sha1                      REQUIRED        HMAC-SHA1 (digest length = key length = 20)                      #:=> [ssh-hmac-sha1 20]]
    [hmac-sha1-96                   RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20) #:=> [ssh-hmac-sha1-96 12]]
    [hmac-md5                       OPTIONAL        HMAC-MD5 (digest length = key length = 16)]
    [hmac-md5-96                    OPTIONAL        first 96 bits of HMAC-MD5 (digest length = 12, key length = 16)]
    
-   ; http://tools.ietf.org/html/rfc6668#section-2
-   [hmac-sha2-256                  RECOMMENDED     HMAC-SHA2-256 (digest length = 32 bytes key length = 32 bytes)   #:=> [ssh-hmac-sha256 32]]
-   [hmac-sha2-512                  OPTIONAL        HMAC-SHA2-512 (digest length = 64 bytes key length = 64 bytes)]
-
    [none                           OPTIONAL        no MAC, NOT RECOMMANDED                                          #:=> [ssh-hmac-none 0]]))
 
 (define-ssh-algorithms #:hostkey
-  ; https://tools.ietf.org/html/rfc4251#section-4.1
-  ; http://tools.ietf.org/html/rfc4253#section-6.6
-  ([ssh-dss                        REQUIRED        sign   Raw DSS Key]
+  (; https://tools.ietf.org/html/rfc4251#section-4.1
+   ; http://tools.ietf.org/html/rfc4253#section-6.6
+   [ssh-dss                        REQUIRED        sign   Raw DSS Key]
    [ssh-rsa                        RECOMMENDED     sign   Raw RSA Key                                               #:=> values]
    [pgp-sign-rsa                   OPTIONAL        sign   OpenPGP certificates (RSA key)]
    [pgp-sign-dss                   OPTIONAL        sign   OpenPGP certificates (DSS key)]))
 
 (define-ssh-algorithms #:compression
-  ; http://tools.ietf.org/html/rfc4253#section-6.2
-  ([none                           REQUIRED        no compression                                                   #:=> values]
+  (; http://tools.ietf.org/html/rfc4253#section-6.2
+   [none                           REQUIRED        no compression                                                   #:=> values]
    [zlib                           OPTIONAL        ZLIB (LZ77) compression]))

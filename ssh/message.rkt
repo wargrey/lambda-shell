@@ -16,6 +16,7 @@
 
 (require "digitama/assignment.rkt")
 (require "digitama/message.rkt")
+(require "digitama/algorithm/random.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))

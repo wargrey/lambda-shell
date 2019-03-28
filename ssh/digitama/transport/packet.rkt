@@ -9,8 +9,9 @@
 (require digimon/format)
 
 (require "../../datatype.rkt")
-(require "../message.rkt")
 (require "../diagnostics.rkt")
+
+(require "../algorithm/random.rkt")
 
 #|
  uint32    packet_length  (the next 3 fields)               -
