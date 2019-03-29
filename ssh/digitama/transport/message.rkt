@@ -21,7 +21,7 @@
   (lambda [/dev/tcpin peer-name rfc groups]
     (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin peer-name ($ssh-payload-capacity rfc) 0))
     (define message-id : Byte (bytes-ref payload 0))
-    (define maybe-trans-msg : (Option SSH-Message) (ssh-bytes->transport-message payload #:groups groups))
+    (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message payload #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
     (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
     

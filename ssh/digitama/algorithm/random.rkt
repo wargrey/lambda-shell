@@ -26,13 +26,13 @@
     cookie))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define random-odd-prime : (->* (Positive-Index) (Positive-Byte) Natural)
+(define random-odd-prime : (->* (Positive-Index) (Positive-Byte) Positive-Integer)
   (lambda [bits [block-bits 30]]
-    (define maybe-p : Natural (bitwise-ior (random-bits bits block-bits) #b1))
+    (define maybe-p : Positive-Integer (bitwise-ior (random-nbits bits block-bits) #b1))
     (cond [(prime? maybe-p) maybe-p] ; for big integers, `prime?` uses the probabilistic way.
           [else (random-odd-prime bits block-bits)])))
 
-(define random-bits : (->* (Positive-Index) (Positive-Byte) Natural)
+(define random-nbits : (->* (Positive-Index) (Positive-Byte) Natural)
   (lambda [bits [block-bits 30]]
     (define block-size : Natural (arithmetic-shift 1 block-bits))
     (define max-blocks : Index (quotient bits block-bits))

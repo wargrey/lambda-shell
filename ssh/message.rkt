@@ -25,15 +25,21 @@
   (syntax-case stx [:]
     [(_ type idmin idmax comments ...)
      (with-syntax ([ssh-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
-                   [ssh-bytes->range-message (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))])
+                   [ssh-bytes->range-message (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))]
+                   [ssh-bytes->range-message* (format-id #'type "ssh-bytes->~a-message*" (syntax-e #'type))])
        #'(begin (define ssh-message? : (-> SSH-Message Boolean)
                   (lambda [self]
                     (<= idmin (ssh-message-id self) idmax)))
                 
-                (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Option SSH-Message))
+                (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (values (Option SSH-Message) Nonnegative-Fixnum))
                   (lambda [bmsg [offset 0] #:groups [groups null]]
-                    (and (<= idmin (bytes-ref bmsg offset) idmax)
-                         (ssh-bytes->message bmsg offset #:groups groups))))))]))
+                    (cond [(<= idmin (bytes-ref bmsg offset) idmax) (ssh-bytes->message bmsg offset #:groups groups)]
+                          [else (values #false offset)])))
+
+                (define ssh-bytes->range-message* : (->* (Bytes) (Index #:groups (Listof Symbol)) (Option SSH-Message))
+                  (lambda [bmsg [offset 0] #:groups [groups null]]
+                    (define-values (maybe-message end-index) (ssh-bytes->message bmsg offset #:groups groups))
+                    maybe-message))))]))
 
 ;; https://tools.ietf.org/html/rfc4251#section-7
 (define-ssh-message-range transport        1  49   Transport layer protocol)
@@ -118,14 +124,18 @@
         #|this should not happen|#
         (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
 
-(define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
+(define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Nonnegative-Fixnum))
   (lambda [bmsg [offset 0] #:groups [groups null]]
     (define id : Byte (bytes-ref bmsg offset))
     (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (or (and unsafe-bytes->message (unsafe-bytes->message bmsg offset))
-        (let query : (Option SSH-Message) ([groups : (Listof Symbol) groups])
-          (and (pair? groups)
-               (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
-                 (or (and bytes->message (bytes->message bmsg offset))
-                     (query (cdr groups))))))
-        (ssh-undefined-message id))))
+    (cond [(and unsafe-bytes->message) (unsafe-bytes->message bmsg offset)]
+          [else (let query ([groups : (Listof Symbol) groups])
+                  (cond [(null? groups) (values (ssh-undefined-message id) offset)]
+                        [else (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
+                                (cond [(and bytes->message) (bytes->message bmsg offset)]
+                                      [else (query (cdr groups))]))]))])))
+
+(define ssh-bytes->message* : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
+  (lambda [bmsg [offset 0] #:groups [groups null]]
+    (define-values (message end-index) (ssh-bytes->message bmsg offset #:groups groups))
+    message))

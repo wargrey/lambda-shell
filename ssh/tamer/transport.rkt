@@ -71,4 +71,4 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
          (lambda [self]
            (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
              (define payload (ssh-message->bytes self))
-             (values payload (ssh-bytes->message payload)))))]
+             (values payload (ssh-bytes->message* payload)))))]

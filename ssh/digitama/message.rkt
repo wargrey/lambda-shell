@@ -59,6 +59,7 @@
                     [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
                     [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
+                    [unsafe-bytes->ssh:msg* (format-id #'ssh:msg "unsafe-bytes->~a*" (syntax-e #'ssh:msg))]
                     [([kw-args ...] [init-values ...])
                      (let-values ([(kw-args seulav)
                                    (for/fold ([syns null] [slav null])
@@ -84,11 +85,17 @@
                                   (ssh->bytes (racket->ssh (field-ref self)))
                                   ...)))
 
-                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) SSH-MSG)
+                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Nonnegative-Fixnum))
                   (lambda [bmsg [offset 0]]
                     (let*-values ([(offset) (+ offset 1)]
                                   [(field offset) (bytes->ssh bmsg offset)] ...)
-                      (constructor val 'SSH-MSG (ssh->racket field) ...))))
+                      (values (constructor val 'SSH-MSG (ssh->racket field) ...)
+                              offset))))
+
+                (define unsafe-bytes->ssh:msg* : (->* (Bytes) (Index) SSH-MSG)
+                  (lambda [bmsg [offset 0]]
+                    (define-values (message end-index) (unsafe-bytes->ssh:msg bmsg offset))
+                    message))
 
                 (define SSH:MSG->bytes : (-> SSH-Message (Option Bytes))
                   (lambda [self]
@@ -124,7 +131,7 @@
      #'(begin (define-message enum val #:group group-name ([field : FieldType defval ...] ...)) ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) SSH-Message))
+(define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Nonnegative-Fixnum)))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
 (struct ssh-message ([id : Byte] [name : Symbol]) #:type-name SSH-Message)

@@ -20,7 +20,7 @@
   (values <kw-name> <argls> <value>))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type (SSH-Bytes->Type t) (->* (Bytes) (Natural) (Values t Natural)))
+(define-type (SSH-Bytes->Type t) (->* (Bytes) (Natural) (Values t Nonnegative-Fixnum)))
 
 (define ssh-values : (SSH-Bytes->Type Bytes)
   (lambda [braw [offset 0]]

@@ -41,6 +41,7 @@
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                     [id->bytes (format-id #'id "~a->bytes" (syntax-e #'id))]
                     [bytes->id (format-id #'id "bytes->~a" (syntax-e #'id))]
+                    [bytes->id* (format-id #'id "bytes->~a*" (syntax-e #'id))]
                     [([kw-args ...] [init-values ...])
                      (let-values ([(kw-args seulav)
                                    (for/fold ([syns null] [slav null])
@@ -64,10 +65,15 @@
                     (bytes-append (ssh->bytes (field-ref self))
                                   ...)))
 
-                (define bytes->id : (->* (Bytes) (Index) ID)
+                (define bytes->id : (->* (Bytes) (Index) (Values ID Nonnegative-Fixnum))
                   (lambda [bmsg [offset 0]]
                     (let*-values ([(field offset) (bytes->ssh bmsg offset)] ...)
-                      (id field ...))))))]))
+                      (values (id field ...) offset))))
+
+                (define bytes->id* : (->* (Bytes) (Index) ID)
+                  (lambda [bmsg [offset 0]]
+                    (define-values (message end-index) (bytes->id bmsg offset))
+                    message))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-boolean->bytes : (-> Any Bytes)
@@ -85,7 +91,7 @@
 
 (define ssh-bytes->uint32 : (SSH-Bytes->Type Index)
   (lambda [bint [offset 0]]
-    (define end : Natural (unsafe-fx+ offset 4))
+    (define end : Positive-Fixnum (unsafe-fx+ offset 4))
     (values (integer-bytes->integer bint #false #true offset end)
             end)))
 
@@ -95,7 +101,7 @@
 
 (define ssh-bytes->uint64 : (SSH-Bytes->Type Natural)
   (lambda [bint [offset 0]]
-    (define end : Natural (unsafe-fx+ offset 8))
+    (define end : Positive-Fixnum (unsafe-fx+ offset 8))
     (values (integer-bytes->integer bint #false #true offset end)
             end)))
 
@@ -107,7 +113,7 @@
 (define ssh-bytes->string : (SSH-Bytes->Type String)
   (lambda [butf8 [offset 0]]
     (define-values (size offset++) (ssh-bytes->uint32 butf8 offset))
-    (define end : Natural (unsafe-fx+ size offset++))
+    (define end : Nonnegative-Fixnum (unsafe-fx+ size offset++))
     (values (bytes->string/utf-8 butf8 #false offset++ end)
             end)))
 
