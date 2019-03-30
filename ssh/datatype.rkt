@@ -3,6 +3,7 @@
 ;;; http://tools.ietf.org/html/rfc4251#section-5
 
 (provide (all-defined-out) SSH-Bytes->Type)
+(provide (for-syntax ssh-datum-pipeline))
 
 (require racket/string)
 
@@ -15,6 +16,7 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
 
+(define-type SSH-BString Bytes)
 (define-type (SSH-Bytes n) Bytes)
 (define-type (SSH-Symbol ns) ns)
 (define-type (SSH-Algorithm-Listof t) (Listof (Pairof Symbol (Option t))))
@@ -24,16 +26,30 @@
                       [integer-bytes->integer (-> Bytes Boolean Boolean Natural Natural Index)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-for-syntax (ssh-struct-datum-pipeline <FType>)
+(define-for-syntax (ssh-make-nbytes->bytes <n>)
+  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Nonnegative-Fixnum)
+      (let ([end (unsafe-fx+ offset #,(syntax-e <n>))])
+        (values (subbytes braw offset end) end))))
+
+(define-for-syntax (ssh-datum-pipeline func <FType>)
   (case (syntax->datum <FType>)
-    [(Boolean) (list #'ssh-boolean->bytes #'ssh-bytes->boolean)]
-    [(Index)   (list #'ssh-uint32->bytes  #'ssh-bytes->uint32)]
-    [(Natural) (list #'ssh-uint64->bytes  #'ssh-bytes->uint64)]
-    [(String)  (list #'ssh-string->bytes  #'ssh-bytes->string)]
-    [(Integer) (list #'ssh-mpint->bytes   #'ssh-bytes->mpint)]
-    [(Symbol)  (list #'ssh-name->bytes    #'ssh-bytes->name)]
-    [(Bytes)   (list #'values             #'ssh-values)]
-    [else (raise-syntax-error 'define-ssh-struct "invalid SSH data type" <FType>)]))
+    [(Boolean)     (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
+    [(Index)       (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values)]
+    [(Natural)     (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values)]
+    [(String)      (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values)]
+    [(SSH-BString) (list #'values #'ssh-bstring->bytes #'ssh-bytes->bstring #'values)]
+    [(Integer)     (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values)]
+    [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values)]
+    [(Bytes)       (list #'values #'values             #'ssh-values         #'values)]
+    [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
+                         [$type (format-id #'T "$~a" (syntax-e #'T))])
+            (case (syntax-e #'TypeOf)
+              [(SSH-Bytes)            (list #'values                #'values              (ssh-make-nbytes->bytes #'T) #'values)]
+              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
+              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
+              [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
+                        (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
+                        (raise-syntax-error func "invalid SSH data type" <FType>))]))]))
 
 (define-syntax (define-ssh-struct stx)
   (syntax-case stx [:]
@@ -50,11 +66,11 @@
                                      (values (cons <kw-name> (cons <argls> syns))
                                              (cons <value> slav)))])
                        (list kw-args (reverse seulav)))]
-                    [([field-ref (ssh->bytes bytes->ssh)] ...)
+                    [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket)] ...)
                      (for/list ([<field> (in-syntax #'(field ...))]
                                 [<FType> (in-syntax #'(FieldType ...))])
                        (list (format-id <field> "~a-~a" (syntax-e #'id) (syntax-e <field>))
-                             (ssh-struct-datum-pipeline <FType>)))])
+                             (ssh-datum-pipeline 'define-ssh-struct <FType>)))])
        #'(begin (struct id ([field : FieldType] ...) #:transparent #:type-name ID)
 
                 (define (make-id kw-args ...) : ID
@@ -105,10 +121,20 @@
     (values (integer-bytes->integer bint #false #true offset end)
             end)))
 
+(define ssh-bstring->bytes : (-> SSH-BString Bytes)
+  (lambda [bs]
+    (bytes-append (ssh-uint32->bytes (bytes-length bs)) bs)))
+
+(define ssh-bytes->bstring : (SSH-Bytes->Type SSH-BString)
+  (lambda [butf8 [offset 0]]
+    (define-values (size offset++) (ssh-bytes->uint32 butf8 offset))
+    (define end : Nonnegative-Fixnum (unsafe-fx+ size offset++))
+    (values (subbytes butf8 offset++ end)
+            end)))
+
 (define ssh-string->bytes : (-> String Bytes)
   (lambda [utf8]
-    (bytes-append (ssh-uint32->bytes (string-utf-8-length utf8))
-                  (string->bytes/utf-8 utf8))))
+    (ssh-bstring->bytes (string->bytes/utf-8 utf8))))
 
 (define ssh-bytes->string : (SSH-Bytes->Type String)
   (lambda [butf8 [offset 0]]

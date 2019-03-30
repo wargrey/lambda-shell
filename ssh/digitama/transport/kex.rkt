@@ -64,7 +64,7 @@
 (define ssh-kex : (-> Thread (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms
                       Input-Port Output-Port Symbol SSH-Configuration String String SSH-MSG-KEXINIT SSH-MSG-KEXINIT Natural Void)
   (lambda [parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Mc Ms traffic]
-    (define host-key : String "λ")
+    (define host-key : (Instance SSH-Host-Key<%>) (new (vector-ref (cdr hostkey) 0) [hash (vector-ref (cdr hostkey) 1)]))
     (define kex-process : (Instance SSH-Key-Exchange<%>)
       (new (vector-ref (cdr kex) 0)
            [Vc Vc] [Vs Vs] [Ic (ssh:msg:kexinit->bytes Mc)] [Is (ssh:msg:kexinit->bytes Ms)]

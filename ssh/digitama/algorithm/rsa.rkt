@@ -30,8 +30,8 @@
   #:transparent
   #:type-name RSA-Private)
 
-(define ssh-rsa-keygen : (->* () ((List* Positive-Integer Positive-Integer(Listof Positive-Integer)) #:e Positive-Integer) RSA-Private)
-  (lambda [[ps (ssh-rsa-distinct-primes)] #:e [e0 65537]]
+(define rsa-keygen : (->* () ((List* Positive-Integer Positive-Integer(Listof Positive-Integer)) #:e Positive-Integer) RSA-Private)
+  (lambda [[ps (rsa-distinct-primes)] #:e [e0 65537]]
     (define p : Positive-Integer (car ps))
     (define q : Positive-Integer (cadr ps))
     (define n : Positive-Integer (apply * ps))
@@ -68,18 +68,46 @@ It means the probability that a randomly chosen number is prime is 1/ln(n),
 For example, the probability to find a prime number of 1024 bits is 1/(ln(2^1024)) = 1/710
 |#
 
-(define ssh-rsa-distinct-primes : (->* () (Index #:bits Positive-Index) (List* Positive-Integer Positive-Integer (Listof Positive-Integer)))
-  (lambda [[extra-n 0] #:bits [nbits 1024]]
-    (define last-1st : Positive-Integer (random-odd-prime nbits))
-    (define last-2nd : Positive-Integer
-      (let random-prime ()
-        (define maybe-p : Positive-Integer (random-odd-prime nbits))
-        (cond [(eqv? maybe-p last-1st) (random-prime)]
-              [else maybe-p])))
+(define rsa-distinct-primes : (-> [#:extra-prime-number Byte] [#:modulus-bits Positive-Index] [#:retry Positive-Byte]
+                                  (List* Positive-Integer Positive-Integer (Listof Positive-Integer)))
+  (lambda [#:extra-prime-number [extra-n 0] #:modulus-bits [mbits 1024] #:retry [max-retry 4]]
+    (define total : Index (+ extra-n 2))
+    (define-values (q r) (quotient/remainder mbits total))
+    (define-values (nbits+1 nbits+0) (values (assert (+ q 1) index?) q))
     
-    (let random-prime ([primes : (List* Positive-Integer Positive-Integer (Listof Positive-Integer)) (list last-2nd last-1st)]
-                       [n : Fixnum extra-n])
-      (cond [(<= n 0) primes]
-            [else (let ([p (random-odd-prime nbits)])
-                    (cond [(eqv? p primes) (random-prime primes n)]
-                          [else (random-prime (cons p primes) (- n 1))]))]))))
+    (let random-all-primes ()
+      (define prime-1st : Positive-Integer (random-odd-prime (if (< 0 r) nbits+1 nbits+0)))
+      (define prime-2nd : Positive-Integer
+        (let random-prime ([nbits : Index (if (< 1 r) nbits+1 nbits+0)])
+          (define maybe-p : Positive-Integer (random-odd-prime nbits))
+          (cond [(eqv? maybe-p prime-1st) (random-prime nbits)]
+                [(rsa-primes-okay? (list prime-1st maybe-p) mbits) maybe-p]
+                [else (random-prime nbits)])))
+
+      (cond [(= extra-n 0) (list prime-1st prime-2nd)]
+            [else (let random-extra-primes ([eps : (Listof Positive-Integer) null]
+                                            [idx : Nonnegative-Fixnum 2]
+                                            [retries : Index 0])
+                    (displayln (cons idx (map integer-length eps)))
+                    (define nbits : Index (if (< idx r) nbits+1 nbits+0))
+                    (cond [(< idx total)
+                           (let ([p (random-odd-prime nbits)])
+                             (cond [(memv p eps) (random-extra-primes eps idx 0)]
+                                   [else (random-extra-primes (cons p eps) (+ idx 1) 0)]))]
+                          [else (let ([all-primes (list* prime-1st prime-2nd (reverse eps))])
+                                  (cond [(rsa-primes-okay? all-primes mbits) all-primes]
+                                        [(>= retries max-retry) (random-all-primes)]
+                                        [else (random-extra-primes (cdr eps) (max (- idx 1) 0) (+ retries 1))]))]))]))))
+  
+;;; For more detailed consideration, please check 'openssl/crypto/rsa/rsa_gen.c'  
+(define rsa-primes-okay? : (-> (Listof Positive-Integer) Positive-Index Boolean)
+  (lambda [primes mbits]
+    (define modulus : Natural (apply * primes))
+    (define head-byte : Natural (arithmetic-shift modulus (- 4 mbits)))
+
+    ; #b1000 could be utilized to distinguish a multi-prime private key by using the modulus in a certificate.
+    (<= #b1001 head-byte #b1111)))
+
+
+(rsa-distinct-primes)
+(rsa-distinct-primes #:extra-prime-number 2)

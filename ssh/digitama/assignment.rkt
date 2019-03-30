@@ -73,7 +73,7 @@
      #'(begin (define-ssh-algorithm &ssh-hmac-algorithms (definition)) ...)]
     [(_ #:compression (definition ...))
      #'(begin (define-ssh-algorithm &ssh-compression-algorithms (definition)) ...)]
-    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unknonw algorithm type, expected #:hmac, #:cipher, or #:compression" #'keyword)]))
+    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unexpected algorithm type, expected #:hmac, #:cipher, or #:compression" #'keyword)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct ssh-package-algorithms
@@ -84,7 +84,7 @@
   #:type-name SSH-Package-Algorithms)
 
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector SSH-Key-Exchange<%> (-> Bytes Bytes)))
-(define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (-> Bytes Bytes))
+(define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> (-> Bytes Bytes)))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (Immutable-Vector (-> Bytes Bytes Bytes) Index))
 (define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (-> Bytes Bytes))

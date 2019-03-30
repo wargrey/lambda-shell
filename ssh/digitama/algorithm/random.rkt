@@ -26,13 +26,16 @@
     cookie))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define random-odd-prime : (->* (Positive-Index) (Positive-Byte) Positive-Integer)
-  (lambda [bits [block-bits 30]]
-    (define maybe-p : Positive-Integer (bitwise-ior (random-nbits bits block-bits) #b1))
+(define random-odd-prime : (->* (Index) (Positive-Byte) Positive-Integer)
+  (lambda [nbits [block-bits 30]]
+    (define bit : Integer (remainder (- nbits 1) 8))
+    (define head-byte : Byte (bitwise-and (arithmetic-shift 3 (- bit 1)) #xFF))
+    (define rbignum : Natural (random-nbits nbits block-bits))
+    (define maybe-p : Positive-Integer (bitwise-ior (bitwise-ior rbignum (arithmetic-shift head-byte (- nbits 8))) #b1))
     (cond [(prime? maybe-p) maybe-p] ; for big integers, `prime?` uses the probabilistic way.
-          [else (random-odd-prime bits block-bits)])))
+          [else (random-odd-prime nbits block-bits)])))
 
-(define random-nbits : (->* (Positive-Index) (Positive-Byte) Natural)
+(define random-nbits : (->* (Index) (Positive-Byte) Natural)
   (lambda [bits [block-bits 30]]
     (define block-size : Natural (arithmetic-shift 1 block-bits))
     (define max-blocks : Index (quotient bits block-bits))

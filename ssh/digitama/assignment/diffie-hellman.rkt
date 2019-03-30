@@ -2,9 +2,8 @@
 
 (provide (all-defined-out))
 
-(require "digitama/assignment.rkt")
-
-(require "digitama/algorithm/diffie-hellman.rkt")
+(require "../assignment.rkt")
+(require "../algorithm/diffie-hellman.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-algorithms #:kex

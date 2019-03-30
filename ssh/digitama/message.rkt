@@ -6,6 +6,8 @@
 (provide (all-defined-out))
 (provide (for-syntax ssh-typename ssh-typeid))
 
+(require racket/unsafe/ops)
+
 (require "datatype.rkt")
 
 (require "../datatype.rkt")
@@ -22,31 +24,6 @@
 
 (define-for-syntax (ssh-typeid <id>)
   (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) "_" ":")))
-
-(define-for-syntax (ssh-make-nbytes->bytes <n>)
-  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Natural)
-      (define end (+ offset #,(syntax-e <n>)))
-      (values (subbytes braw offset end)
-              end)))
-
-(define-for-syntax (ssh-message-datum-pipeline <FType>)
-  (case (syntax->datum <FType>)
-    [(Boolean) (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
-    [(Index)   (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values)]
-    [(Natural) (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values)]
-    [(String)  (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values)]
-    [(Integer) (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values)]
-    [(Symbol)  (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values)]
-    [(Bytes)   (list #'values #'values             #'ssh-values         #'values)]
-    [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
-                         [$type (format-id #'T "$~a" (syntax-e #'T))])
-            (case (syntax-e #'TypeOf)
-              [(SSH-Bytes)            (list #'values                #'values              (ssh-make-nbytes->bytes #'T) #'values)]
-              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
-              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
-              [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
-                        (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
-                        (raise-syntax-error 'define-ssh-message "invalid SSH data type" <FType>))]))]))
 
 (define-syntax (define-message-interface stx)
   (syntax-case stx [:]
@@ -72,7 +49,7 @@
                      (for/list ([<field> (in-syntax #'(field ...))]
                                 [<FType> (in-syntax #'(FieldType ...))])
                        (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
-                             (ssh-message-datum-pipeline <FType>)))])
+                             (ssh-datum-pipeline 'define-ssh-messages <FType>)))])
        #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 

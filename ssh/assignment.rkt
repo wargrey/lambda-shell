@@ -77,14 +77,6 @@
    
    [none                           OPTIONAL        no MAC, NOT RECOMMANDED                                          #:=> [ssh-hmac-none 0]]))
 
-(define-ssh-algorithms #:hostkey
-  (; https://tools.ietf.org/html/rfc4251#section-4.1
-   ; http://tools.ietf.org/html/rfc4253#section-6.6
-   [ssh-dss                        REQUIRED        sign   Raw DSS Key]
-   [ssh-rsa                        RECOMMENDED     sign   Raw RSA Key                                               #:=> values]
-   [pgp-sign-rsa                   OPTIONAL        sign   OpenPGP certificates (RSA key)]
-   [pgp-sign-dss                   OPTIONAL        sign   OpenPGP certificates (DSS key)]))
-
 (define-ssh-algorithms #:compression
   (; http://tools.ietf.org/html/rfc4253#section-6.2
    [none                           REQUIRED        no compression                                                   #:=> values]

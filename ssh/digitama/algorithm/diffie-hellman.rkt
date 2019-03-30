@@ -19,7 +19,7 @@
 (define-ssh-shared-messages diffie-hellman-exchange
   ; https://www.rfc-editor.org/errata_search.php?rfc=4253
   [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
-  [SSH_MSG_KEXDH_REPLY               31 ([K-S : String] [f : Integer] [H : String])])
+  [SSH_MSG_KEXDH_REPLY               31 ([K-S : SSH-BString] [f : Integer] [H : SSH-BString])])
 
 (define-ssh-shared-messages diffie-hellman-group-exchange
   ; https://tools.ietf.org/html/rfc4419
@@ -27,7 +27,7 @@
   [SSH_MSG_KEY_DH_GEX_REQUEST        34 ([min : Index] [n : Index] [max : Index])]
   [SSH_MSG_KEY_DH_GEX_GROUP          31 ([p : Integer] [g : Integer])]
   [SSH_MSG_KEY_DH_GEX_INIT           32 ([e : Integer])]
-  [SSH_MSG_KEY_DH_GEX_REPLY          33 ([K-S : String] [f : Integer] [H : String])])
+  [SSH_MSG_KEY_DH_GEX_REPLY          33 ([K-S : SSH-BString] [f : Integer] [H : SSH-BString])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|
@@ -45,9 +45,11 @@
   (class object% (super-new)
     (init Vs Vc Is Ic hostkey hash peer-name)
 
-    (define VIcs : Bytes
+    (define K-S : Bytes (send hostkey make-key/certificates))
+    (define VIK : Bytes
       (bytes-append (ssh-string->bytes Vc) (ssh-string->bytes Vs)
-                    (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is))
+                    (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is
+                    (ssh-uint32->bytes (bytes-length K-S)) K-S))
 
     (define/public (tell-message-group)
       'diffie-hellman-exchange)
@@ -66,6 +68,6 @@
         (define y : Integer (random-integer 2 (dh-modp-group-q dh)))
         (define f : Integer (modular-expt g y p))
         (define K : Integer (modular-expt e y p))
-        (define H : Bytes (hash (bytes-append VIcs (ssh-string->bytes hostkey) (ssh-mpint->bytes e) (ssh-mpint->bytes f) (ssh-mpint->bytes K))))
-        
-        (make-ssh:msg:kexdh:reply #:K-S hostkey #:f f #:H "")))))
+        (define H : Bytes (hash (bytes-append VIK (ssh-mpint->bytes e) (ssh-mpint->bytes f) (ssh-mpint->bytes K))))
+
+        (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:H (send hostkey make-signature H))))))

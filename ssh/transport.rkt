@@ -12,7 +12,6 @@
                       [read-byte-or-special (-> Input-Port SSH-Datum)])
 
 (require "digitama/transport/identification.rkt")
-(require "digitama/transport/message.rkt")
 (require "digitama/transport.rkt")
 (require "digitama/diagnostics.rkt")
 
@@ -20,7 +19,10 @@
 (require "assignment.rkt")
 (require "configuration.rkt")
 
-(require "diffie-hellman.rkt")
+;;; register builtin assignments
+(require "digitama/assignment/diffie-hellman.rkt")
+(require "digitama/assignment/hostkey.rkt")
+
 
 (define-type SSH-Datum (U SSH-Message Bytes EOF exn))
 
