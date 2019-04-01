@@ -7,6 +7,8 @@
 
 (require "kex.rkt")
 (require "message.rkt")
+(require "algorithm/pkcs/hash.rkt")
+
 (require "../datatype.rkt")
 
 (require (for-syntax racket/base))
@@ -84,7 +86,7 @@
   #:type-name SSH-Package-Algorithms)
 
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector SSH-Key-Exchange<%> (-> Bytes Bytes)))
-(define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> (-> Bytes Bytes)))
+(define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> PKCS#1-Hash))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
 (define-ssh-algorithm-database ssh-hmac-algorithms : SSH-HMAC #:as (Immutable-Vector (-> Bytes Bytes Bytes) Index))
 (define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (-> Bytes Bytes))

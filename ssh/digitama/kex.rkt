@@ -5,9 +5,11 @@
 (require typed/racket/class)
 
 (require "message.rkt")
+(require "algorithm/pkcs/hash.rkt")
 
 (define-type SSH-Host-Key<%>
-  (Class (init-field [hash (-> Bytes Bytes) #:optional])
+  (Class (init-field [hash-algorithm PKCS#1-Hash]
+                     [peer-name Symbol])
          [tell-key-name (-> Symbol)]
          [make-key/certificates (-> Bytes)]
          [make-signature (-> Bytes Bytes)]))

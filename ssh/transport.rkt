@@ -106,6 +106,13 @@
   (lambda [self payload [display? #false]]
     (ssh-port-send self (make-ssh:msg:debug #:display? display? #:message (format "~a" payload)))))
 
+(define ssh-port-wait : (-> SSH-Port [#:abandon? Boolean] Void)
+  (lambda [self #:abandon? [abandon? #false]]
+    (unless (not abandon?)
+      (custodian-shutdown-all (ssh-transport-custodian self)))
+    
+    (thread-wait (ssh-port-ghostcat self))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-shutdown : (case-> [SSH-Listener -> Void]
                                [SSH-Port SSH-Disconnection-Reason -> Void]

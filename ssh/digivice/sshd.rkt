@@ -26,7 +26,8 @@
     (let sync-read-display-loop ()
       (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
       (unless (or (eof-object? datum) (exn? datum))
-        (sync-read-display-loop)))))
+        (sync-read-display-loop)))
+    (ssh-port-wait sshc)))
 
 (define main
   (lambda [argument-list]
