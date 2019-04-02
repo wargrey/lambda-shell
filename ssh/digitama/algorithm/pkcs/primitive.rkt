@@ -17,9 +17,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define pkcs#1-integer->octets : (-> Natural Index Bytes)
-  ;; https://tools.ietf.org/html/rfc3447#section-4.1
+  ;; https://tools.ietf.org/html/rfc8017#section-4.1
   (lambda [x xLen]
-    (define X : Bytes (make-bytes xLen #x0))
+    (define X : Bytes (make-bytes xLen #x00))
     (let I2OSP ([idx : Fixnum (- xLen 1)]
                 [x : Natural x])
       (when (>= idx 0)
@@ -28,7 +28,7 @@
     X))
 
 (define pkcs#1-octets->integer : (-> Bytes Natural)
-  ;; https://tools.ietf.org/html/rfc3447#section-4.2
+  ;; https://tools.ietf.org/html/rfc8017#section-4.2
   (lambda [X]
     (define xLen : Index (bytes-length X))
     (let OS2IP ([i : Nonnegative-Fixnum 0]
@@ -39,12 +39,12 @@
                             (unsafe-bytes-ref X i)))]))))
 
 (define pkcs#1-rsa-sign : (-> RSA-Private Natural Natural)
-  ;; https://tools.ietf.org/html/rfc3447#section-5.2.1
+  ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
   (lambda [K m]
     (modular-expt m (rsa-private-d K) (rsa-private-n K))))
 
 (define pkcs#1-rsa-verify : (-> RSA-Public Natural Natural)
-  ;; https://tools.ietf.org/html/rfc3447#section-5.2.1
+  ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
   (lambda [K s]
     (modular-expt s (rsa-public-e K) (rsa-public-n K))))
 

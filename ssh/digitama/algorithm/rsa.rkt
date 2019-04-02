@@ -13,7 +13,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define rsa-keygen : (->* () ((List* Positive-Integer Positive-Integer(Listof Positive-Integer)) #:e Positive-Integer) RSA-Private)
-  ;; https://tools.ietf.org/html/rfc3447#section-3
+  ;; https://tools.ietf.org/html/rfc8017#section-3
   (lambda [[ps (rsa-distinct-primes)] #:e [e0 65537]]
     (define p : Positive-Integer (car ps))
     (define q : Positive-Integer (cadr ps))

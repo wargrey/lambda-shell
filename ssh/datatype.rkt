@@ -151,9 +151,9 @@
                         [size+1 : Index (assert (+ size 1) index?)])
                    (for ([idx (in-range size)])
                      (unsafe-bytes-set! buffer idx (bitwise-and (arithmetic-shift mpi (unsafe-fx* (unsafe-fx- size (unsafe-fx+ idx 1)) -8)) #xFF)))
-                   (cond [(and (positive? mpi) (= (bytes-ref buffer 0) #b10000000))
+                   (cond [(and (positive? mpi) (bitwise-bit-set? (unsafe-bytes-ref buffer 0) 7))
                           (bytes-append (ssh-uint32->bytes size+1) (bytes #x00) buffer)]
-                         [(and (negative? mpi) (not (bitwise-bit-set? (bytes-ref buffer 0) 7)))
+                         [(and (negative? mpi) (not (bitwise-bit-set? (unsafe-bytes-ref buffer 0) 7)))
                           (bytes-append (ssh-uint32->bytes size+1) (bytes #xFF) buffer)]
                          [else (bytes-append (ssh-uint32->bytes size) buffer)]))])))
 

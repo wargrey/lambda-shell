@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-;;; https://tools.ietf.org/html/rfc3447#section-9.2
+;;; https://tools.ietf.org/html/rfc8017
   
 (provide (all-defined-out))
 
@@ -11,7 +11,7 @@
 (require "../../diagnostics.rkt")
 
 (define rsa-sign : (-> RSA-Private Bytes PKCS#1-Hash Symbol Bytes)
-  ;; https://tools.ietf.org/html/rfc3447#section-8.2.1
+  ;; https://tools.ietf.org/html/rfc8017#section-8.2.1
   (lambda [key message id-hash peer-name]
     (define mbits : Nonnegative-Fixnum (integer-length (rsa-private-n key)))
     (define k : Index (octets-length mbits))
@@ -37,4 +37,3 @@
             [else (throw exn:ssh:kex pkcs#1-v1.5-encode peer-name
                          "intended encoded message length too short (~a < ~a)"
                          embits (+ tLen 3))]))))
-
