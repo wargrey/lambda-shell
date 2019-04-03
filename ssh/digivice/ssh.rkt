@@ -15,8 +15,9 @@
   (values `((usage-help
              ,(format "[unstable, try at your own risk]~n"))
             (once-each
-             [("-p" "--port") ,(λ [flag port] (ssh-target-port (or (string->number port) (ssh-target-port))))
-                              (,(format "connect to <port> on the remote host [default: ~a]" (ssh-target-port)) "port")]))
+             [("-p" "--port")
+              ,(λ [flag port] (ssh-target-port (or (string->number port) (ssh-target-port))))
+              (,(format "connect to <port> on the remote host [default: ~a]" (ssh-target-port)) "port")]))
           (λ [-h] (string-replace -h #px"  -- : .+?-h --'." ""))
           (curry eprintf "make: I don't know what does `~a` mean!~n")))
 

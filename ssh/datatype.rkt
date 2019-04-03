@@ -2,7 +2,7 @@
 
 ;;; http://tools.ietf.org/html/rfc4251#section-5
 
-(provide (all-defined-out) SSH-Bytes->Type)
+(provide (all-defined-out) SSH-Bytes->Datum)
 (provide (for-syntax ssh-datum-pipeline))
 
 (require racket/string)
@@ -96,7 +96,7 @@
   (lambda [bool]
     (if bool (bytes 1) (bytes 0))))
 
-(define ssh-bytes->boolean : (SSH-Bytes->Type Boolean)
+(define ssh-bytes->boolean : (SSH-Bytes->Datum Boolean)
   (lambda [bbool [offset 0]]
     (values (not (zero? (bytes-ref bbool offset)))
             (unsafe-fx+ offset 1))))
@@ -105,7 +105,7 @@
   (lambda [u32]
     (integer->integer-bytes u32 4 #false #true)))
 
-(define ssh-bytes->uint32 : (SSH-Bytes->Type Index)
+(define ssh-bytes->uint32 : (SSH-Bytes->Datum Index)
   (lambda [bint [offset 0]]
     (define end : Positive-Fixnum (unsafe-fx+ offset 4))
     (values (integer-bytes->integer bint #false #true offset end)
@@ -115,7 +115,7 @@
   (lambda [u64]
     (integer->integer-bytes u64 8 #false #true)))
 
-(define ssh-bytes->uint64 : (SSH-Bytes->Type Natural)
+(define ssh-bytes->uint64 : (SSH-Bytes->Datum Natural)
   (lambda [bint [offset 0]]
     (define end : Positive-Fixnum (unsafe-fx+ offset 8))
     (values (integer-bytes->integer bint #false #true offset end)
@@ -125,7 +125,7 @@
   (lambda [bs]
     (bytes-append (ssh-uint32->bytes (bytes-length bs)) bs)))
 
-(define ssh-bytes->bstring : (SSH-Bytes->Type SSH-BString)
+(define ssh-bytes->bstring : (SSH-Bytes->Datum SSH-BString)
   (lambda [butf8 [offset 0]]
     (define-values (size offset++) (ssh-bytes->uint32 butf8 offset))
     (define end : Nonnegative-Fixnum (unsafe-fx+ size offset++))
@@ -136,7 +136,7 @@
   (lambda [utf8]
     (ssh-bstring->bytes (string->bytes/utf-8 utf8))))
 
-(define ssh-bytes->string : (SSH-Bytes->Type String)
+(define ssh-bytes->string : (SSH-Bytes->Datum String)
   (lambda [butf8 [offset 0]]
     (define-values (size offset++) (ssh-bytes->uint32 butf8 offset))
     (define end : Nonnegative-Fixnum (unsafe-fx+ size offset++))
@@ -157,7 +157,7 @@
                           (bytes-append (ssh-uint32->bytes size+1) (bytes #xFF) buffer)]
                          [else (bytes-append (ssh-uint32->bytes size) buffer)]))])))
 
-(define ssh-bytes->mpint : (SSH-Bytes->Type Integer)
+(define ssh-bytes->mpint : (SSH-Bytes->Datum Integer)
   (lambda [bmpi [offset 0]]
     (define-values (size offset++) (ssh-bytes->uint32 bmpi offset))
     (define end : Nonnegative-Fixnum (unsafe-fx+ size offset++))
@@ -174,7 +174,7 @@
   (lambda [name]
     (ssh-string->bytes (symbol->string name))))
 
-(define ssh-bytes->name : (SSH-Bytes->Type Symbol)
+(define ssh-bytes->name : (SSH-Bytes->Datum Symbol)
   (lambda [butf8 [offset 0]]
     (define-values (name end) (ssh-bytes->string butf8 offset))
     (values (string->symbol name) end)))
@@ -183,7 +183,7 @@
   (lambda [names]
     (ssh-string->bytes (string-join (map symbol->string names) ","))))
 
-(define ssh-bytes->namelist : (SSH-Bytes->Type (Listof Symbol))
+(define ssh-bytes->namelist : (SSH-Bytes->Datum (Listof Symbol))
   (lambda [bascii [offset 0]]
     (define-values (names end) (ssh-bytes->string bascii offset))
     (values (map string->symbol (string-split names ","))

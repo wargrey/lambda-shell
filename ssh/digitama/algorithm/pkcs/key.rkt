@@ -3,6 +3,8 @@
 ;;; https://tools.ietf.org/html/rfc8017
 
 (provide (all-defined-out))
+(provide (rename-out [rsa-key-n rsa-public-n]
+                     [rsa-key-e rsa-public-e]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct rsa-other-prime-info
@@ -12,16 +14,19 @@
   #:transparent
   #:type-name RSA-Other-Prime-Info)
 
-(struct rsa-public
-  ([n : Positive-Integer]
-   [e : Positive-Integer])
+(struct rsa-key
+  ([n : Positive-Integer]    ; modulus
+   [e : Positive-Integer])   ; public exponent
+  #:transparent
+  #:type-name RSA-Key)
+
+(struct rsa-public rsa-key
+  ()
   #:transparent
   #:type-name RSA-Public)
 
-(struct rsa-private
+(struct rsa-private rsa-key
   (; [version : Boolean] ; `version` implies `(pair? rdts)`
-   [n : Positive-Integer]    ; modulus
-   [e : Positive-Integer]    ; public exponent
    [d : Positive-Integer]    ; private exponent
    [p : Positive-Integer]    ; prime1
    [q : Positive-Integer]    ; prime2

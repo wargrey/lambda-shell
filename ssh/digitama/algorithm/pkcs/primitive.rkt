@@ -35,18 +35,18 @@
                 [x : Natural 0])
       (cond [(>= i xLen) x]
             [else (OS2IP (+ i 1)
-                         (+ (arithmetic-shift x 8)
-                            (unsafe-bytes-ref X i)))]))))
+                         (bitwise-ior (arithmetic-shift x 8)
+                                      (unsafe-bytes-ref X i)))]))))
 
 (define pkcs#1-rsa-sign : (-> RSA-Private Natural Natural)
   ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
   (lambda [K m]
-    (modular-expt m (rsa-private-d K) (rsa-private-n K))))
+    (modular-expt m (rsa-private-d K) (rsa-key-n K))))
 
-(define pkcs#1-rsa-verify : (-> RSA-Public Natural Natural)
+(define pkcs#1-rsa-verify : (-> Natural Natural Natural Natural)
   ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
-  (lambda [K s]
-    (modular-expt s (rsa-public-e K) (rsa-public-n K))))
+  (lambda [n e s]
+    (modular-expt s e n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define octets-length : (-> Natural Index)

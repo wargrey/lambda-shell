@@ -23,16 +23,22 @@
     (init-field hash-algorithm peer-name)
     
     (define key : RSA-Private
-      (let ([primes (rsa-distinct-primes #:modulus-bits 2048)])
-        (rsa-keygen primes #:e 17)))
+      (let ([temp-rsa (build-path (find-system-path 'temp-dir) "rsa.primes")])
+        (unless (file-exists? temp-rsa)
+          (call-with-output-file* temp-rsa
+            (λ [[/dev/rsaout : Output-Port]]
+              (write (rsa-distinct-primes #:modulus-bits 1024) /dev/rsaout))))
+        (call-with-input-file* temp-rsa
+          (λ [[/dev/rsain : Input-Port]]
+            (rsa-keygen (cast (read /dev/rsain) (List* Positive-Integer Positive-Integer (Listof Positive-Integer))) #:e 17)))))
     
     (define/public (tell-key-name)
       ssh-rsa-keyname)
 
     (define/public (make-key/certificates)
       (bytes-append (ssh-name->bytes ssh-rsa-keyname)
-                    (ssh-mpint->bytes (rsa-private-e key))
-                    (ssh-mpint->bytes (rsa-private-n key))))
+                    (ssh-mpint->bytes (rsa-public-e key))
+                    (ssh-mpint->bytes (rsa-public-n key))))
 
     ;; https://tools.ietf.org/html/rfc3447#section-8.2.1
     (define/public (make-signature message)
