@@ -7,10 +7,37 @@
 (require racket/unsafe/ops)
 
 (require "../datatype.rkt")
+(require "../algorithm/pkcs/primitive.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type ASN.1-Tag-Class (U 'Universal 'Application 'Context-specific 'Private))
 
+(struct asn-type ([id : Byte]) #:type-name ASN-Type)
+(struct asn-eoc asn-type () #:type-name ASN-EOC)
+
+(define asn-type->bytes : (-> ASN-Type Bytes)
+  (lambda [self]
+    (define id : Byte (asn-type-id self))
+    (define maybe-asn->types : (Option (-> ASN-Type (Option Bytes))) (hash-ref asn-type->bytes-database id (λ [] #false)))
+    (or (and maybe-asn->types
+             (let ([maybe-octets (maybe-asn->types self)])
+               (and (bytes? maybe-octets)
+                    (bytes-append (bytes id)
+                                  (asn-length->octets (bytes-length maybe-octets))
+                                  maybe-octets))))
+        (bytes 0 0) #| End of Content |#)))
+
+(define asn-bytes->type : (->* (Bytes) (Natural) (Values ASN-Type Nonnegative-Fixnum))
+  (lambda [basn [offset 0]]
+    (define id : Byte (bytes-ref basn offset))
+    (define-values (size intoff) (asn-octets->length basn (unsafe-fx+ offset 1)))
+    (define end : Nonnegative-Fixnum (unsafe-fx+ size intoff))
+    (define maybe-types->asn : (Option (-> Bytes Natural Natural ASN-Type)) (hash-ref asn-bytes->type-database id (λ [] #false)))
+
+    (cond [(and maybe-types->asn) (values (maybe-types->asn basn intoff end) end)]
+          [else (values (asn-eoc 0) (assert offset index?))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TODO: long form identifier
 (define asn-identifier-octet : (-> Byte [#:class ASN.1-Tag-Class] [#:constructed? Boolean] Byte)
   (lambda [tag #:class [class 'Universal] #:constructed? [constructed? #false]]
@@ -48,10 +75,8 @@
 (define asn-length->octets : (-> Index Bytes)
   (lambda [size]
     (cond [(<= size 127) (bytes size)]
-          [else (let-values ([(q r) (quotient/remainder size 256)])
-                  (define osize : Positive-Fixnum (+ q (if (= r 0) 1 2)))
-                  (define ssize : Nonnegative-Fixnum (- osize 1))
-                  (define octets : Bytes (make-bytes osize))
+          [else (let ([ssize : Index (octets-length (integer-length size))])
+                  (define octets : Bytes (make-bytes (+ ssize 1)))
                   
                   (case ssize
                     [(1 2 4 8) (integer->integer-bytes size ssize #false #true octets 1)]
@@ -80,11 +105,6 @@
                                                                        (unsafe-fx+ idx 1))]))]) index?)
                           idxn))])))
 
-(define asn-boolean->octets : (-> Any Bytes)
-  (lambda [bool]
-    (if bool (bytes #xFF) (bytes 0))))
-
-(define asn-octets->boolean : (SSH-Bytes->Datum Boolean)
-  (lambda [bbool [offset 0]]
-    (values (not (zero? (bytes-ref bbool offset)))
-            (unsafe-fx+ offset 1))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define asn-type->bytes-database : (HashTable Byte (-> ASN-Type (Option Bytes))) (make-hasheq))
+(define asn-bytes->type-database : (HashTable Byte (-> Bytes Natural Natural ASN-Type)) (make-hasheq))

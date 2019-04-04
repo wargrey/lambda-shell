@@ -57,10 +57,11 @@
                   (constructor val 'SSH-MSG init-values ...))
 
                 (define ssh:msg->bytes : (-> SSH-MSG Bytes)
-                  (lambda [self]
-                    (bytes-append (bytes val)
-                                  (ssh->bytes (racket->ssh (field-ref self)))
-                                  ...)))
+                  (let ([head-byte : Bytes (bytes val)])
+                    (lambda [self]
+                      (bytes-append head-byte
+                                    (ssh->bytes (racket->ssh (field-ref self)))
+                                    ...))))
 
                 (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Nonnegative-Fixnum))
                   (lambda [bmsg [offset 0]]

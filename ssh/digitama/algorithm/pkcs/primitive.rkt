@@ -7,36 +7,31 @@
 (require math/number-theory)
 
 (require racket/unsafe/ops)
-(require typed/racket/unsafe)
 
 (require "key.rkt")
 
-(unsafe-require/typed
- racket/base
- [ceiling (-> Nonnegative-Exact-Rational Index)])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define pkcs#1-integer->octets : (-> Natural Index Bytes)
+(define pkcs#1-integer->octets : (-> Integer Index Bytes)
   ;; https://tools.ietf.org/html/rfc8017#section-4.1
   (lambda [x xLen]
     (define X : Bytes (make-bytes xLen #x00))
     (let I2OSP ([idx : Fixnum (- xLen 1)]
-                [x : Natural x])
+                [x : Integer x])
       (when (>= idx 0)
         (unsafe-bytes-set! X idx (bitwise-and x #xFF))
         (I2OSP (- idx 1) (arithmetic-shift x -8))))
     X))
 
-(define pkcs#1-octets->integer : (-> Bytes Natural)
+(define pkcs#1-octets->natural : (->* (Bytes) (Natural Natural) Natural)
   ;; https://tools.ietf.org/html/rfc8017#section-4.2
-  (lambda [X]
-    (define xLen : Index (bytes-length X))
-    (let OS2IP ([i : Nonnegative-Fixnum 0]
+  (lambda [X [start 0] [end0 0]]
+    (define end : Index (assert (if (<= end0 start) (bytes-length X) end0) index?))
+    (let OS2IP ([i : Natural start]
                 [x : Natural 0])
-      (cond [(>= i xLen) x]
+      (cond [(>= i end) x]
             [else (OS2IP (+ i 1)
                          (bitwise-ior (arithmetic-shift x 8)
-                                      (unsafe-bytes-ref X i)))]))))
+                                      (bytes-ref X i)))]))))
 
 (define pkcs#1-rsa-sign : (-> RSA-Private Natural Natural)
   ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
@@ -51,4 +46,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define octets-length : (-> Natural Index)
   (lambda [bits]
-    (ceiling (/ bits 8))))
+    (define-values (q r) (quotient/remainder bits 8))
+    (assert (if (= r 0) q (+ q 1)) index?)))
