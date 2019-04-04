@@ -45,6 +45,11 @@ These testcases for ASN.1 Integer are defined in @~cite[asn1-lib].
  (asn-encode make-asn-integer (expt 17 80))
  (asn-encode make-asn-integer (- (expt 23 81)))]
 
+@tamer-action[
+ (asn-encode make-asn-oid '(1 3 6 1 4 1 311 21 20))
+ #;(asn-encode make-asn-oid '(2 999 3) #|3, 0x883703|#)
+ (asn-encode make-asn-relative-oid '(8571 3 2) #|4, 0xC27B0302|#)]
+
 @handbook-reference[]
 
 @; Chunks after `handbook-reference[]` will never be rendered in documents
@@ -74,4 +79,6 @@ These testcases for ASN.1 Integer are defined in @~cite[asn1-lib].
          (lambda [make-asn datum]
            (define os (asn-type->bytes (make-asn datum)))
            (define-values (restored _) (asn-bytes->type os))
-           (values restored (bytes->bin-string os #:separator " "))))]
+           (values restored
+                   (bytes->bin-string os #:separator " ")
+                   (bytes->hex-string os #:separator " "))))]

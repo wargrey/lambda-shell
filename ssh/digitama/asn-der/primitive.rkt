@@ -53,3 +53,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-asn-primitive boolean : ASN-Boolean #:as Boolean #x01)
 (define-asn-primitive integer : ASN-Integer #:as Integer #x02)
+
+(define-asn-primitive null : ASN-Null #:as Void #x05)
+(define-asn-primitive oid : ASN-OID #:as ASN-Object-Identifier #x06 Object Identifier)
+(define-asn-primitive relative-oid : ASN-Relative-OID #:as ASN-Relative-Object-Identifier #x0D Relative Object Identifier)
