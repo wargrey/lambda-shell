@@ -12,6 +12,7 @@
 (define-type (ASN-Octets->Datum t) (-> Bytes Natural Natural t))
 (define-type ASN-Relative-Object-Identifier (Listof Index))
 (define-type ASN-Object-Identifier (List* Byte Byte ASN-Relative-Object-Identifier))
+(define-type ASN-Bitset (Pairof Bytes Byte))
 
 (define asn-boolean->octets : (-> Any Bytes)
   (lambda [bool]
@@ -44,10 +45,6 @@
   (lambda [nil]
     #""))
 
-(define asn-octets->null : (ASN-Octets->Datum Void)
-  (lambda [bnull start end]
-    (void)))
-
 (define asn-oid->octets : (-> ASN-Object-Identifier Bytes)
   (lambda [oid]
     (bytes-append (bytes (+ (* (car oid) 40) (cadr oid)))
@@ -77,6 +74,54 @@
       (cond [(>= idx idxmax) (reverse sbus)]
             [else (let-values ([(sub span) (asn-octets->subid boid idx)])
                     (octets->subs (cons sub sbus) (unsafe-fx+ idx span)))]))))
+
+(define asn-bit-string->octets : (-> ASN-Bitset Bytes)
+  (lambda [bitstr]
+    (bytes-append (bytes (cdr bitstr))
+                  (car bitstr))))
+
+(define asn-octets->bit-string : (ASN-Octets->Datum ASN-Bitset)
+  (lambda [bbitstr start end]
+    (cons (subbytes bbitstr (+ start 1) end)
+          (bytes-ref bbitstr start))))
+
+(define asn-octets->string/utf8 : (ASN-Octets->Datum String)
+  (lambda [butf8 start end]
+    (bytes->string/utf-8 butf8 #false start end)))
+
+(define asn-octets->string/ia5 : (ASN-Octets->Datum String)
+  (lambda [bia5 start end]
+    (bytes->string/latin-1 bia5 #false start end)))
+
+(define asn-octets->string/printable : (ASN-Octets->Datum String)
+  (lambda [bprintable start end]
+    (bytes->string/latin-1 bprintable #false start end)))
+
+(define asn-string->octets/bmp : (-> String Bytes)
+  (lambda [bmp]
+    (define size : Index (string-length bmp))
+    (define octets : Bytes (make-bytes (* size 2)))
+
+    (let utf16->octets ([idx : Nonnegative-Fixnum 0])
+      (when (< idx size)
+        (integer->integer-bytes (char->integer (string-ref bmp idx)) 2 #false #true octets (+ idx idx))
+        (utf16->octets (+ idx 1))))
+
+    octets))
+
+(define asn-octets->string/bmp : (ASN-Octets->Datum String)
+  (lambda [bbmp start end]
+    (define size : Index (assert (quotient (- end start) 2) index?))
+    (define bmp : String (make-string size))
+
+    (let octets->utf16 ([idx : Nonnegative-Fixnum 0])
+      (when (< idx size)
+        (define bidx : Nonnegative-Fixnum (unsafe-fx+ (+ idx idx) start))
+        
+        (string-set! bmp idx (integer->char (integer-bytes->integer bbmp #false #true bidx (unsafe-fx+ bidx 2))))
+        (octets->utf16 (+ idx 1))))
+    
+    bmp))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-subid->octets : (-> Index (Listof Byte))
