@@ -224,7 +224,7 @@ These test cases are defined in @~cite[HMAC-SHA].
 
        (define octets->integer
          (lambda [os]
-           (pkcs#1-octets->natural (apply bytes (map symb0x->number (flatten os))))))
+           (pkcs#1-octets->integer (apply bytes (map symb0x->number (flatten os))))))
        
        (define mpint
          (lambda [hex]

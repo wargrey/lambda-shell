@@ -25,6 +25,31 @@
 (define-for-syntax (ssh-typeid <id>)
   (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) "_" ":")))
 
+(define-for-syntax (ssh-make-nbytes->bytes <n>)
+  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Nonnegative-Fixnum)
+      (let ([end (unsafe-fx+ offset #,(syntax-e <n>))])
+        (values (subbytes braw offset end) end))))
+
+(define-for-syntax (ssh-datum-pipeline func <FType>)
+  (case (syntax->datum <FType>)
+    [(Boolean)     (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
+    [(Index)       (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values)]
+    [(Natural)     (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values)]
+    [(String)      (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values)]
+    [(SSH-BString) (list #'values #'ssh-bstring->bytes #'ssh-bytes->bstring #'values)]
+    [(Integer)     (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values)]
+    [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values)]
+    [(Bytes)       (list #'values #'values             #'ssh-values         #'values)]
+    [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
+                         [$type (format-id #'T "$~a" (syntax-e #'T))])
+            (case (syntax-e #'TypeOf)
+              [(SSH-Bytes)            (list #'values                #'values              (ssh-make-nbytes->bytes #'T) #'values)]
+              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
+              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
+              [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
+                        (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
+                        (raise-syntax-error func "invalid SSH data type" <FType>))]))]))
+
 (define-syntax (define-message-interface stx)
   (syntax-case stx [:]
     [(_ id val ([field : FieldType defval ...] ...))
@@ -63,7 +88,7 @@
                                     (ssh->bytes (racket->ssh (field-ref self)))
                                     ...))))
 
-                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Nonnegative-Fixnum))
+                (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Natural))
                   (lambda [bmsg [offset 0]]
                     (let*-values ([(offset) (+ offset 1)]
                                   [(field offset) (bytes->ssh bmsg offset)] ...)
@@ -109,7 +134,7 @@
      #'(begin (define-message enum val #:group group-name ([field : FieldType defval ...] ...)) ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Nonnegative-Fixnum)))
+(define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Natural)))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
 (struct ssh-message ([id : Byte] [name : Symbol]) #:type-name SSH-Message)

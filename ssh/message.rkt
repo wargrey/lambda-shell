@@ -31,7 +31,7 @@
                   (lambda [self]
                     (<= idmin (ssh-message-id self) idmax)))
                 
-                (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (values (Option SSH-Message) Nonnegative-Fixnum))
+                (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (values (Option SSH-Message) Natural))
                   (lambda [bmsg [offset 0] #:groups [groups null]]
                     (cond [(<= idmin (bytes-ref bmsg offset) idmax) (ssh-bytes->message bmsg offset #:groups groups)]
                           [else (values #false offset)])))
@@ -124,7 +124,7 @@
         #|this should not happen|#
         (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
 
-(define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Nonnegative-Fixnum))
+(define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Natural))
   (lambda [bmsg [offset 0] #:groups [groups null]]
     (define id : Byte (bytes-ref bmsg offset))
     (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))

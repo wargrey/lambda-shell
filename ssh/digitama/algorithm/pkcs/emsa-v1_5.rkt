@@ -17,7 +17,7 @@
     (define k : Index (octets-length mbits))
     (define embits : Index (assert (- mbits 1) index?))
     (define em : Bytes (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-sign peer-name))
-    (define m : Natural (pkcs#1-octets->natural em))
+    (define m : Natural (assert (pkcs#1-octets->integer em) exact-nonnegative-integer?))
     (define s : Natural (pkcs#1-rsa-sign key m))
     
     (pkcs#1-integer->octets s k)))
@@ -29,7 +29,7 @@
     (define k : Index (octets-length mbits))
 
     (and (= k (bytes-length signature))
-         (let* ([s (pkcs#1-octets->natural signature)]
+         (let* ([s (assert (pkcs#1-octets->integer signature) exact-nonnegative-integer?)]
                 [m (pkcs#1-rsa-verify (rsa-public-n key) (rsa-public-e key) s)]
                 [embits (assert (- mbits 1) index?)])
            (bytes=? (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-verify peer-name)

@@ -13,13 +13,14 @@
       (define idx-8 : Fixnum (- rest 8))
       (define idx-4 : Fixnum (- rest 4))
       (define idx-1 : Fixnum (- rest 1))
-      (cond [(> idx-8 0)
+
+      (cond [(>= idx-8 0)
              (real->floating-point-bytes (random) 8 #true cookie idx-8)
              (pad idx-8)]
-            [(> idx-4 0)
+            [(>= idx-4 0)
              (real->floating-point-bytes (random) 4 #true cookie idx-4)
              (pad idx-4)]
-            [(> idx-1 0)
+            [(>= idx-1 0)
              (bytes-set! cookie idx-1 (random 256))
              (pad idx-1)]))
     

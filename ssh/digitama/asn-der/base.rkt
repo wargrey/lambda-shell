@@ -21,20 +21,15 @@
     (define maybe-asn->types : (Option (-> ASN-Type (Option Bytes))) (hash-ref asn-type->bytes-database id (λ [] #false)))
     (or (and maybe-asn->types
              (let ([maybe-octets (maybe-asn->types self)])
-               (and (bytes? maybe-octets)
-                    (bytes-append (bytes id)
-                                  (asn-length->octets (bytes-length maybe-octets))
-                                  maybe-octets))))
-        (bytes 0 0) #| End of Content |#)))
+               (and (bytes? maybe-octets) maybe-octets)))
+        (bytes #x00 #x00) #| End of Content, should not happen |#)))
 
-(define asn-bytes->type : (->* (Bytes) (Natural) (Values ASN-Type Nonnegative-Fixnum))
+(define asn-bytes->type : (->* (Bytes) (Index) (Values ASN-Type Natural))
   (lambda [basn [offset 0]]
     (define id : Byte (bytes-ref basn offset))
-    (define-values (size intoff) (asn-octets->length basn (unsafe-fx+ offset 1)))
-    (define end : Nonnegative-Fixnum (unsafe-fx+ size intoff))
-    (define maybe-types->asn : (Option (-> Bytes Natural Natural ASN-Type)) (hash-ref asn-bytes->type-database id (λ [] #false)))
+    (define maybe-types->asn : (Option (->* (Bytes) (Index) (Values ASN-Type Natural))) (hash-ref asn-bytes->type-database id (λ [] #false)))
 
-    (cond [(and maybe-types->asn) (values (maybe-types->asn basn intoff end) end)]
+    (cond [(and maybe-types->asn) (maybe-types->asn basn offset)]
           [else (values (asn-eoc 0) (assert offset index?))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -107,4 +102,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-type->bytes-database : (HashTable Byte (-> ASN-Type (Option Bytes))) (make-hasheq))
-(define asn-bytes->type-database : (HashTable Byte (-> Bytes Natural Natural ASN-Type)) (make-hasheq))
+(define asn-bytes->type-database : (HashTable Byte (->* (Bytes) (Index) (Values ASN-Type Natural))) (make-hasheq))
