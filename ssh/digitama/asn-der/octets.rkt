@@ -31,6 +31,14 @@
   (lambda [nil]
     #""))
 
+(define asn-object-identifier? : (-> Any Boolean : ASN-Object-Identifier)
+  (lambda [datum]
+    (and (asn-relative-object-identifier? datum)
+         (pair? datum)
+         (byte? (car datum))
+         (pair? (cdr datum))
+         (byte? (cadr datum)))))
+
 (define asn-oid->octets : (-> ASN-Object-Identifier Bytes)
   (lambda [oid]
     (bytes-append (bytes (+ (* (car oid) 40) (cadr oid)))
@@ -41,6 +49,11 @@
     (define-values (q r) (quotient/remainder (bytes-ref boid start) 40))
 
     (list* q r (asn-octets->relative-oid boid (+ start 1) end))))
+
+(define asn-relative-object-identifier? : (-> Any Boolean : ASN-Relative-Object-Identifier)
+  (lambda [datum]
+    (and (list? datum)
+         (andmap index? datum))))
 
 (define asn-relative-oid->octets : (-> ASN-Relative-Object-Identifier Bytes)
   (lambda [roid]
@@ -60,6 +73,12 @@
       (cond [(>= idx idxmax) (reverse sbus)]
             [else (let-values ([(sub span) (asn-octets->subid boid idx)])
                     (octets->subs (cons sub sbus) (+ idx span)))]))))
+
+(define asn-bit-string? : (-> Any Boolean : ASN-Bitset)
+  (lambda [datum]
+    (and (pair? datum)
+         (bytes? (car datum))
+         (byte? (cdr datum)))))
 
 (define asn-bit-string->octets : (-> ASN-Bitset Bytes)
   (lambda [bitstr]

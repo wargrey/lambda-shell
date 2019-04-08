@@ -75,15 +75,15 @@
             end)))
 
 (define ssh-mpint->bytes : (-> Integer Bytes)
-   (lambda [mpi]
-     (cond [(zero? mpi) (ssh-uint32->bytes 0)]
-           [else (let* ([bmpint : Bytes (integer->network-bytes mpi)]
-                        [size : Index (bytes-length bmpint)])
-                   (cond [(and (positive? mpi) (bitwise-bit-set? (bytes-ref bmpint 0) 7))
-                          (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #x00) bmpint)]
-                         [(and (negative? mpi) (not (bitwise-bit-set? (bytes-ref bmpint 0) 7)))
-                          (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #xFF) bmpint)]
-                         [else (bytes-append (ssh-uint32->bytes size) bmpint)]))])))
+  (lambda [mpi]
+    (cond [(zero? mpi) (ssh-uint32->bytes 0)]
+          [else (let* ([bmpint : Bytes (integer->network-bytes mpi)]
+                       [size : Index (bytes-length bmpint)])
+                  (cond [(and (positive? mpi) (>= (bytes-ref bmpint 0) #b10000000))
+                         (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #x00) bmpint)]
+                        [(and (negative? mpi) (< (bytes-ref bmpint 0) #b10000000))
+                         (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #xFF) bmpint)]
+                        [else (bytes-append (ssh-uint32->bytes size) bmpint)]))])))
 
 (define ssh-bytes->mpint : (SSH-Bytes->Datum Integer)
   (lambda [bmpi [offset 0]]

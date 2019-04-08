@@ -14,7 +14,7 @@
   ;; https://tools.ietf.org/html/rfc8017#section-8.2.1
   (lambda [key message id-hash peer-name]
     (define mbits : Nonnegative-Fixnum (integer-length (rsa-public-n key)))
-    (define k : Index (octets-length mbits))
+    (define k : Index (bits-bytes-length mbits))
     (define embits : Index (assert (- mbits 1) index?))
     (define em : Bytes (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-sign peer-name))
     (define m : Natural (assert (pkcs#1-octets->integer em) exact-nonnegative-integer?))
@@ -26,7 +26,7 @@
   ;; https://tools.ietf.org/html/rfc8017#section-8.2.2
   (lambda [key message signature id-hash peer-name]
     (define mbits : Nonnegative-Fixnum (integer-length (rsa-public-n key)))
-    (define k : Index (octets-length mbits))
+    (define k : Index (bits-bytes-length mbits))
 
     (and (= k (bytes-length signature))
          (let* ([s (assert (pkcs#1-octets->integer signature) exact-nonnegative-integer?)]
@@ -41,7 +41,7 @@
         [0x00 (bytes #x00)])
     (lambda [message embits der-head hash src peer-name]
       ; No need to check the max length of message, for SHA-1, it's (2^61 - 1), this limitation is impractical.
-      (define emLen : Index (octets-length embits))
+      (define emLen : Index (bits-bytes-length embits))
       (define T : Bytes (bytes-append der-head (hash message)))
       (define tLen : Index (bytes-length T))
       (define psLen : Integer (- emLen tLen 3))
