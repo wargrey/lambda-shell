@@ -61,7 +61,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-asn-primitive boolean : ASN-Boolean #:as Boolean #x01                                  [asn-boolean->octets asn-octets->boolean])
-(define-asn-primitive integer : ASN-Integer #:as Integer #x02                                  [asn-integer->octets pkcs#1-octets->integer])
+(define-asn-primitive integer : ASN-Integer #:as Integer #x02                                  [asn-integer->octets network-bytes->integer])
 (define-asn-primitive bit-string : ASN-Bit-String #:as ASN-Bitset #x03                         [asn-bit-string->octets asn-octets->bit-string])
 (define-asn-primitive octet-string : ASN-Octet-String #:as Bytes #x04                          [values subbytes])
 

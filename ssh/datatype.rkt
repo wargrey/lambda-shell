@@ -6,6 +6,8 @@
 
 (require racket/string)
 
+(require digimon/number)
+
 (require typed/racket/unsafe)
 
 (require "digitama/datatype.rkt")
@@ -75,24 +77,8 @@
 (define ssh-mpint->bytes : (-> Integer Bytes)
    (lambda [mpi]
      (cond [(zero? mpi) (ssh-uint32->bytes 0)]
-           [else (let* ([bmpint : Bytes (make-bytes (quotient (+ (integer-length mpi) 7) 8))]
+           [else (let* ([bmpint : Bytes (integer->network-bytes mpi)]
                         [size : Index (bytes-length bmpint)])
-                   (let mpint->bytes ([sth : Nonnegative-Fixnum size]
-                                      [mpint : Integer mpi])
-                     (define sth-8 : Fixnum (- sth 8))
-                     (define sth-4 : Fixnum (- sth 4))
-                     (define sth-1 : Fixnum (- sth 1))
-
-                     (cond [(>= sth-8 0)
-                            (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
-                            (mpint->bytes sth-8 (arithmetic-shift mpint -64))]
-                           [(>= sth-4 0)
-                            (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #true bmpint sth-4)
-                            (mpint->bytes sth-4 (arithmetic-shift mpint -32))]
-                           [(>= sth-1 0)
-                            (bytes-set! bmpint sth-1 (bitwise-and mpint #xFF))
-                            (mpint->bytes sth-1 (arithmetic-shift mpint -8))]))
-                   
                    (cond [(and (positive? mpi) (bitwise-bit-set? (bytes-ref bmpint 0) 7))
                           (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #x00) bmpint)]
                          [(and (negative? mpi) (not (bitwise-bit-set? (bytes-ref bmpint 0) 7)))
@@ -104,16 +90,7 @@
     (define-values (size offset++) (ssh-bytes->uint32 bmpi offset))
     (define end : Index (assert (+ size offset++) index?))
     (cond [(zero? size) (values 0 end)]
-          [else (let bytes->mpint ([idx : Index (assert offset++ index?)]
-                                   [mpint : Integer (if (> (bytes-ref bmpi offset++) #b01111111) -1 0)])
-                  (define idx+8 : Nonnegative-Fixnum (+ idx 8))
-                  (define idx+4 : Nonnegative-Fixnum (+ idx 4))
-                  (define idx+1 : Nonnegative-Fixnum (+ idx 1))
-
-                  (cond [(<= idx+8 end) (bytes->mpint idx+8 (bitwise-ior (arithmetic-shift mpint 64) (integer-bytes->integer bmpi #false #true idx idx+8)))]
-                        [(<= idx+4 end) (bytes->mpint idx+4 (bitwise-ior (arithmetic-shift mpint 32) (integer-bytes->integer bmpi #false #true idx idx+4)))]
-                        [(<= idx+1 end) (bytes->mpint idx+1 (bitwise-ior (arithmetic-shift mpint 8) (bytes-ref bmpi idx)))]
-                        [else (values mpint end)]))])))
+          [else (values (network-bytes->integer bmpi offset++ end) end)])))
 
 (define ssh-name->bytes : (-> Symbol Bytes)
   (lambda [name]
