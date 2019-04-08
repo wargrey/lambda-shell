@@ -2,18 +2,44 @@
 
 @(require digimon/tamer)
 
+@(define-bib MS-SEQ
+   #:title    "DER Encoding of ASN.1 Types"
+   #:author   (org-author-name "Microsoft")
+   #:date     2018
+   #:url      "https://docs.microsoft.com/en-us/windows/desktop/SecCertEnroll/about-sequence")
+
 @handbook-story{ASN.1 Sequence}
 
 @;tamer-smart-summary[]
 
-@handbook-scenario{Define a Sequence}
+@handbook-scenario{Encoding of a Sequence Value}
 
 @tamer-action[
- (define-asn-sequence x690-example : X690-Example
+ (define-asn-sequence example8.9.3 : Example8.9.3
    ([name : asn-string/ia5 #:default "Smith"]
     [ok : asn-boolean #:optional]))
- (define smith (make-x690-example #:ok #true))
- (define octets (x690-example->bytes smith))
+ (define octets (example8.9.3->bytes (make-example8.9.3 #:ok #true)))
+ (unsafe-bytes->example8.9.3* octets)
+ (bytes->hex-string octets #:separator " ")]
+
+This nested sequence example is defined in @~cite[MS-SEQ].
+
+@tamer-action[
+ (define-asn-sequence head : Head
+   ([id : asn-oid]
+    [sep : asn-null #:default (void)]
+    [bitset : asn-bit-string]))
+ (define-asn-sequence body : Body
+   ([n : asn-integer]
+    [e : asn-integer #:default 65537]))
+ (define-asn-sequence nested-seq : Nested-Seq
+   ([head : head]
+    [body : body]))
+ (define octets
+   (let ([h (make-head #:id (list 1 2 840 113549 1 1 1) #:bitset (cons #"" 0))]
+         [b (make-body #:n 0x8cb3e853e7d54950)])
+     (nested-seq->bytes (make-nested-seq #:head h #:body b))))
+ (unsafe-bytes->nested-seq* octets)
  (bytes->hex-string octets #:separator " ")]
 
 @handbook-reference[]
@@ -35,4 +61,6 @@
 
 @chunk[<sequence>
        (require "../../digitama/asn-der/primitive.rkt")
-       (require "../../digitama/asn-der/sequence.rkt")]
+       (require "../../digitama/asn-der/sequence.rkt")
+
+       (define 0x8cb3e853e7d54950 : Natural #x8cb3e853e7d54950)]

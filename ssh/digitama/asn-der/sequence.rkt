@@ -5,6 +5,7 @@
 (provide (all-defined-out))
 
 (require "base.rkt")
+(require "octets.rkt")
 (require "primitive.rkt")
 
 (require (for-syntax racket/base))
@@ -47,8 +48,8 @@
                     [asn-sequence? (format-id #'asn-sequence "~a?" (syntax-e #'asn-sequence))]
                     [make-seq (format-id #'asn-sequence "make-~a" (syntax-e #'asn-sequence))]
                     [asn-seq->bytes (format-id #'asn-sequence "~a->bytes" (syntax-e #'asn-sequence))]
-                    [bytes->asn-seq (format-id #'asn-sequence "bytes->~a" (syntax-e #'asn-sequence))]
-                    [asn-seq->bytes* (format-id #'asn-sequence "~a->bytes*" (syntax-e #'asn-sequence))]
+                    [unsafe-bytes->asn-seq (format-id #'asn-sequence "unsafe-bytes->~a" (syntax-e #'asn-sequence))]
+                    [unsafe-bytes->asn-seq* (format-id #'asn-sequence "unsafe-bytes->~a*" (syntax-e #'asn-sequence))]
                     [([kw-args ...] [(field-ref Type init-values field->bytes bytes->field) ...])
                      (let-values ([(kw-args sofni)
                                    (for/fold ([syns null] [sofni null])
@@ -57,7 +58,7 @@
                                      (values (cons <kw-name> (cons <argls> syns))
                                              (cons metainfo sofni)))])
                        (list kw-args (reverse sofni)))]
-                    [_ (hash-set! asn-sequence-metainfo-database (syntax-e #'asn-sequence) (syntax->list #'(ASN-Sequence asn-seq->bytes unsafe-bytes->asn)))])
+                    [_ (hash-set! asn-sequence-metainfo-database (syntax-e #'asn-sequence) (syntax->list #'(ASN-Sequence asn-seq->bytes unsafe-bytes->asn-seq)))])
        #'(begin (struct asn-sequence ([field : Type] ...) #:transparent
                   #:constructor-name constructor
                   #:type-name ASN-Sequence)
@@ -72,16 +73,20 @@
                                     (asn-length->octets (bytes-length octets))
                                     octets))))
 
-                #;(define bytes->asn : (-> Bytes Natural Natural ASN)
-                  (lambda [basn start end]
-                    (make-asn (octets->asn basn start end))))
+                (define unsafe-bytes->asn-seq : (->* (Bytes) (Natural) (Values ASN-Sequence Natural))
+                  (lambda [bseq [offset 0]]
+                    (define-values (size content-offset) (asn-octets->length bseq (+ offset 1)))
+                   
+                    (let*-values ([(field content-offset) (bytes->field bseq content-offset)] ...)
+                      (values (constructor field ...)
+                              content-offset))))
 
-                #;(define asn->bytes* : (-> ASN-Type (Option Bytes))
-                  (lambda [self]
-                    (and (asn? self)
-                         (asn->bytes self))))
+                (define unsafe-bytes->asn-seq* : (->* (Bytes) (Natural) ASN-Sequence)
+                  (lambda [bseq [offset 0]]
+                    (define-values (seq end) (unsafe-bytes->asn-seq bseq offset))
+                    seq))
 
-                (hash-set! asn-type-metainfo-database 'asn-sequence '(ASN-Sequence asn-seq->bytes unsafe-bytes->asn))))]))
+                (hash-set! asn-type-metainfo-database 'asn-sequence '(ASN-Sequence asn-seq->bytes unsafe-bytes->asn-seq))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-sequence : Byte (asn-identifier-octet #x10 #:class 'Universal #:constructed? #true))

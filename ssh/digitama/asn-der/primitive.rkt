@@ -3,6 +3,7 @@
 ;;; https://en.wikipedia.org/wiki/X.690
 
 (provide (all-defined-out))
+(provide ASN-Bitset ASN-Object-Identifier ASN-Relative-Object-Identifier)
 
 (require "base.rkt")
 (require "octets.rkt")
@@ -26,7 +27,7 @@
                       (let ([octets (asn->octets self)])
                         (bytes-append id (asn-length->octets (bytes-length octets)) octets)))))
 
-                (define unsafe-bytes->asn : (->* (Bytes) (Index) (Values Type Natural))
+                (define unsafe-bytes->asn : (->* (Bytes) (Natural) (Values Type Natural))
                   (lambda [basn [offset 0]]
                     (define-values (size content-offset) (asn-octets->length basn (+ offset 1)))
                     (define end : Natural (+ size content-offset))
@@ -34,7 +35,7 @@
                     (values (octets->asn basn content-offset end)
                             end)))
                 
-                (define unsafe-bytes->asn* : (->* (Bytes) (Index) Type)
+                (define unsafe-bytes->asn* : (->* (Bytes) (Natural) Type)
                   (lambda [basn [offset 0]]
                     (define-values (datum end-index) (unsafe-bytes->asn basn offset))
                     datum))
