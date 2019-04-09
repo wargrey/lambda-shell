@@ -12,35 +12,39 @@
 
 @;tamer-smart-summary[]
 
-@handbook-scenario{Encoding of a Sequence Value}
+@handbook-scenario{Plain Sequence}
 
 @tamer-action[
- (define-asn-sequence example8.9.3 : Example8.9.3
+ (define-asn-sequence plain-seq : Plain-Seq
    ([name : asn-string/ia5 #:default "Smith"]
     [ok : asn-boolean #:optional]))
- (define octets (example8.9.3->bytes (make-example8.9.3 #:ok #true)))
- (unsafe-bytes->example8.9.3* octets)
+ (define octets (plain-seq->bytes (make-plain-seq #:ok #true)))
+ (unsafe-bytes->plain-seq* octets)
  (bytes->hex-string octets #:separator " ")]
 
-This nested sequence example is defined in @~cite[MS-SEQ].
+@handbook-scenario{Nested Sequence}
+
+This example is defined in @~cite[MS-SEQ].
+
+@bold{NOTE} Encoding @italic{BIT String} as primitive is required by @italic{DER}.
 
 @tamer-action[
  (define-asn-sequence head : Head
    ([id : asn-oid]
-    [sep : asn-null #:default (void)]
-    [bitset : asn-bit-string]))
+    [sep : asn-null #:default (void)]))
  (define-asn-sequence body : Body
    ([n : asn-integer]
     [e : asn-integer #:default 65537]))
  (define-asn-sequence nested-seq : Nested-Seq
    ([head : head]
+    [bitset : asn-bit-string]
     [body : body]))
  (define octets
-   (let ([h (make-head #:id (list 1 2 840 113549 1 1 1) #:bitset (cons #"" 0))]
-         [b (make-body #:n 0x8cb3e853e7d54950)])
-     (nested-seq->bytes (make-nested-seq #:head h #:body b))))
+   (let ([h (make-head #:id (list 1 2 840 113549 1 1 1))]
+         [b (make-body #:n (random-odd-prime 1024))])
+     (nested-seq->bytes (make-nested-seq #:head h #:bitset (cons #"" 0) #:body b))))
  (unsafe-bytes->nested-seq* octets)
- (bytes->hex-string octets #:separator " ")]
+ (asn-pretty-print octets)]
 
 @handbook-reference[]
 
@@ -60,7 +64,7 @@ This nested sequence example is defined in @~cite[MS-SEQ].
          <sequence>)]
 
 @chunk[<sequence>
+       (require "../../digitama/algorithm/random.rkt")
        (require "../../digitama/asn-der/primitive.rkt")
        (require "../../digitama/asn-der/sequence.rkt")
-
-       (define 0x8cb3e853e7d54950 : Natural #x8cb3e853e7d54950)]
+       (require "../../digitama/asn-der/pretty.rkt")]

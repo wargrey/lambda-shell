@@ -82,8 +82,22 @@
 
 (define asn-bit-string->octets : (-> ASN-Bitset Bytes)
   (lambda [bitstr]
-    (bytes-append (bytes (cdr bitstr))
-                  (car bitstr))))
+    (define bits : Bytes (car bitstr))
+    (define bidx : Fixnum (- (bytes-length bits) 1))
+
+    ; TODO: removing trailing zeros
+    (when (> bidx 0)
+      (case (cdr bitstr)
+        [(1) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b11111110))]
+        [(2) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b11111100))]
+        [(3) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b11111000))]
+        [(4) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b11110000))]
+        [(5) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b11100000))]
+        [(6) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b11000000))]
+        [(7) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b10000000))]
+        [(8) (bytes-set! bits bidx (bitwise-and (bytes-ref bits bidx) #b00000000))]))
+    
+    (bytes-append (bytes (cdr bitstr)) bits)))
 
 (define asn-octets->bit-string : (ASN-Octets->Datum ASN-Bitset)
   (lambda [bbitstr start end]

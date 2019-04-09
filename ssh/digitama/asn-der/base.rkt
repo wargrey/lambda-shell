@@ -49,7 +49,7 @@
 (define asn-length->octets : (-> Index Bytes)
   (lambda [size]
     (cond [(<= size 127) (bytes size)]
-          [else (let ([bsize : Bytes (integer->network-bytes size)])
+          [else (let ([bsize : Bytes (natural->network-bytes size)])
                   (bytes-append (bytes (bitwise-ior (bytes-length bsize) #b10000000))
                                 bsize))])))
 
@@ -60,4 +60,4 @@
           [else (let* ([ssize (bitwise-and head-byte #b01111111)]
                        [idx0 (+ offset 1)]
                        [idxn (+ idx0 ssize)])
-                  (values (assert (network-bytes->integer blength idx0 idxn) index?) idxn))])))
+                  (values (assert (network-bytes->natural blength idx0 idxn) index?) idxn))])))

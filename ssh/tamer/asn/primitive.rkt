@@ -30,6 +30,7 @@ This section demonstrates the implementation of @~cite[ASN.1-DER]
 
 @tamer-action[
  (asn-length 127)
+ (asn-length 128)
  (asn-length 201)
  (asn-length 435)]
 
