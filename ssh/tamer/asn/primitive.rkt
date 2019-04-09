@@ -58,7 +58,7 @@ The first testcase for ASN.1 Object Identifier is defined in @~cite[MS-DER].
  #;(asn-primitive '(2 999 3) asn-oid #|3, 0x883703|#)
  (asn-primitive '(8571 3 2) asn-relative-oid) #|4, 0xC27B0302|#]
 
-@handbook-scenario{Strings}
+@handbook-scenario{Bytes and Strings}
 
 @tamer-action[
  (asn-primitive (cons #"" 4))

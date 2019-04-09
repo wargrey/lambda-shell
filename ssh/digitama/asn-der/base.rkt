@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
-;;; https://en.wikipedia.org/wiki/X.690
+;;; https://www.itu.int/rec/T-REC-X.680-201508-I/en
+;;; https://www.itu.int/rec/T-REC-X.690-201508-I/en
 
 (provide (all-defined-out))
 

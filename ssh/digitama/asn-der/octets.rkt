@@ -74,13 +74,13 @@
             [else (let-values ([(sub span) (asn-octets->subid boid idx)])
                     (octets->subs (cons sub sbus) (+ idx span)))]))))
 
-(define asn-bit-string? : (-> Any Boolean : ASN-Bitset)
+(define asn-bitstring? : (-> Any Boolean : ASN-Bitset)
   (lambda [datum]
     (and (pair? datum)
          (bytes? (car datum))
          (byte? (cdr datum)))))
 
-(define asn-bit-string->octets : (-> ASN-Bitset Bytes)
+(define asn-bitstring->octets : (-> ASN-Bitset Bytes)
   (lambda [bitstr]
     (define bits : Bytes (car bitstr))
     (define bidx : Fixnum (- (bytes-length bits) 1))
@@ -99,7 +99,7 @@
     
     (bytes-append (bytes (cdr bitstr)) bits)))
 
-(define asn-octets->bit-string : (ASN-Octets->Datum ASN-Bitset)
+(define asn-octets->bitstring : (ASN-Octets->Datum ASN-Bitset)
   (lambda [bbitstr start end]
     (cons (subbytes bbitstr (+ start 1) end)
           (bytes-ref bbitstr start))))
