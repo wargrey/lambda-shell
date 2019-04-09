@@ -18,6 +18,16 @@
 ;;; TODO: why the database cannot shared by other modules?
 (define-for-syntax asn-sequence-metainfo-database (make-hasheq))
 
+(define-for-syntax (make-asn-bytes->datum/false <octets?> <bytes->asn> <Type>)
+  #`(λ [[basn : Bytes] [offset : Natural 0]] : (Values (Option #,(syntax->datum <Type>)) Natural)
+      (cond [(#,(syntax->datum <octets?>) basn offset) (#,(syntax->datum <bytes->asn>) basn offset)]
+            [else (values #false offset)])))
+
+(define-for-syntax (make-asn-bytes->datum/default <octets?> <bytes->asn> <Type> <defval>)
+  #`(λ [[basn : Bytes] [offset : Natural 0]] : (Values #,(syntax->datum <Type>) Natural)
+      (cond [(#,(syntax->datum <octets?>) basn offset) (#,(syntax->datum <bytes->asn>) basn offset)]
+            [else (values #,(syntax->datum <defval>) offset)])))
+
 (define-for-syntax (asn-type-info <asn-type>)
   (define metainfo (hash-ref asn-type-metainfo-database (syntax-e <asn-type>)
                              (λ [] (hash-ref asn-sequence-metainfo-database (syntax-e <asn-type>)
@@ -37,16 +47,16 @@
   (define <field-ref> (format-id <field> "~a-~a" seqname (syntax-e <field>)))
 
   (define-values (<Type> <asn-octets?> <asn->bytes> <bytes->asn>) (asn-type-info (cadr declaration)))
-  (define-values (<argls> <value> <type>)
+  (define-values (<argls> <value> <type> <do-bytes->asn>)
     (syntax-case (list* <field> <Type> (cddr declaration)) []
-      [(field FieldType) (values #'[field : FieldType] #'field #'FieldType)]
-      ; TODO: [(field FieldType #:optional) (values #'[field : (Option FieldType) #false] #'field #'(Option FieldType))]
-      
-      ; TODO: why it fails when `defval` is using other field names?
-      [(field FieldType #:default defval) (values #'[field : (Option FieldType) #false] #'(or field defval) #'FieldType)]
+      [(field FieldType) (values #'[field : FieldType] #'field #'FieldType <bytes->asn>)]
+      [(field FieldType #:optional) (values #'[field : (Option FieldType) #false] #'field #'(Option FieldType)
+                                            (make-asn-bytes->datum/false <asn-octets?> <bytes->asn> #'FieldType))]
+      [(field FieldType #:default defval) (values #'[field : (Option FieldType) #false] #'(or field defval) #'FieldType
+                                                  (make-asn-bytes->datum/default <asn-octets?> <bytes->asn> #'FieldType #'defval))]
       [_ (raise-syntax-error 'define-asn-sequence "malformed field declaration" <declaration>)]))
 
-  (values <kw-name> <argls> (list <field-ref> <type> <value> <asn->bytes> <bytes->asn>)))
+  (values <kw-name> <argls> (list <field-ref> <type> <value> <asn->bytes> <do-bytes->asn>)))
 
 (define-syntax (define-asn-sequence stx)
   (syntax-case stx [:]
@@ -76,7 +86,7 @@
 
                 (define asn-seq->bytes : (-> ASN-Sequence Bytes)
                   (lambda [self]
-                    (asn-sequence-box (bytes-append (field->bytes (field-ref self)) ...))))
+                    (asn-sequence-box (bytes-append (let ([v (field-ref self)]) (if v (field->bytes v) #"")) ...))))
 
                 (define unsafe-bytes->asn-seq : (->* (Bytes) (Natural) (Values ASN-Sequence Natural))
                   (lambda [bseq [offset 0]]
@@ -141,3 +151,4 @@
   (lambda [octets [offset 0]]
     (define-values (size offset++) (asn-octets->length octets (+ offset 1)))
     (values offset++ (assert (+ offset++ size) index?))))
+ 
