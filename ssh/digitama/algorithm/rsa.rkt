@@ -12,35 +12,38 @@
 (require "pkcs/key.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define rsa-keygen : (->* () ((List* Positive-Integer Positive-Integer(Listof Positive-Integer)) #:e Positive-Integer) RSA-Private)
+(define rsa-keygen : (->* () ((List* Positive-Integer Positive-Integer(Listof Positive-Integer)) #:e Positive-Integer) RSA-Private-Key)
   ;; https://tools.ietf.org/html/rfc8017#section-3
   (lambda [[ps (rsa-distinct-primes)] #:e [e0 65537]]
-    (define p : Positive-Integer (car ps))
-    (define q : Positive-Integer (cadr ps))
-    (define n : Positive-Integer (apply * ps))
+    (define prime1 : Positive-Integer (car ps))
+    (define prime2 : Positive-Integer (cadr ps))
+    (define modulus : Positive-Integer (apply * ps))
     (define λn : Natural (apply lcm (map sub1 ps)))
-    (define e : Positive-Integer
-      (cond [(and (<= 3 e0) (< e0 n) (coprime? e0 λn)) e0]
+    (define public-exponent : Integer
+      (cond [(and (<= 3 e0) (< e0 modulus) (coprime? e0 λn)) e0]
             [else (let try-again ()
-                    (define maybe-e : Integer (random-integer 3 n))
-                    (cond [(coprime? maybe-e λn) (assert maybe-e exact-positive-integer?)]
+                    (define maybe-e : Integer (random-integer 3 modulus))
+                    (cond [(coprime? maybe-e λn) maybe-e]
                           [else (try-again)]))]))
   
-    (define d : Positive-Integer (assert (modular-inverse e λn) exact-positive-integer?))
-    (define dP : Positive-Integer (assert (remainder d (sub1 p)) exact-positive-integer?))
-    (define dQ : Positive-Integer (assert (remainder d (sub1 q)) exact-positive-integer?))
-    (define qInv : Positive-Integer (assert (modular-inverse q p) exact-positive-integer?))
-    (rsa-private n e d p q dP dQ qInv
-                 (let multi-prime-info : (Listof RSA-Other-Prime-Info)
-                   ([stdr : (Listof RSA-Other-Prime-Info) null]
-                    [rs : (Listof Positive-Integer) (cddr ps)]
-                    [r.ri-1 : Positive-Integer (* p q)])
-                   (cond [(null? rs) (reverse stdr)]
-                         [else (let* ([ri (car rs)]
-                                      [di (assert (remainder d (sub1 ri)) exact-positive-integer?)]
-                                      [ti (assert (modular-inverse r.ri-1 ri) exact-positive-integer?)])
-                                 (multi-prime-info (cons (rsa-other-prime-info ri di ti) stdr)
-                                                   (cdr rs) (* r.ri-1 ri)))])))))
+    (define private-exponent : Natural (modular-inverse public-exponent λn))
+    (define exponent1 : Natural (remainder private-exponent (sub1 prime1)))
+    (define exponent2 : Natural (remainder private-exponent (sub1 prime2)))
+    (define coefficient : Natural (modular-inverse prime2 prime1))
+
+    (define other-prime-infos : RSA-Other-Prime-Infos
+      (let multi-prime-info ([stdr : RSA-Other-Prime-Infos null]
+                             [rs : (Listof Positive-Integer) (cddr ps)]
+                             [r.ri-1 : Positive-Integer (* prime1 prime2)])
+        (cond [(null? rs) (reverse stdr)]
+              [else (let* ([prime_i (car rs)]
+                           [exponent_i (remainder private-exponent (sub1 prime_i))]
+                           [coefficient_i (modular-inverse r.ri-1 prime_i)])
+                      (multi-prime-info (cons (make-rsa-other-prime-info #:r prime_i #:d exponent_i #:t coefficient_i) stdr)
+                                        (cdr rs) (* r.ri-1 prime_i)))])))
+    
+    (make-rsa-private-key #:n modulus #:e public-exponent #:d private-exponent #:p prime1 #:q prime2 #:dP exponent1 #:dQ exponent2 #:qInv coefficient
+                          #:version (if (pair? other-prime-infos) 1 0) #:rdts other-prime-infos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|

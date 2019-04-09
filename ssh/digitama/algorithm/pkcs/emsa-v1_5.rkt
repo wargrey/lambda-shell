@@ -10,10 +10,10 @@
 
 (require "../../diagnostics.rkt")
 
-(define rsa-sign : (-> RSA-Private Bytes PKCS#1-Hash Symbol Bytes)
+(define rsa-sign : (-> RSA-Private-Key Bytes PKCS#1-Hash Symbol Bytes)
   ;; https://tools.ietf.org/html/rfc8017#section-8.2.1
   (lambda [key message id-hash peer-name]
-    (define mbits : Nonnegative-Fixnum (integer-length (rsa-public-n key)))
+    (define mbits : Nonnegative-Fixnum (integer-length (rsa-private-key-n key)))
     (define k : Index (bits-bytes-length mbits))
     (define embits : Index (assert (- mbits 1) index?))
     (define em : Bytes (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-sign peer-name))
@@ -22,15 +22,19 @@
     
     (pkcs#1-integer->octets s k)))
 
-(define rsa-verify : (-> RSA-Key Bytes Bytes PKCS#1-Hash Symbol Boolean)
+(define rsa-verify : (-> (U RSA-Public-Key RSA-Private-Key) Bytes Bytes PKCS#1-Hash Symbol Boolean)
   ;; https://tools.ietf.org/html/rfc8017#section-8.2.2
   (lambda [key message signature id-hash peer-name]
-    (define mbits : Nonnegative-Fixnum (integer-length (rsa-public-n key)))
+    (define-values (modulus public-exponent)
+      (cond [(rsa-public-key? key) (values (rsa-public-key-n key) (rsa-public-key-e key))]
+            [else (values (rsa-private-key-n key) (rsa-private-key-e key))]))
+    
+    (define mbits : Nonnegative-Fixnum (integer-length modulus))
     (define k : Index (bits-bytes-length mbits))
 
     (and (= k (bytes-length signature))
-         (let* ([s (assert (pkcs#1-octets->integer signature) exact-nonnegative-integer?)]
-                [m (pkcs#1-rsa-verify (rsa-public-n key) (rsa-public-e key) s)]
+         (let* ([s (pkcs#1-octets->integer signature)]
+                [m (pkcs#1-rsa-verify modulus public-exponent s)]
                 [embits (assert (- mbits 1) index?)])
            (bytes=? (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-verify peer-name)
                     (pkcs#1-integer->octets m k))))))

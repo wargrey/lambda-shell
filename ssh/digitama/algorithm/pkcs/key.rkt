@@ -3,36 +3,28 @@
 ;;; https://tools.ietf.org/html/rfc8017
 
 (provide (all-defined-out))
-(provide (rename-out [rsa-key-n rsa-public-n]
-                     [rsa-key-e rsa-public-e]))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct rsa-other-prime-info
-  ([r : Positive-Integer]
-   [d : Positive-Integer]
-   [t : Positive-Integer])
-  #:transparent
-  #:type-name RSA-Other-Prime-Info)
+(require "../../asn-der/sequence.rkt")
 
-(struct rsa-key
-  ([n : Positive-Integer]    ; modulus
-   [e : Positive-Integer])   ; public exponent
-  #:transparent
-  #:type-name RSA-Key)
+(define-asn-sequence rsa-other-prime-info : RSA-Other-Prime-Info
+  ([r : asn-integer]
+   [d : asn-integer]
+   [t : asn-integer]))
 
-(struct rsa-public rsa-key
-  ()
-  #:transparent
-  #:type-name RSA-Public)
+(define-asn-sequence ras-other-prime-infos : RSA-Other-Prime-Infos #:of RSA-Other-Prime-Info)
 
-(struct rsa-private rsa-key
-  (; [version : Boolean] ; `version` implies `(pair? rdts)`
-   [d : Positive-Integer]    ; private exponent
-   [p : Positive-Integer]    ; prime1
-   [q : Positive-Integer]    ; prime2
-   [dP : Positive-Integer]   ; exponent1
-   [dQ : Positive-Integer]   ; exponent2
-   [qInv : Positive-Integer] ; coefficient
-   [rdts : (Listof RSA-Other-Prime-Info)])
-  #:transparent
-  #:type-name RSA-Private)
+(define-asn-sequence rsa-public-key : RSA-Public-Key
+  ([n : asn-integer]   ; modulus
+   [e : asn-integer])) ; public exponent
+
+(define-asn-sequence rsa-private-key : RSA-Private-Key
+  ([version : asn-integer]
+   [n : asn-integer]    ; n
+   [e : asn-integer]    ; public exponent
+   [d : asn-integer]    ; private exponent
+   [p : asn-integer]    ; prime1
+   [q : asn-integer]    ; prime2
+   [dP : asn-integer]   ; exponent1
+   [dQ : asn-integer]   ; exponent2
+   [qInv : asn-integer] ; coefficient
+   [rdts : RSA-Other-Prime-Infos]))

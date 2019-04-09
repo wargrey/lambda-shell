@@ -22,7 +22,7 @@
   (class object% (super-new)
     (init-field hash-algorithm peer-name)
     
-    (define key : RSA-Private
+    (define key : RSA-Private-Key
       (let ([temp-rsa (build-path (find-system-path 'temp-dir) "rsa.primes")])
         (unless (file-exists? temp-rsa)
           (call-with-output-file* temp-rsa
@@ -37,8 +37,8 @@
 
     (define/public (make-key/certificates)
       (bytes-append (ssh-name->bytes ssh-rsa-keyname)
-                    (ssh-mpint->bytes (rsa-public-e key))
-                    (ssh-mpint->bytes (rsa-public-n key))))
+                    (ssh-mpint->bytes (rsa-private-key-e key))
+                    (ssh-mpint->bytes (rsa-private-key-n key))))
 
     ;; https://tools.ietf.org/html/rfc3447#section-8.2.1
     (define/public (make-signature message)

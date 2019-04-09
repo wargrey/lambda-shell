@@ -44,7 +44,7 @@ This example is defined in @~cite[MS-SEQ].
  (unsafe-bytes->nested-seq* nested-octets)
  (asn-pretty-print nested-octets)]
 
-@handbook-scenario{Sequence with Optional Components}
+@handbook-scenario{Sequences with Optional Components}
 
 @tamer-action[
  (define-asn-sequence option-seq : Option-Seq
@@ -83,6 +83,5 @@ This example is defined in @~cite[MS-SEQ].
 
 @chunk[<sequence>
        (require "../../digitama/algorithm/random.rkt")
-       (require "../../digitama/asn-der/primitive.rkt")
        (require "../../digitama/asn-der/sequence.rkt")
        (require "../../digitama/asn-der/pretty.rkt")]

@@ -243,11 +243,11 @@ These test cases are defined in @~cite[HMAC-SHA].
        (define rsa-key
          (lambda [n e d p q dmp1 dmq1 iqmp]
            (define k (rsa-keygen (list p q) #:e e))
-           ((if (eqv? n (rsa-public-n k)) printf eprintf) "n    = ~a~n" n)
-           ((if (eqv? d (rsa-private-d k)) printf eprintf) "d    = ~a~n" d)
-           ((if (eqv? dmp1 (rsa-private-dP k)) printf eprintf) "dP   = ~a~n" dmp1)
-           ((if (eqv? dmq1 (rsa-private-dQ k)) printf eprintf) "dQ   = ~a~n" dmq1)
-           ((if (eqv? iqmp (rsa-private-qInv k)) printf eprintf) "qInv = ~a~n" iqmp)
+           ((if (eqv? n (rsa-private-key-n k)) printf eprintf) "n    = ~a~n" n)
+           ((if (eqv? d (rsa-private-key-d k)) printf eprintf) "d    = ~a~n" d)
+           ((if (eqv? dmp1 (rsa-private-key-dP k)) printf eprintf) "dP   = ~a~n" dmp1)
+           ((if (eqv? dmq1 (rsa-private-key-dQ k)) printf eprintf) "dQ   = ~a~n" dmq1)
+           ((if (eqv? iqmp (rsa-private-key-qInv k)) printf eprintf) "qInv = ~a~n" iqmp)
            k))
 
        (define hmac-sha256

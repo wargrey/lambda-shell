@@ -4,9 +4,9 @@
 ;;; https://www.itu.int/rec/T-REC-X.690-201508-I/en
 
 (provide (all-defined-out))
+(provide (all-from-out "primitive.rkt"))
 
 (require "base.rkt")
-(require "octets.rkt")
 (require "primitive.rkt")
 
 (require (for-syntax racket/base))

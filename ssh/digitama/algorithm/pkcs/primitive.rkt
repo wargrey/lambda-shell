@@ -21,12 +21,12 @@
   (lambda [X [start 0] [end0 0]]
     (network-bytes->natural X start end0)))
 
-(define pkcs#1-rsa-sign : (-> RSA-Private Natural Natural)
+(define pkcs#1-rsa-sign : (-> RSA-Private-Key Natural Natural)
   ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
   (lambda [K m]
-    (modular-expt m (rsa-private-d K) (rsa-key-n K))))
+    (modular-expt m (rsa-private-key-d K) (rsa-private-key-n K))))
 
-(define pkcs#1-rsa-verify : (-> Natural Natural Natural Natural)
+(define pkcs#1-rsa-verify : (-> Integer Integer Integer Natural)
   ;; https://tools.ietf.org/html/rfc8017#section-5.2.1
   (lambda [n e s]
     (modular-expt s e n)))
