@@ -18,16 +18,6 @@
 ;;; TODO: why the database cannot shared by other modules?
 (define-for-syntax asn-sequence-metainfo-database (make-hasheq))
 
-(define-for-syntax (make-asn-bytes->datum/false <octets?> <bytes->asn> <Type>)
-  #`(λ [[basn : Bytes] [offset : Natural 0]] : (Values (Option #,(syntax->datum <Type>)) Natural)
-      (cond [(#,(syntax->datum <octets?>) basn offset) (#,(syntax->datum <bytes->asn>) basn offset)]
-            [else (values #false offset)])))
-
-(define-for-syntax (make-asn-bytes->datum/default <octets?> <bytes->asn> <Type> <defval>)
-  #`(λ [[basn : Bytes] [offset : Natural 0]] : (Values #,(syntax->datum <Type>) Natural)
-      (cond [(#,(syntax->datum <octets?>) basn offset) (#,(syntax->datum <bytes->asn>) basn offset)]
-            [else (values #,(syntax->datum <defval>) offset)])))
-
 (define-for-syntax (asn-type-info <asn-type>)
   (define metainfo (hash-ref asn-type-metainfo-database (syntax-e <asn-type>)
                              (λ [] (hash-ref asn-sequence-metainfo-database (syntax-e <asn-type>)
@@ -51,9 +41,9 @@
     (syntax-case (list* <field> <Type> (cddr declaration)) []
       [(field FieldType) (values #'[field : FieldType] #'field #'FieldType <bytes->asn>)]
       [(field FieldType #:optional) (values #'[field : (Option FieldType) #false] #'field #'(Option FieldType)
-                                            (make-asn-bytes->datum/false <asn-octets?> <bytes->asn> #'FieldType))]
+                                            #`(make-asn-bytes->maybe-datum #,<asn-octets?> #,<bytes->asn> #false))]
       [(field FieldType #:default defval) (values #'[field : (Option FieldType) #false] #'(or field defval) #'FieldType
-                                                  (make-asn-bytes->datum/default <asn-octets?> <bytes->asn> #'FieldType #'defval))]
+                                                  #`(make-asn-bytes->maybe-datum #,<asn-octets?> #,<bytes->asn> defval))]
       [_ (raise-syntax-error 'define-asn-sequence "malformed field declaration" <declaration>)]))
 
   (values <kw-name> <argls> (list <field-ref> <type> <value> <asn->bytes> <do-bytes->asn>)))
@@ -103,36 +93,36 @@
 
                 (hash-set! asn-type-metainfo-database 'asn-sequence '(ASN-Sequence asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))
                 (hash-set! asn-type-metainfo-database 'ASN-Sequence '(ASN-Sequence asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))))]
-    [(_ asn-sequence : ASN-Sequence #:of ASNType)
-     (with-syntax* ([asn-seq->bytes (format-id #'asn-sequence "~a->bytes" (syntax-e #'asn-sequence))]
-                    [unsafe-bytes->asn-seq (format-id #'asn-sequence "unsafe-bytes->~a" (syntax-e #'asn-sequence))]
-                    [unsafe-bytes->asn-seq* (format-id #'asn-sequence "unsafe-bytes->~a*" (syntax-e #'asn-sequence))]
+    [(_ asn-seq-of : ASN-Seq-Of #:of ASNType)
+     (with-syntax* ([asn-seq-of->bytes (format-id #'asn-seq-of "~a->bytes" (syntax-e #'asn-seq-of))]
+                    [unsafe-bytes->asn-seq-of (format-id #'asn-seq-of "unsafe-bytes->~a" (syntax-e #'asn-seq-of))]
+                    [unsafe-bytes->asn-seq-of* (format-id #'asn-seq-of "unsafe-bytes->~a*" (syntax-e #'asn-seq-of))]
                     [(Type asn-octets? asn->bytes bytes->asn) (call-with-values (λ [] (asn-type-info #'ASNType)) list)]
-                    [(_ _) (let ([info (syntax->list #'(ASN-Sequence asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))])
-                             (list (hash-set! asn-sequence-metainfo-database (syntax-e #'asn-sequence) info)
-                                   (hash-set! asn-sequence-metainfo-database (syntax-e #'ASN-Sequence) info)))])
-       #'(begin (define-type ASN-Sequence (Listof Type))
-
-                (define asn-seq->bytes : (-> ASN-Sequence Bytes)
+                    [(_ _) (let ([info (syntax->list #'(ASN-Seq-Of asn-sequence-octets? asn-seq-of->bytes unsafe-bytes->asn-seq-of))])
+                             (list (hash-set! asn-sequence-metainfo-database (syntax-e #'asn-seq-of) info)
+                                   (hash-set! asn-sequence-metainfo-database (syntax-e #'ASN-Seq-Of) info)))])
+       #'(begin (define-type ASN-Seq-Of (Listof Type))
+                
+                (define asn-seq-of->bytes : (-> ASN-Seq-Of Bytes)
                   (lambda [self]
                     (asn-sequence-box (apply bytes-append (map asn->bytes self)))))
 
-                (define unsafe-bytes->asn-seq : (->* (Bytes) (Natural) (Values ASN-Sequence Natural))
+                (define unsafe-bytes->asn-seq-of : (->* (Bytes) (Natural) (Values ASN-Seq-Of Natural))
                   (lambda [bseq [offset 0]]
                     (define-values (offset++ end) (asn-sequence-unbox bseq offset))
-                    (let read-seq-of ([sqes : ASN-Sequence null]
+                    (let read-seq-of ([sqes : ASN-Seq-Of null]
                                       [idx : Natural offset++])
                       (cond [(or (>= idx end) (not (asn-octets? bseq idx))) (values (reverse sqes) idx)]
                             [else (let-values ([(asn end) (bytes->asn bseq idx)])
                                     (read-seq-of (cons asn sqes) end))]))))
 
-                (define unsafe-bytes->asn-seq* : (->* (Bytes) (Natural) ASN-Sequence)
+                (define unsafe-bytes->asn-seq-of* : (->* (Bytes) (Natural) ASN-Seq-Of)
                   (lambda [bseq [offset 0]]
-                    (define-values (seq end) (unsafe-bytes->asn-seq bseq offset))
+                    (define-values (seq end) (unsafe-bytes->asn-seq-of bseq offset))
                     seq))
 
-                (hash-set! asn-type-metainfo-database 'asn-sequence '(ASN-Sequence asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))
-                (hash-set! asn-type-metainfo-database 'ASN-Sequence '(ASN-Sequence asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))))]))
+                (hash-set! asn-type-metainfo-database 'asn-seq-of '(ASN-Seq-Of asn-sequence-octets? asn-seq-of->bytes unsafe-bytes->asn-seq-of))
+                (hash-set! asn-type-metainfo-database 'ASN-Seq-Of '(ASN-Seq-Of asn-sequence-octets? asn-seq-of->bytes unsafe-bytes->asn-seq-of))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-sequence : Byte (asn-identifier-octet #x10 #:class 'Universal #:constructed? #true))
@@ -151,4 +141,12 @@
   (lambda [octets [offset 0]]
     (define-values (size offset++) (asn-octets->length octets (+ offset 1)))
     (values offset++ (assert (+ offset++ size) index?))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-asn-bytes->maybe-datum : (All (T V) (-> (->* (Bytes) (Integer) Boolean) (->* (Bytes) (Natural) (Values T Natural)) V
+                                                     (->* (Bytes) (Natural) (Values (U T V) Natural))))
+  (lambda [asn-octets? bytes->asn defval]
+    (λ [[basn : Bytes] [offset : Natural 0]] : (Values (U T V) Natural)
+      (cond [(asn-octets? basn offset) (bytes->asn basn offset)]
+            [else (values defval offset)]))))
  

@@ -13,6 +13,7 @@
 ;;; https://tools.ietf.org/html/rfc3526, More Modular Exponential Diffie-Hellman groups for Internet Key Exchange          ;;;
 ;;; https://tools.ietf.org/html/rfc4419, Diffie-Hellman Group Exchange for the Secure Shell Transport Layer Protocol       ;;;
 ;;; https://tools.ietf.org/html/rfc4432, RSA Key Exchange for the Secure Shell Transport Layer Protocol                    ;;;
+;;; https://tools.ietf.org/html/rfc4716, The Secure Shell Public Key File Format                                           ;;;
 ;;; https://tools.ietf.org/html/rfc5114, Additional Diffie-Hellman Groups for Use with IETF Standards                      ;;;
 ;;; https://tools.ietf.org/html/rfc6668, The Secure Shell Transport Layer Protocol with SHA-2                              ;;;
 ;;; https://tools.ietf.org/html/rfc8017, Public-Key Cryptography Standards #1: RSA Cryptography Specifications Version 2.2 ;;;

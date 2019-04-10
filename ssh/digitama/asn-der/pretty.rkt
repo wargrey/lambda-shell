@@ -32,7 +32,7 @@
                                                       [content-end : Index content-end]
                                                       [column-idx : Byte 1])
                                   (cond [(>= content-idx content-end)
-                                         (unless (= column-idx 0) (newline /dev/stdout))
+                                         (unless (= column-idx 1) (newline /dev/stdout))
                                          (print-constructed content-end pads end)]
                                         [else (let ([bstr (~byte (bytes-ref basn content-idx))])
                                                 (when (= column-idx 1)

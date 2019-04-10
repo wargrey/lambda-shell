@@ -43,7 +43,8 @@
                                         (cdr rs) (* r.ri-1 prime_i)))])))
     
     (make-rsa-private-key #:n modulus #:e public-exponent #:d private-exponent #:p prime1 #:q prime2 #:dP exponent1 #:dQ exponent2 #:qInv coefficient
-                          #:version (if (pair? other-prime-infos) 1 0) #:rdts other-prime-infos)))
+                          #:version (if (pair? other-prime-infos) 1 0)
+                          #:rdts (and (pair? other-prime-infos) other-prime-infos))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|
