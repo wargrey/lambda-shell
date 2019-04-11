@@ -9,6 +9,8 @@
 
 (require raco/command-name)
 
+(require digimon/collection)
+
 (define ssh-target-port (make-parameter 22))
 
 (define-values (flag-table --help --unknown)
@@ -23,6 +25,7 @@
 
 (define main
   (lambda [argument-list]
+    (enter-digimon-zone!)
     (parse-command-line
      (short-program+command-name)
      argument-list

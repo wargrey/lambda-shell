@@ -2,13 +2,14 @@
 
 (require ssh/transport)
 
-(require racket/tcp)
 (require racket/string)
 (require racket/cmdline)
 (require racket/function)
 (require racket/logging)
 
 (require raco/command-name)
+
+(require digimon/collection)
 
 (define ssh-target-port (make-parameter 2222))
 
@@ -32,6 +33,7 @@
 
 (define main
   (lambda [argument-list]
+    (enter-digimon-zone!)
     (parse-command-line
      (short-program+command-name)
      argument-list
