@@ -10,6 +10,6 @@
 
 @include-section[(submod "architecture.rkt" doc)]
 @include-section[(submod "transport.rkt" doc)]
-@include-section["asnder.scrbl"]
+@;include-section["asnder.scrbl"]
 
 @handbook-appendix[#:index? #true]

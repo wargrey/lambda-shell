@@ -6,11 +6,14 @@
 
 (require "base.rkt")
 
-(define asn-pretty-print : (->* (Bytes) (Integer Integer #:indention Byte #:column Byte #:binary? Boolean #:port Output-Port) Void)
-  (lambda [basn [start 0] [smart-end 0] #:indention [indention 0] #:column [column 16] #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)]]
+(define asn-pretty-print : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:indention Byte #:column Byte #:separator Char) Void)
+  (lambda [basn [start 0] [smart-end 0]
+                #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)]
+                #:indention [indention 0] #:column [column 16] #:separator [separator #\space]]
     (define idxmax : Index (if (<= smart-end start) (bytes-length basn) (assert smart-end index?)))
     (define-values (base inset ~byte) (if (not base2) (values 16 3 byte->hex-string) (values 2 9 byte->bin-string)))
     (define pad : Bytes (make-bytes inset #x20))
+    (define fmt : String (string-append (string separator) "~a"))
     (let print-constructed ([idx : Natural (assert start index?)]
                             [pads : Bytes (make-bytes indention #x20)]
                             [end : Index idxmax])
@@ -22,21 +25,23 @@
                     (define content-end : Index (assert (+ idx++ size) index?))
                     
                     (display pads /dev/stdout)
-                    (display (~byte identifier))
+                    (display (~byte identifier) /dev/stdout)
                     (for ([b (in-bytes basn (+ idx 1) idx++)])
                       (fprintf /dev/stdout " ~a" (~byte b)))
-                    (newline /dev/stdout)
                     
-                    (cond [(and constructed?) (print-constructed idx++ (bytes-append pad pads) content-end)]
+                    (cond [(and constructed?)
+                           (newline /dev/stdout)
+                           (print-constructed idx++ (bytes-append pad pads) content-end)]
                           [else (let print-primitive ([content-idx : Nonnegative-Fixnum (assert idx++ index?)]
                                                       [content-end : Index content-end]
-                                                      [column-idx : Byte 1])
+                                                      [column-idx : Byte 0])
                                   (cond [(>= content-idx content-end)
-                                         (unless (= column-idx 1) (newline /dev/stdout))
+                                         (newline /dev/stdout)
                                          (print-constructed content-end pads end)]
                                         [else (let ([bstr (~byte (bytes-ref basn content-idx))])
-                                                (when (= column-idx 1)
+                                                (when (= column-idx 0)
+                                                  (newline /dev/stdout)
                                                   (display pad /dev/stdout)
                                                   (display pads /dev/stdout))
-                                                (fprintf /dev/stdout (if (= column-idx 0) "~a~n" "~a ") bstr)
+                                                (fprintf /dev/stdout (if (= column-idx 0) "~a" fmt) bstr)
                                                 (print-primitive (+ content-idx 1) content-end (remainder (+ column-idx 1) column)))]))]))]))))

@@ -43,7 +43,7 @@
      (short-program+command-name)
      argument-list
      flag-table
-     (λ [!voids] (with-logging-to-port (current-output-port) (λ [] (rsa-keygen-main)) 'debug))
+     (λ [!voids] (with-logging-to-port (current-output-port) (λ [] (exit (rsa-keygen-main))) 'debug))
      '()
      (compose1 exit display --help)
      (compose1 exit (const 1) --unknown (curryr string-trim #px"[()]") (curry format "~a") values))))

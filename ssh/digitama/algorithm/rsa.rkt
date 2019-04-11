@@ -12,15 +12,15 @@
 (require "pkcs/key.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define rsa-keygen : (->* () ((List* Positive-Integer Positive-Integer(Listof Positive-Integer)) #:e Positive-Integer) RSA-Private-Key)
+(define rsa-keygen : (->* () ((List* Integer Integer (Listof Integer)) #:e Integer) RSA-Private-Key)
   ;; https://tools.ietf.org/html/rfc8017#section-3
-  (lambda [[ps (rsa-distinct-primes)] #:e [e0 65537]]
-    (define prime1 : Positive-Integer (car ps))
-    (define prime2 : Positive-Integer (cadr ps))
-    (define modulus : Positive-Integer (apply * ps))
+  (lambda [[ps (rsa-distinct-primes)] #:e [e 65537]]
+    (define prime1 : Integer (car ps))
+    (define prime2 : Integer (cadr ps))
+    (define modulus : Integer (apply * ps))
     (define λn : Natural (apply lcm (map sub1 ps)))
     (define public-exponent : Integer
-      (cond [(and (<= 3 e0) (< e0 modulus) (coprime? e0 λn)) e0]
+      (cond [(and (<= 3 e) (< e modulus) (coprime? e λn)) e]
             [else (let try-again ()
                     (define maybe-e : Integer (random-integer 3 modulus))
                     (cond [(coprime? maybe-e λn) maybe-e]
@@ -31,20 +31,36 @@
     (define exponent2 : Natural (remainder private-exponent (sub1 prime2)))
     (define coefficient : Natural (modular-inverse prime2 prime1))
 
-    (define other-prime-infos : RSA-Other-Prime-Infos
-      (let multi-prime-info ([stdr : RSA-Other-Prime-Infos null]
-                             [rs : (Listof Positive-Integer) (cddr ps)]
-                             [r.ri-1 : Positive-Integer (* prime1 prime2)])
-        (cond [(null? rs) (reverse stdr)]
+    (define-values (maybe-other-prime-infos version)
+      (let multi-prime-info : (Values (Option RSA-Other-Prime-Infos) Integer)
+        ([stdr : RSA-Other-Prime-Infos null]
+         [rs : (Listof Integer) (cddr ps)]
+         [r.ri-1 : Integer (* prime1 prime2)])
+        (cond [(null? rs) (if (null? stdr) (values #false 0) (values (reverse stdr) 1))]
               [else (let* ([prime_i (car rs)]
                            [exponent_i (remainder private-exponent (sub1 prime_i))]
                            [coefficient_i (modular-inverse r.ri-1 prime_i)])
                       (multi-prime-info (cons (make-rsa-other-prime-info #:r prime_i #:d exponent_i #:t coefficient_i) stdr)
                                         (cdr rs) (* r.ri-1 prime_i)))])))
     
-    (make-rsa-private-key #:n modulus #:e public-exponent #:d private-exponent #:p prime1 #:q prime2 #:dP exponent1 #:dQ exponent2 #:qInv coefficient
-                          #:version (if (pair? other-prime-infos) 1 0)
-                          #:rdts (and (pair? other-prime-infos) other-prime-infos))))
+    (make-rsa-private-key #:n modulus #:e public-exponent #:d private-exponent
+                          #:p prime1 #:q prime2 #:dP exponent1 #:dQ exponent2 #:qInv coefficient
+                          #:version version #:rdts maybe-other-prime-infos)))
+
+(define rsa-key-okay? : (-> RSA-Private-Key Boolean)
+  (lambda [key]
+    (define ps : (List* Integer Integer (Listof Integer))
+      (list* (rsa-private-key-p key) (rsa-private-key-q key)
+             (if (list? (rsa-private-key-rdts key)) (map rsa-other-prime-info-r (rsa-private-key-rdts key)) null)))
+    
+    (define λn : Natural (apply lcm (map sub1 ps)))
+    
+    (define e*dmodλn (remainder (* (rsa-private-key-e key) (rsa-private-key-d key)) λn))
+    (define e*dPmodp-1 (remainder (* (rsa-private-key-e key) (rsa-private-key-dP key)) (sub1 (rsa-private-key-p key))))
+    (define e*dQmodq-1 (remainder (* (rsa-private-key-e key) (rsa-private-key-dQ key)) (sub1 (rsa-private-key-q key))))
+    (define q*qInvmodp (remainder (* (rsa-private-key-q key) (rsa-private-key-qInv key)) (sub1 (rsa-private-key-p key))))
+    
+    (= 1 e*dmodλn e*dPmodp-1 e*dQmodq-1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|
