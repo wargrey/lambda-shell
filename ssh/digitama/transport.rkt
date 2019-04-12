@@ -72,10 +72,10 @@
 
       (define-values (maybe-task traffic++)
         (cond [(tcp-port? evt)
-               (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin peer-name rfc null))
+               (define-values (msg payload traffic) (ssh-read-transport-message /dev/tcpin peer-name rfc null))
                (define maybe-task : Any
-                 (cond [(bytes? msg) (write-special msg /dev/sshout)]
-                       [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs server?)]
+                 (cond [(not msg) (write-special payload /dev/sshout)]
+                       [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs payload server?)]
                        [(ssh:msg:disconnect? msg) (write-special eof /dev/sshout)]
                        [(ssh-message-undefined? msg) (thread-send (current-thread) (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
                        [(not (ssh-ignored-incoming-message? msg)) (write-special msg /dev/sshout)]))

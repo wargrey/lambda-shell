@@ -47,14 +47,14 @@
             (let read-head-boundary ()
               (define maybe-line : (U String EOF) (read-line /dev/keyin))
               (cond [(eof-object? maybe-line) #false]
-                    [(regexp-match? #px"^-----BEGIN " maybe-line) (string=? BEGIN maybe-line)]
+                    [(regexp-match? #px"^[-]+\\s*BEGIN " maybe-line) (string=? BEGIN maybe-line)]
                     [else (read-head-boundary)])))
           
           (define-values (base64s post-match?)
             (let read-key-line : (Values (Listof String) Boolean) ([s46esab : (Listof String) null])
               (define maybe-base64-line : (U String EOF) (read-line /dev/keyin))
               (cond [(eof-object? maybe-base64-line) (values (reverse s46esab) #false)]
-                    [(regexp-match? #px"^-----END " maybe-base64-line) (values (reverse s46esab) (string=? maybe-base64-line END))]
+                    [(regexp-match? #px"^[-]+\\s*END " maybe-base64-line) (values (reverse s46esab) (string=? maybe-base64-line END))]
                     [(regexp-match? #px"^\\s*$" maybe-base64-line) (read-key-line s46esab)]
                     [else (read-key-line (cons (string-trim maybe-base64-line #:left? #false) s46esab))])))
           

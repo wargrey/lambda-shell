@@ -26,13 +26,13 @@
   #:transparent
   #:type-name Key)
 
-(define ssh-kex/starts-with-peer : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Boolean Thread)
-  (lambda [peer-kexinit self-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs server?]
+(define ssh-kex/starts-with-peer : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Bytes Boolean Thread)
+  (lambda [peer-kexinit self-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs payload server?]
     (define parent : Thread (current-thread))
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define traffic : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit peer-name rfc))
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
-                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs traffic))))))
+                    (ssh-kex parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs payload traffic))))))
 
 (define ssh-kex/starts-with-self : (-> SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Boolean Thread)
   (lambda [self-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs server?]
@@ -40,30 +40,30 @@
     (define ssh-kex (if server? ssh-kex/server ssh-kex/client))
     (define sent : Nonnegative-Fixnum (ssh-write-message /dev/tcpout self-kexinit peer-name rfc))
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
-                    (define-values (msg traffic) (ssh-read-transport-message /dev/tcpin peer-name rfc null))
-                    (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout peer-name rfc Vc Vs (+ sent traffic))]))))))
+                    (define-values (msg payload traffic) (ssh-read-transport-message /dev/tcpin peer-name rfc null))
+                    (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout peer-name rfc Vc Vs payload (+ sent traffic))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Natural Void)
-  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs traffic]
+(define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Bytes Natural Void)
+  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Ic traffic]
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
     
     (let-values ([(kex hostkey c2s s2c) (ssh-negotiate peer-kexinit self-kexinit peer-name)])
-      (ssh-kex parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs peer-kexinit self-kexinit traffic))))
+      (ssh-kex parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Ic (ssh:msg:kexinit->bytes self-kexinit) traffic))))
 
 
-(define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Natural Void)
-  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs traffic]
+(define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port Symbol SSH-Configuration String String Bytes Natural Void)
+  (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Is traffic]
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
     (let-values ([(kex hostkey c2s s2c) (ssh-negotiate self-kexinit peer-kexinit peer-name)])
-      (ssh-kex parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs self-kexinit peer-kexinit traffic))))
+      (ssh-kex parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs (ssh:msg:kexinit->bytes self-kexinit) Is traffic))))
 
 (define ssh-kex : (-> Thread (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms
-                      Input-Port Output-Port Symbol SSH-Configuration String String SSH-MSG-KEXINIT SSH-MSG-KEXINIT Natural Void)
-  (lambda [parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Mc Ms traffic]
+                      Input-Port Output-Port Symbol SSH-Configuration String String Bytes Bytes Natural Void)
+  (lambda [parent kex hostkey c2s s2c /dev/tcpin /dev/tcpout peer-name rfc Vc Vs Ic Is traffic]
     (define host-key : (Instance SSH-Host-Key<%>)
       (new (vector-ref (cdr hostkey) 0)
            [hash-algorithm (vector-ref (cdr hostkey) 1)]
@@ -71,38 +71,38 @@
     
     (define kex-process : (Instance SSH-Key-Exchange<%>)
       (new (vector-ref (cdr kex) 0)
-           [Vc Vc] [Vs Vs] [Ic (ssh:msg:kexinit->bytes Mc)] [Is (ssh:msg:kexinit->bytes Ms)]
+           [Vc Vc] [Vs Vs] [Ic Ic] [Is Is]
            [hostkey host-key] [hash (vector-ref (cdr kex) 1)]
            [peer-name peer-name]))
 
     (define kex-msg-group : (Listof Symbol) (list (send kex-process tell-message-group)))
     (let rekex ([traffic : Natural traffic])
-      (define-values (msg traffic++) (ssh-read-transport-message /dev/tcpin peer-name rfc kex-msg-group))
+      (define-values (msg payload traffic++) (ssh-read-transport-message /dev/tcpin peer-name rfc kex-msg-group))
       (cond [(and (ssh-message? msg) (ssh-key-exchange-message? msg) (send kex-process response msg))
              => (λ [[m : SSH-Message]] (ssh-write-message /dev/tcpout m peer-name rfc))]
-            [else (let ([undefined (make-ssh:msg:unimplemented #:number (if (bytes? msg) (bytes-ref msg 0) (ssh-message-number msg)))])
+            [else (let ([undefined (make-ssh:msg:unimplemented #:number (if (not msg) (bytes-ref payload 0) (ssh-message-number msg)))])
                     (ssh-write-message /dev/tcpout undefined peer-name rfc))])
       (rekex (+ traffic traffic++)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Symbol
                             (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Package-Algorithms SSH-Package-Algorithms))
-  (lambda [ckexinit skexinit peer-name]
+  (lambda [Mc Ms peer-name]
     (define-values (kex hostkey)
-      (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes ckexinit) (ssh:msg:kexinit-kexes skexinit) "algorithm")
-              (ssh-choose-algorithm (ssh:msg:kexinit-hostkeys ckexinit) (ssh:msg:kexinit-hostkeys skexinit) "host key format")))
+      (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes Mc) (ssh:msg:kexinit-kexes Ms) "algorithm")
+              (ssh-choose-algorithm (ssh:msg:kexinit-hostkeys Mc) (ssh:msg:kexinit-hostkeys Ms) "host key format")))
 
     (define-values (c2s-cipher s2c-cipher)
-      (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-ciphers ckexinit) (ssh:msg:kexinit-c2s-ciphers skexinit) "client to server cipher")
-              (ssh-choose-algorithm (ssh:msg:kexinit-s2c-ciphers ckexinit) (ssh:msg:kexinit-s2c-ciphers skexinit) "server to client cipher")))
+      (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-ciphers Mc) (ssh:msg:kexinit-c2s-ciphers Ms) "client to server cipher")
+              (ssh-choose-algorithm (ssh:msg:kexinit-s2c-ciphers Mc) (ssh:msg:kexinit-s2c-ciphers Ms) "server to client cipher")))
     
     (define-values (c2s-hmac s2c-hmac)
-      (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-macs ckexinit) (ssh:msg:kexinit-c2s-macs skexinit) "client to server MAC algorithm")
-              (ssh-choose-algorithm (ssh:msg:kexinit-s2c-macs ckexinit) (ssh:msg:kexinit-s2c-macs skexinit) "server to client MAC algorithm")))
+      (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-macs Mc) (ssh:msg:kexinit-c2s-macs Ms) "client to server MAC algorithm")
+              (ssh-choose-algorithm (ssh:msg:kexinit-s2c-macs Mc) (ssh:msg:kexinit-s2c-macs Ms) "server to client MAC algorithm")))
       
     (define-values (c2s-compression s2c-compression)
-      (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-compressions ckexinit) (ssh:msg:kexinit-c2s-compressions skexinit) "client to server compression algorithm")
-              (ssh-choose-algorithm (ssh:msg:kexinit-s2c-compressions ckexinit) (ssh:msg:kexinit-s2c-compressions skexinit) "server to client compression algorithm")))
+      (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-compressions Mc) (ssh:msg:kexinit-c2s-compressions Ms) "client to server compression algorithm")
+              (ssh-choose-algorithm (ssh:msg:kexinit-s2c-compressions Mc) (ssh:msg:kexinit-s2c-compressions Ms) "server to client compression algorithm")))
 
     (cond [(and kex hostkey c2s-cipher c2s-hmac c2s-compression s2c-cipher s2c-hmac s2c-compression)
            (ssh-log-message 'debug "kex: algorithm: ~a" (car kex))

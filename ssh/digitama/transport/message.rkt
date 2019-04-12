@@ -17,7 +17,7 @@
     (ssh-log-sent-message msg traffic 'debug)
     traffic))
 
-(define ssh-read-transport-message : (-> Input-Port Symbol SSH-Configuration (Listof Symbol) (Values (U SSH-Message Bytes) Nonnegative-Fixnum))
+(define ssh-read-transport-message : (-> Input-Port Symbol SSH-Configuration (Listof Symbol) (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
   (lambda [/dev/tcpin peer-name rfc groups]
     (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin peer-name ($ssh-payload-capacity rfc) 0))
     (define message-id : Byte (bytes-ref payload 0))
@@ -31,7 +31,7 @@
         (($ssh-debug-message-handler rfc)
          (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))))
 
-    (values (or maybe-trans-msg payload) traffic)))
+    (values maybe-trans-msg payload traffic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-kex-transparent-message? : (-> SSH-Message Boolean)

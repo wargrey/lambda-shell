@@ -41,9 +41,11 @@
  I_S is S's SSH_MSG_KEXINIT message
 |#
 
+(require digimon/format)
+
 (define ssh-diffie-hellman-exchange% : SSH-Key-Exchange<%>
   (class object% (super-new)
-    (init Vs Vc Is Ic hostkey hash peer-name)
+    (init Vc Vs Ic Is hostkey hash peer-name)
 
     (define K-S : Bytes (send hostkey make-key/certificates))
     (define VIK : Bytes

@@ -15,8 +15,8 @@
          [make-signature (-> Bytes Bytes)]))
 
 (define-type SSH-Key-Exchange<%>
-  (Class (init [Vs String] [Vc String]
-               [Is Bytes] [Ic Bytes]
+  (Class (init [Vc String] [Vs String]
+               [Ic Bytes] [Is Bytes]
                [hostkey (Instance SSH-Host-Key<%>)]
                [hash (-> Bytes Bytes)]
                [peer-name Symbol])

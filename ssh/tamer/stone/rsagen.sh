@@ -10,6 +10,8 @@ RSA_SHA1_Sign=${RSA_Prefix}_sha1.sign
 
 # generate PKCS#1 rsa private key
 openssl genrsa -out ${RSA_PEM} 2048
+chmod o-rwx ${RSA_PEM}
+chmod g-rwx ${RSA_PEM}
 
 # check the private key and output its content for human
 openssl rsa -in ${RSA_PEM} -noout -check -text | tee ${RSA_HEX}
