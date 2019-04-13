@@ -19,7 +19,7 @@
 (define-ssh-shared-messages diffie-hellman-exchange
   ; https://www.rfc-editor.org/errata_search.php?rfc=4253
   [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
-  [SSH_MSG_KEXDH_REPLY               31 ([K-S : SSH-BString] [f : Integer] [H : SSH-BString])])
+  [SSH_MSG_KEXDH_REPLY               31 ([K-S : SSH-BString] [f : Integer] [s : SSH-BString])])
 
 (define-ssh-shared-messages diffie-hellman-group-exchange
   ; https://tools.ietf.org/html/rfc4419
@@ -27,7 +27,7 @@
   [SSH_MSG_KEY_DH_GEX_REQUEST        34 ([min : Index] [n : Index] [max : Index])]
   [SSH_MSG_KEY_DH_GEX_GROUP          31 ([p : Integer] [g : Integer])]
   [SSH_MSG_KEY_DH_GEX_INIT           32 ([e : Integer])]
-  [SSH_MSG_KEY_DH_GEX_REPLY          33 ([K-S : SSH-BString] [f : Integer] [H : SSH-BString])])
+  [SSH_MSG_KEY_DH_GEX_REPLY          33 ([K-S : SSH-BString] [f : Integer] [s : SSH-BString])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|
@@ -41,35 +41,98 @@
  I_S is S's SSH_MSG_KEXINIT message
 |#
 
-(require digimon/format)
-
 (define ssh-diffie-hellman-exchange% : SSH-Key-Exchange<%>
   (class object% (super-new)
-    (init Vc Vs Ic Is hostkey hash peer-name)
+    (init Vc Vs Ic Is hostkey hash)
 
-    (define K-S : Bytes (send hostkey make-key/certificates))
-    (define VIK : Bytes
+    (define VIcs : Bytes
       (bytes-append (ssh-string->bytes Vc) (ssh-string->bytes Vs)
-                    (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is
-                    (ssh-uint32->bytes (bytes-length K-S)) K-S))
+                    (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is))
+
+    (define dh-group : DH-MODP-Group dh2048)
+    (define &x : (Boxof Integer) (box 0))
+    (define &e : (Boxof Integer) (box 0))
+    (define &shared-secret : (Boxof Integer) (box 0))
+    (define &exchange-hash : (Boxof Bytes) (box #""))
 
     (define/public (tell-message-group)
       'diffie-hellman-exchange)
 
     (define/public (request)
-      (make-ssh:msg:newkeys))
+      (define g : Byte (dh-modp-group-g dh-group))
+      (define p : Integer (dh-modp-group-p dh-group))
+      (define x : Integer (dh-random 1)) ; x <- (1, q)
+      (define e : Integer (modular-expt g x p))
 
-    (define/public (response init-msg)
-      (and (ssh:msg:kexdh:init? init-msg)
-           (ssh-dh-kex_s dh2048 (ssh:msg:kexdh:init-e init-msg))))
+      (set-box! &x x)
+      (set-box! &e e)
+      
+      (make-ssh:msg:kexdh:init #:e e))
 
-    (define ssh-dh-kex_s : (-> DH-MODP-Group Integer SSH-Message)
-      (lambda [dh e]
-        (define g : Byte (dh-modp-group-g dh))
-        (define p : Integer (dh-modp-group-p dh))
-        (define y : Integer (random-integer 2 (dh-modp-group-q dh)))
+    (define/public (response req)
+      (cond [(ssh:msg:kexdh:init? req) (dh-reply req)]
+            [(ssh:msg:kexdh:reply? req) (dh-verify req)]
+            [else #false]))
+
+    (define/public (done?)
+      (and (> (unbox &shared-secret) 0)
+           #;(> (bytes-length (unbox &exchange-hash)) 0)))
+
+    (define/public (tell-secret)
+      (values (unbox &shared-secret)
+              (unbox &exchange-hash)))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define dh-reply : (-> SSH-MSG-KEXDH-INIT SSH-Message)
+      (lambda [req]
+        (define g : Byte (dh-modp-group-g dh-group))
+        (define p : Integer (dh-modp-group-p dh-group))
+        (define e : Integer (ssh:msg:kexdh:init-e req))
+        (define y : Integer (dh-random 0)) ; y <- (0, q)
         (define f : Integer (modular-expt g y p))
         (define K : Integer (modular-expt e y p))
-        (define H : Bytes (hash (bytes-append VIK (ssh-mpint->bytes e) (ssh-mpint->bytes f) (ssh-mpint->bytes K))))
+        (define K-S : Bytes (send hostkey make-key/certificates))
+        (define H : Bytes (dh-hash K-S e f K))
+        (define s : Bytes (send hostkey make-signature H))
 
-        (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:H (send hostkey make-signature H))))))
+        (when (or (< e 1) (> e (sub1 p)))
+          (ssh-raise-kex-error ssh-diffie-hellman-exchange%
+                               "'e' is out of range, expected in [1, p-1]"))
+
+        (set-box! &shared-secret K)
+        (set-box! &exchange-hash H)
+
+        (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:s s)))
+
+    (define dh-verify : (-> SSH-MSG-KEXDH-REPLY SSH-Message)
+      (lambda [req]
+        (define p : Integer (dh-modp-group-p dh-group))
+        (define f : Integer (ssh:msg:kexdh:reply-f req))
+        (define K : Integer (modular-expt f (unbox &x) p))
+        (define K-S : Bytes (ssh:msg:kexdh:reply-K-S req))
+        (define s : Bytes (ssh:msg:kexdh:reply-s req))
+        (define H : Bytes (dh-hash K-S (unbox &e) f K))
+        
+        (when (or (< f 1) (> f (sub1 p)))
+          (ssh-raise-kex-error ssh-diffie-hellman-exchange%
+                               "'f' is out of range, expected in [1, p-1]"))
+        
+        (unless (bytes=? (send hostkey make-signature H) s)
+          (ssh-raise-kex-error ssh-diffie-hellman-exchange%
+                               "Hostkey signature is mismatch"))
+
+        (set-box! &shared-secret K)
+        (set-box! &exchange-hash H)
+
+        (make-ssh:msg:newkeys)))
+
+    (define dh-random : (-> Byte Integer)
+      (lambda [open-min]
+        (random-integer (add1 open-min)
+                        (dh-modp-group-q dh-group))))
+
+    (define dh-hash : (-> Bytes Integer Integer Integer Bytes)
+      (lambda [K-S e f K]
+        (hash (bytes-append VIcs
+                            (ssh-uint32->bytes (bytes-length K-S)) K-S
+                            (ssh-mpint->bytes e) (ssh-mpint->bytes f) (ssh-mpint->bytes K)))))))

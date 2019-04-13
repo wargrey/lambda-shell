@@ -8,8 +8,7 @@
 (require "algorithm/pkcs/hash.rkt")
 
 (define-type SSH-Host-Key<%>
-  (Class (init-field [hash-algorithm PKCS#1-Hash]
-                     [peer-name Symbol])
+  (Class (init-field [hash-algorithm PKCS#1-Hash])
          [tell-key-name (-> Symbol)]
          [make-key/certificates (-> Bytes)]
          [make-signature (-> Bytes Bytes)]))
@@ -18,8 +17,9 @@
   (Class (init [Vc String] [Vs String]
                [Ic Bytes] [Is Bytes]
                [hostkey (Instance SSH-Host-Key<%>)]
-               [hash (-> Bytes Bytes)]
-               [peer-name Symbol])
+               [hash (-> Bytes Bytes)])
          [tell-message-group (-> Symbol)]
+         [tell-secret (-> (Values Integer Bytes))]
          [request (-> SSH-Message)]
-         [response (-> SSH-Message (Option SSH-Message))]))
+         [response (-> SSH-Message (Option SSH-Message))]
+         [done? (-> Boolean)]))

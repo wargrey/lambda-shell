@@ -40,8 +40,8 @@
     (write-char #\linefeed /dev/sshout)
     (flush-output /dev/sshout)))
 
-(define ssh-read-server-identification : (-> Input-Port SSH-Configuration Symbol SSH-Identification)
-  (lambda [/dev/sshin rfc peer-name]
+(define ssh-read-server-identification : (-> Input-Port SSH-Configuration SSH-Identification)
+  (lambda [/dev/sshin rfc]
     (define line : String (make-string (max ($ssh-longest-identification-length rfc) ($ssh-longest-server-banner-length rfc))))
     (define message-handler : SSH-Server-Line-Handler ($ssh-server-banner-handler rfc))
     (let read-check-notify-loop ([count : Nonnegative-Fixnum 0])
@@ -49,18 +49,18 @@
              (read-string! line /dev/sshin 0 4)
              (unless (string-prefix? line "SSH-")
                (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-banner-length rfc))])
-                 (cond [(not maybe-end-index) (throw exn:ssh:defense ssh-read-server-identification peer-name "banner message overlength: ~s" line)]
+                 (cond [(not maybe-end-index) (ssh-raise-defence-error ssh-read-server-identification "banner message overlength: ~s" line)]
                        [else (message-handler (substring line 0 maybe-end-index))])
                  (read-check-notify-loop (+ count 1))))]
-            [else (throw exn:ssh:defense ssh-read-server-identification peer-name "too many banner messages")]))
-    (read-peer-identification! /dev/sshin line 4 ($ssh-longest-identification-length rfc))))
+            [else (ssh-raise-defence-error ssh-read-server-identification "too many banner messages")]))
+    (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length rfc))))
 
 (define ssh-read-client-identification : (-> Input-Port SSH-Configuration SSH-Identification)
   (lambda [/dev/sshin option]
     (define line : String (make-string ($ssh-longest-identification-length option)))
     (read-string! line /dev/sshin 0 4)
-    (cond [(string-prefix? line "SSH-") (read-peer-identification! /dev/sshin line 4 ($ssh-longest-identification-length option))]
-          [else (throw exn:ssh:identification /dev/sshin 'protocol-exchange "not a SSH peer: ~s" (substring line 0 4))])))
+    (cond [(string-prefix? line "SSH-") (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length option))]
+          [else (ssh-raise-identification-error ssh-read-client-identification "not a SSH client: ~s" (substring line 0 4))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-software-version : (-> String)
@@ -108,7 +108,7 @@
                    [(or (eq? maybe-ch #\linefeed) (eof-object? maybe-ch)) end-idx]
                    [else (string-set! destline idx maybe-ch) (read-loop next-idx next-idx)]))))))
 
-(define read-peer-identification! : (-> Input-Port String Positive-Index Positive-Index SSH-Identification)
+(define read-peer-identification : (-> Input-Port String Positive-Index Positive-Index SSH-Identification)
   (lambda [/dev/sshin destline idx0 idx-max]
     (define-values (maybe-end-idx maybe-protoversion maybe-softwareversion maybe-comments)
       (let read-loop : (Values (Option Positive-Index) (Option Positive-Flonum) (Option String) (Option String))
@@ -145,5 +145,5 @@
     (or (and maybe-end-idx maybe-protoversion maybe-softwareversion
              (ssh-identification maybe-protoversion maybe-softwareversion
                                  (or maybe-comments "") (substring destline 0 maybe-end-idx)))
-        (throw exn:ssh:identification /dev/sshin 'protocol-exchange
-               "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))
+        (ssh-raise-identification-error read-peer-identification
+                                        "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))

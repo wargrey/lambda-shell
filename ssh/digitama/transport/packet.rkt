@@ -4,8 +4,6 @@
 
 (provide (all-defined-out) ~size)
 
-(require racket/unsafe/ops)
-
 (require digimon/format)
 
 (require "../../datatype.rkt")
@@ -22,8 +20,8 @@
 |#
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-write-binary-packet : (-> Output-Port Symbol Bytes Byte Index Byte Nonnegative-Fixnum)
-  (lambda [/dev/tcpout peer-name payload cipher-blocksize payload-capacity mac-length]
+(define ssh-write-binary-packet : (-> Output-Port Bytes Byte Index Byte Nonnegative-Fixnum)
+  (lambda [/dev/tcpout payload cipher-blocksize payload-capacity mac-length]
     (define payload-length : Index (bytes-length payload))
 
     ;; NOTE: we do not forbid the overloaded packet since we do not know the payload capacity that the peer holds.
@@ -42,27 +40,27 @@
 
     sent))
 
-(define ssh-read-binary-packet : (-> Input-Port Symbol Index Byte (Values Bytes Bytes Nonnegative-Fixnum))
-  (lambda [/dev/tcpin peer-name payload-capacity mac-length]
-    (define length-bs : Bytes (ssh-read-bytes /dev/tcpin 4 peer-name))
+(define ssh-read-binary-packet : (-> Input-Port Index Byte (Values Bytes Bytes Nonnegative-Fixnum))
+  (lambda [/dev/tcpin payload-capacity mac-length]
+    (define length-bs : Bytes (ssh-read-bytes /dev/tcpin 4))
     (define packet-capacity : Nonnegative-Fixnum (+ payload-capacity 4))
     (define-values (packet-length _) (ssh-bytes->uint32 length-bs))
 
     (when (> packet-length packet-capacity)
-      (throw exn:ssh:defense ssh-read-binary-packet peer-name
-             "packet overlength: ~a > ~a"
-             (~size packet-length) (~size packet-capacity)))
+      (ssh-raise-defence-error ssh-read-binary-packet
+                               "packet overlength: ~a > ~a"
+                               (~size packet-length) (~size packet-capacity)))
 
-    (define padded-payload : Bytes (ssh-read-bytes /dev/tcpin packet-length peer-name))
+    (define padded-payload : Bytes (ssh-read-bytes /dev/tcpin packet-length))
     (define padding-length : Byte (bytes-ref padded-payload 0))
     (define payload-end : Fixnum (- packet-length padding-length))
 
     (when (< payload-end 1)
-      (throw exn:ssh:defense ssh-read-binary-packet peer-name
-             "invalid payload length: ~a" (unsafe-fx- payload-end 1)))
+      (ssh-raise-defence-error ssh-read-binary-packet
+                               "invalid payload length: ~a" (- payload-end 1)))
 
     (values (subbytes padded-payload 1 payload-end)
-            (cond [(> mac-length 0) (ssh-read-bytes /dev/tcpin mac-length peer-name)]
+            (cond [(> mac-length 0) (ssh-read-bytes /dev/tcpin mac-length)]
                   [else #""])
             (+ packet-length mac-length 4))))
 
@@ -71,15 +69,15 @@
   (lambda [payload-length cipher-blocksize]
     (let* ([idsize : Byte (max cipher-blocksize 8)]
            [packet-draft (+ 4 1 payload-length)]
-           [padding-draft (unsafe-fx- idsize (remainder packet-draft idsize))]
-           [padding-draft (if (< padding-draft 4) (unsafe-fx+ padding-draft idsize) padding-draft)]
-           [thwarting-capacity (unsafe-fxquotient (unsafe-fx- #xFF padding-draft) idsize)]
-           [random-length (unsafe-fx+ padding-draft (unsafe-fx* idsize (random (unsafe-fx+ thwarting-capacity 1))))])
-      (values (assert (unsafe-fx- (unsafe-fx+ packet-draft random-length) 4) index?)
+           [padding-draft (- idsize (remainder packet-draft idsize))]
+           [padding-draft (if (< padding-draft 4) (+ padding-draft idsize) padding-draft)]
+           [thwarting-capacity (quotient (- #xFF padding-draft) idsize)]
+           [random-length (+ padding-draft (* idsize (random (+ thwarting-capacity 1))))])
+      (values (assert (- (+ packet-draft random-length) 4) index?)
               (assert random-length byte?)))))
 
-(define ssh-read-bytes : (-> Input-Port Integer Symbol Bytes)
-  (lambda [/dev/sshin amt peer-name]
+(define ssh-read-bytes : (-> Input-Port Integer Bytes)
+  (lambda [/dev/sshin amt]
     (define bs : (U Bytes EOF) (read-bytes amt /dev/sshin))
-    (cond [(eof-object? bs) (ssh-raise-eof-error ssh-read-binary-packet peer-name)]
+    (cond [(eof-object? bs) (ssh-raise-eof-error ssh-read-binary-packet "connection lost")]
           [else bs])))

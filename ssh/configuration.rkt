@@ -4,7 +4,6 @@
 (provide (rename-out [make-$ssh make-ssh-configuration]))
 
 (require (for-syntax racket/base))
-(require (for-syntax racket/string))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
 

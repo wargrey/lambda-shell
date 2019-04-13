@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require "packet.rkt")
+(require "newkeys.rkt")
 
 (require "../diagnostics.rkt")
 
@@ -10,26 +11,29 @@
 (require "../../configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-write-message : (-> Output-Port SSH-Message Symbol SSH-Configuration Nonnegative-Fixnum)
-  (lambda [/dev/tcpout msg peer-name rfc]
-    (define traffic : Nonnegative-Fixnum (ssh-write-binary-packet /dev/tcpout peer-name (ssh-message->bytes msg) 0 ($ssh-payload-capacity rfc) 0))
-    (ssh-log-message 'debug "sent ~a [~a]" (ssh-message-name msg) (~size traffic))
-    (ssh-log-sent-message msg traffic 'debug)
+(define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration (Option SSH-Kex-Newkeys) Nonnegative-Fixnum)
+  (lambda [/dev/tcpout msg rfc newkeys]
+    (define traffic : Nonnegative-Fixnum (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes msg) 0 ($ssh-payload-capacity rfc) 0))
+    (ssh-log-message 'debug "sent message ~a[~a] [~a]" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
+    (ssh-log-outgoing-message msg traffic 'debug)
     traffic))
 
-(define ssh-read-transport-message : (-> Input-Port Symbol SSH-Configuration (Listof Symbol) (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
-  (lambda [/dev/tcpin peer-name rfc groups]
-    (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin peer-name ($ssh-payload-capacity rfc) 0))
+(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Option SSH-Kex-Newkeys) (Listof Symbol) (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
+  (lambda [/dev/tcpin rfc newkeys groups]
+    (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc) 0))
     (define message-id : Byte (bytes-ref payload 0))
     (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message payload #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
     (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
     
     (unless (not maybe-trans-msg)
-      (ssh-log-received-message maybe-trans-msg traffic 'debug)
-      (when (ssh:msg:debug? maybe-trans-msg)
-        (($ssh-debug-message-handler rfc)
-         (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))))
+      (ssh-log-incoming-message maybe-trans-msg traffic 'debug)
+
+      (cond [(ssh:msg:debug? maybe-trans-msg)
+             (($ssh-debug-message-handler rfc)
+              (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))]
+            [(ssh:msg:disconnect? maybe-trans-msg)
+             (ssh-raise-eof-error ssh-read-transport-message (symbol->string (ssh:msg:disconnect-reason maybe-trans-msg)))]))
 
     (values maybe-trans-msg payload traffic)))
 
@@ -59,21 +63,25 @@
     (ssh-log-message level "~a c2s compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-compressions msg)))
     (ssh-log-message level "~a s2c compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-compressions msg)))))
 
-(define ssh-log-sent-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
-  (lambda [msg traffic [level 'debug]]
-    (cond [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "terminate the connection because of ~a, details: ~a"
-                            (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
-          #;[])))
-
-(define ssh-log-received-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
+(define ssh-log-outgoing-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
   (lambda [msg traffic [level 'debug]]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG]~a says: ~a" (ssh:msg:debug-message msg)))]
+             (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg)))]
           [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "peer has disconnected with the reason ~a(~a)"
+           (ssh-log-message level "terminate the connection because of ~a, details: ~a"
                             (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
-           (let ([id (ssh:msg:unimplemented-number msg)])
-             (ssh-log-message level "peer cannot deal with message ~a" id))])))
+           (ssh-log-message level "cannot not deal with message" (ssh:msg:unimplemented-number msg))])))
+
+(define ssh-log-incoming-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
+  (lambda [msg traffic [level 'debug]]
+    (cond [(ssh:msg:debug? msg)
+           (when (ssh:msg:debug-display? msg)
+             (ssh-log-message level "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg)))]
+          [(ssh:msg:disconnect? msg)
+           (ssh-log-message level "~a has disconnected with the reason ~a(~a)" (current-peer-name)
+                            (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
+          [(ssh:msg:unimplemented? msg)
+           (ssh-log-message level "~a cannot deal with message ~a" (current-peer-name)
+                            (ssh:msg:unimplemented-number msg))])))

@@ -8,8 +8,7 @@
 (provide ssh-message? ssh-message-undefined?)
 (provide define-ssh-messages define-ssh-shared-messages)
 
-(provide ssh-message-name
-         (rename-out [ssh-message-id ssh-message-number]))
+(provide ssh-message-number ssh-message-name)
 
 (require "datatype.rkt")
 (require "assignment.rkt")
@@ -24,12 +23,13 @@
 (define-syntax (define-ssh-message-range stx)
   (syntax-case stx [:]
     [(_ type idmin idmax comments ...)
-     (with-syntax ([ssh-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
+     (with-syntax ([ssh-range-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
                    [ssh-bytes->range-message (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))]
                    [ssh-bytes->range-message* (format-id #'type "ssh-bytes->~a-message*" (syntax-e #'type))])
-       #'(begin (define ssh-message? : (-> SSH-Message Boolean)
+       #'(begin (define ssh-range-message? : (-> Any Boolean : #:+ SSH-Message)
                   (lambda [self]
-                    (<= idmin (ssh-message-id self) idmax)))
+                    (and (ssh-message? self)
+                         (<= idmin (ssh-message-number self) idmax))))
                 
                 (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (values (Option SSH-Message) Natural))
                   (lambda [bmsg [offset 0] #:groups [groups null]]

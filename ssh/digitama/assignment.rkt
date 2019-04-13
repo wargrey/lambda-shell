@@ -78,13 +78,6 @@
     [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unexpected algorithm type, expected #:hmac, #:cipher, or #:compression" #'keyword)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct ssh-package-algorithms
-  ([cipher : (Pairof Symbol SSH-Cipher)]
-   [mac : (Pairof Symbol SSH-HMAC)]
-   [compression : (Pairof Symbol SSH-Compression)])
-  #:transparent
-  #:type-name SSH-Package-Algorithms)
-
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector SSH-Key-Exchange<%> (-> Bytes Bytes)))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> PKCS#1-Hash))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))

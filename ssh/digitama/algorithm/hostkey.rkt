@@ -9,7 +9,6 @@
 (require digimon/system)
 
 (require "rsa.rkt")
-(require "pkcs/key.rkt")
 (require "pkcs/emsa-v1_5.rkt")
 
 (require "../kex.rkt")
@@ -21,7 +20,7 @@
 
 (define ssh-rsa% : SSH-Host-Key<%>
   (class object% (super-new)
-    (init-field hash-algorithm peer-name)
+    (init-field hash-algorithm)
     
     (define key : RSA-Private-Key
       (let ([id-rsa (digimon-path "stone" "hostkey" "id_rsa")])
@@ -41,4 +40,4 @@
     ;; https://tools.ietf.org/html/rfc3447#section-8.2.1
     (define/public (make-signature message)
       (bytes-append (ssh-name->bytes ssh-rsa-keyname)
-                    (ssh-bstring->bytes (rsa-sign key message hash-algorithm peer-name))))))
+                    (ssh-bstring->bytes (rsa-sign key message hash-algorithm))))))

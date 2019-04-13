@@ -137,7 +137,7 @@
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Natural)))
 (define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
 
-(struct ssh-message ([id : Byte] [name : Symbol]) #:type-name SSH-Message)
+(struct ssh-message ([number : Byte] [name : Symbol]) #:type-name SSH-Message)
 (struct ssh-message-undefined ssh-message () #:type-name SSH-Message-Undefined)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

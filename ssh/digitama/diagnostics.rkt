@@ -9,45 +9,66 @@
 
 (struct exn:ssh exn:fail:network ())
 (struct exn:ssh:eof exn:ssh ())
-(struct exn:ssh:defense exn:ssh ())
+(struct exn:ssh:defence exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
 (struct exn:ssh:kex exn:ssh ())
 
-(define ssh-logger-topic : Symbol 'λsh:ssh)
+(define current-peer-name : (Parameterof (Option Symbol)) (make-parameter #false))
 
-(define-syntax (throw stx)
-  (syntax-parse stx
-    [(_ st:id rest ...)
-     #'(throw [st] rest ...)]
-    [(_ [st:id argl ...] src:id peer-name frmt:str v ...)
-     #'(let ([errobj (st (format (string-append "~a: [~a]: " frmt) (object-name src) peer-name v ...) (current-continuation-marks) argl ...)])
-         (ssh-log-error errobj)
-         (raise errobj))]))
-
-(define ssh-raise-timeout-error : (->* (Procedure Symbol Real) (String) Nothing)
-  (lambda [func peer-name seconds [message "timer break"]]
-    (raise (make-exn:break (format "~a: [~a]: ~a: ~as" (object-name func) peer-name message seconds)
+(define ssh-raise-timeout-error : (->* (Procedure Real) (String) Nothing)
+  (lambda [func seconds [message "timer break"]]
+    (raise (make-exn:break (format "~a: ~a: ~a: ~as" (current-peer-name) (object-name func) message seconds)
                            (current-continuation-marks)
                            (call-with-escape-continuation
                                (λ [[ec : Procedure]] ec))))))
 
-(define ssh-raise-eof-error : (->* (Procedure Symbol) (String) Nothing)
-  (lambda [func peer-name [message "peer has lost"]]
-    (throw exn:ssh:eof func peer-name "~a" message)))
+(define ssh-raise-defence-error : (-> Any String Any * Nothing)
+  (lambda [func msgfmt . argl]
+    (define errobj : SSH-Error (exn:ssh:defence (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+
+    (ssh-log-error errobj)
+    (raise errobj)))
+
+(define ssh-raise-identification-error : (-> Procedure String Any * Nothing)
+  (lambda [func msgfmt . argl]
+    (define errobj : SSH-Error (exn:ssh:identification (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+
+    (ssh-log-error errobj)
+    (raise errobj)))
+
+(define ssh-raise-kex-error : (-> Any String Any * Nothing)
+  (lambda [func msgfmt . argl]
+    (define errobj : SSH-Error (exn:ssh:kex (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+
+    (ssh-log-error errobj)
+    (raise errobj)))
+
+(define ssh-raise-eof-error : (-> Procedure String Any * Nothing)
+  (lambda [func msgfmt . argl]
+    (define errobj : SSH-Error (exn:ssh:eof (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+
+    (ssh-log-error errobj)
+    (raise errobj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-message : (->* (Log-Level String) (#:data Any) #:rest Any Void)
   (lambda [level msgfmt #:data [data #false] . argl]
     (log-message (current-logger)
                  level
-                 ssh-logger-topic
+                 #false
                  (if (null? argl) msgfmt (apply format msgfmt argl))
                  data)))
 
-(define ssh-log-error : (->* (SSH-Error) (Log-Level) Void)
-  (lambda [errobj [level 'error]]
+(define ssh-log-error : (->* (SSH-Error) (#:level Log-Level) Void)
+  (lambda [errobj #:level [level 'error]]
     (log-message (current-logger)
                  level
-                 ssh-logger-topic
+                 #false
                  (format "~a: ~a" (object-name errobj) (exn-message errobj))
                  errobj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-exn-message : (-> Any String (Listof Any) String)
+  (lambda [func msgfmt argl]
+    (string-append (format "~a: ~a: " (current-peer-name) (object-name func))
+                   (if (null? argl) msgfmt (apply format msgfmt argl)))))
