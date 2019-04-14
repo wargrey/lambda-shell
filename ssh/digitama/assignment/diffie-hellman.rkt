@@ -3,6 +3,8 @@
 (require "../assignment.rkt")
 (require "../algorithm/diffie-hellman.rkt")
 
+; datum definition: #(kex-object hash-algorithm)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-algorithms #:kex
   ; http://tools.ietf.org/html/rfc4253#section-8

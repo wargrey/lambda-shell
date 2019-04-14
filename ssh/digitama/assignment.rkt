@@ -29,20 +29,16 @@
   (syntax-case stx [:]
     [(_ &database ([name comments ... #:=> [data ...]]))
      #'(set-box! &database (cons (cons 'name (vector-immutable data ...)) (unbox &database)))]
-    [(_ &database ([name comments ... #:=> datum]))
-     #'(set-box! &database (cons (cons 'name datum) (unbox &database)))]
     [(_ &database ([name comments ...]))
     #'(void)]))
 
 (define-syntax (define-ssh-algorithm-database stx)
   (syntax-case stx [:]
     [(_ id : SSH-Type #:as Type)
-    #'(begin (define-type SSH-Type Type)
-             (define-ssh-algorithm-database id : SSH-Type))]
-    [(_ id : SSH-Type)
     (with-syntax ([&id (format-id #'id "&~a" (syntax-e #'id))]
                   [$SSH-Type (format-id #'SSH-Type "$~a" (syntax-e #'SSH-Type))])
-       #'(begin (define &id : (Boxof (Listof (Pairof Symbol SSH-Type))) (box null))
+       #'(begin (define-type SSH-Type Type)
+                (define &id : (Boxof (Listof (Pairof Symbol SSH-Type))) (box null))
                 
                 (define id : (case-> [-> (Listof (Pairof Symbol SSH-Type))]
                                      [(Listof Symbol) -> (Listof (Pairof Symbol SSH-Type))])
@@ -81,6 +77,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector SSH-Key-Exchange<%> (-> Bytes Bytes)))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> PKCS#1-Hash))
-(define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (-> Bytes Bytes))
-(define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (-> Bytes Bytes)) Index))
-(define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (-> Bytes Bytes))
+(define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (Immutable-Vector (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes))) Index Index))
+(define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (-> Bytes Bytes)) Index Index))
+(define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (Immutable-Vector (Option (-> Bytes Bytes)) (Option (-> Bytes Bytes))))

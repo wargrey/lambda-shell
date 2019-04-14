@@ -2,21 +2,19 @@
 
 (provide (all-defined-out))
 
-(require "../assignment.rkt")
-
-(struct ssh-kex-newkeys
-  ([exchange-hash : Bytes]
-   [c2s-initialization-vector : Bytes]
-   [s2c-initialization-vector : Bytes]
-   [c2s-encryption-key : Bytes]
-   [s2c-encryption-key : Bytes]
-   [c2s-integrity-key : Bytes]
-   [s2c-integrity-key : Bytes]
-   [c2s-compression : SSH-Compression]
-   [s2c-compression : SSH-Compression]
-   [c2s-cipher : SSH-Cipher]
-   [s2c-cipher : SSH-Cipher]
-   [c2s-mac : SSH-MAC]
-   [s2c-mac : SSH-MAC])
+(struct ssh-newkeys
+  ([session-id : Bytes]
+   [c2s-inflate : (Option (-> Bytes Bytes))]
+   [s2c-inflate : (Option (-> Bytes Bytes))]
+   [c2s-deflate : (Option (-> Bytes Bytes))]
+   [s2c-deflate : (Option (-> Bytes Bytes))]
+   [c2s-encrypt : (-> Bytes Bytes)]
+   [s2c-encrypt : (-> Bytes Bytes)]
+   [c2s-decrypt : (-> Bytes Bytes)]
+   [s2c-decrypt : (-> Bytes Bytes)]
+   [c2s-mac : (-> Bytes Bytes)]
+   [s2c-mac : (-> Bytes Bytes)]
+   [c2s-mac-size : Index]
+   [s2c-mac-size : Index])
   #:transparent
-  #:type-name SSH-Kex-Newkeys)
+  #:type-name SSH-Newkeys)

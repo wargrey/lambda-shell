@@ -4,6 +4,8 @@
 (require "../algorithm/hostkey.rkt")
 (require "../algorithm/pkcs/hash.rkt")
 
+; datum definition: #(hostkey-object hash-object)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-algorithms #:hostkey
   (; https://tools.ietf.org/html/rfc4251#section-4.1
