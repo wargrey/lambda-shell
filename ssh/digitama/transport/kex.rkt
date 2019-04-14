@@ -20,6 +20,8 @@
 (require "../../message.rkt")
 (require "../../configuration.rkt")
 
+(define-type SSH-Transport-Algorithms (Vector SSH-Compression SSH-Cipher SSH-MAC))
+
 (define current-client-identification : (Parameterof String) (make-parameter ""))
 (define current-server-identification : (Parameterof String) (make-parameter ""))
 
@@ -50,14 +52,14 @@
     (ssh-log-kexinit peer-kexinit "peer client")
     
     (define-values (kex hostkey c2s s2c) (ssh-negotiate peer-kexinit self-kexinit))
-    (define HASH : (-> Bytes Bytes) (vector-ref (cdr kex) 1))
+    (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
     
     (define host-key : (Instance SSH-Host-Key<%>)
-      (new (vector-ref (cdr hostkey) 0)
-           [hash-algorithm (vector-ref (cdr hostkey) 1)]))
+      (new (vector-ref hostkey 0)
+           [hash-algorithm (vector-ref hostkey 1)]))
     
     (define kex-process : (Instance SSH-Key-Exchange<%>)
-      (new (vector-ref (cdr kex) 0)
+      (new (vector-ref kex 0)
            [Vc (current-client-identification)] [Vs (current-server-identification)]
            [Ic Ic] [Is (ssh:msg:kexinit->bytes self-kexinit)]
            [hostkey host-key] [hash HASH]))
@@ -69,7 +71,7 @@
              => (λ [[m : SSH-Message]] (ssh-write-message /dev/tcpout m rfc oldkeys))]
             [(and (send kex-process done?) (ssh:msg:newkeys? msg))
              (ssh-write-message /dev/tcpout msg rfc oldkeys)
-             (ssh-kex-done parent kex-process 16 HASH)]
+             (ssh-kex-done parent kex-process HASH c2s s2c)]
             [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys)])
       (rekex))))
 
@@ -81,14 +83,14 @@
 
     (define-values (kex hostkey c2s s2c) (ssh-negotiate self-kexinit peer-kexinit))
     (define host-key : (Instance SSH-Host-Key<%>)
-      (new (vector-ref (cdr hostkey) 0)
-           [hash-algorithm (vector-ref (cdr hostkey) 1)]))
+      (new (vector-ref hostkey 0)
+           [hash-algorithm (vector-ref hostkey 1)]))
     
     (define kex-process : (Instance SSH-Key-Exchange<%>)
-      (new (vector-ref (cdr kex) 0)
+      (new (vector-ref kex 0)
            [Vc (current-client-identification)] [Vs (current-server-identification)]
            [Ic (ssh:msg:kexinit->bytes self-kexinit)] [Is Is]
-           [hostkey host-key] [hash (vector-ref (cdr kex) 1)]))
+           [hostkey host-key] [hash (vector-ref kex 1)]))
 
     (define kex-msg-group : (Listof Symbol) (list (send kex-process tell-message-group)))
     (let rekex ()
@@ -100,16 +102,17 @@
                     (ssh-write-message /dev/tcpout undefined rfc oldkeys))])
       (rekex))))
 
-(define ssh-kex-done : (-> Thread (Instance SSH-Key-Exchange<%>) Index (-> Bytes Bytes) Void)
-  (lambda [parent kex-process key-size HASH]
+(define ssh-kex-done : (-> Thread (Instance SSH-Key-Exchange<%>) (-> Bytes Bytes) SSH-Transport-Algorithms SSH-Transport-Algorithms Void)
+  (lambda [parent kex-process HASH c2s s2c]
     (define-values (shared-secret H) (send kex-process tell-secret))
     (define K : Bytes (ssh-mpint->bytes shared-secret))
+    (define key-size : Index 16)
     
     (ssh-derive-key K H #\A H key-size HASH)
     (void)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values (Pairof Symbol SSH-Kex) (Pairof Symbol SSH-HostKey) SSH-Trans-Algorithms SSH-Trans-Algorithms))
+(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values SSH-Kex SSH-HostKey SSH-Transport-Algorithms SSH-Transport-Algorithms))
   (lambda [Mc Ms]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes Mc) (ssh:msg:kexinit-kexes Ms) "algorithm")
@@ -119,7 +122,7 @@
       (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-ciphers Mc) (ssh:msg:kexinit-c2s-ciphers Ms) "client to server cipher")
               (ssh-choose-algorithm (ssh:msg:kexinit-s2c-ciphers Mc) (ssh:msg:kexinit-s2c-ciphers Ms) "server to client cipher")))
     
-    (define-values (c2s-hmac s2c-hmac)
+    (define-values (c2s-mac s2c-mac)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-macs Mc) (ssh:msg:kexinit-c2s-macs Ms) "client to server MAC algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-s2c-macs Mc) (ssh:msg:kexinit-s2c-macs Ms) "server to client MAC algorithm")))
       
@@ -127,16 +130,18 @@
       (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-compressions Mc) (ssh:msg:kexinit-c2s-compressions Ms) "client to server compression algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-s2c-compressions Mc) (ssh:msg:kexinit-s2c-compressions Ms) "server to client compression algorithm")))
 
-    (cond [(and kex hostkey c2s-cipher c2s-hmac c2s-compression s2c-cipher s2c-hmac s2c-compression)
+    (cond [(and kex hostkey c2s-cipher c2s-mac c2s-compression s2c-cipher s2c-mac s2c-compression)
            (ssh-log-message 'debug "kex: algorithm: ~a" (car kex))
            (ssh-log-message 'debug "kex: public key format: ~a" (car hostkey))
-           (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-hmac) (car s2c-compression))
-           (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-hmac) (car c2s-compression))
-           (values kex hostkey (ssh-trans-algorithms c2s-cipher c2s-hmac c2s-compression) (ssh-trans-algorithms s2c-cipher s2c-hmac s2c-compression))]
+           (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-mac) (car s2c-compression))
+           (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-mac) (car c2s-compression))
+           (values (cdr kex) (cdr hostkey)
+                   (vector (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
+                   (vector (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac)))]
           [(not c2s-compression) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server compression algorithm")]
           [(not s2c-compression) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client compression algorithm")]
-          [(not c2s-hmac) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server MAC algorithm")]
-          [(not s2c-hmac) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client MAC algorithm")]
+          [(not c2s-mac) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server MAC algorithm")]
+          [(not s2c-mac) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client MAC algorithm")]
           [(not c2s-cipher) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server cipher")]
           [(not s2c-cipher) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client cipher")]
           [(not hostkey) (ssh-raise-kex-error ssh-negotiate "kex: no matching public key format")]

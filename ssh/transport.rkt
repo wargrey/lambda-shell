@@ -22,6 +22,9 @@
 ;;; register builtin assignments
 (require "digitama/assignment/diffie-hellman.rkt")
 (require "digitama/assignment/hostkey.rkt")
+(require "digitama/assignment/mac.rkt")
+(require "digitama/assignment/cipher.rkt")
+(require "digitama/assignment/compression.rkt")
 
 (define-type SSH-Datum (U SSH-Message Bytes EOF exn))
 

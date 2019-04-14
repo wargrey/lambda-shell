@@ -2,11 +2,11 @@
 
 @(require digimon/tamer)
 
-@(define-bib MS-SEQ
-   #:title    "DER Encoding of ASN.1 Types"
-   #:author   (org-author-name "Microsoft")
-   #:date     2018
-   #:url      "https://docs.microsoft.com/en-us/windows/desktop/SecCertEnroll/about-sequence")
+@(define-bib RFC-PKCS#1
+   #:title    "RSASSA-PKCS-v1_5"
+   #:author   (org-author-name "RFC8017")
+   #:date     2016
+   #:url      "https://tools.ietf.org/html/rfc8017#appendix-A.2.4")
 
 @handbook-story{ASN.1 Sequence and Sequence-Of}
 
@@ -16,33 +16,33 @@
 
 @tamer-action[
  (define-asn-sequence plain-seq : Plain-Seq
-   ([name : asn-string/ia5 #:default "Smith"]
+   ([name : asn-string/ia5]
     [ok : asn-boolean]))
- (define plain-octets (plain-seq->bytes (make-plain-seq #:ok #true)))
+ (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:ok #true)))
  (unsafe-bytes->plain-seq* plain-octets)
  (asn-pretty-print plain-octets)]
 
-This example is defined in @~cite[MS-SEQ].
-
-@bold{NOTE} Encoding @italic{bitstring} as primitive is required by @italic{DER}.
+The next example is defined int @~cite[RFC-PKCS#1].
 
 @tamer-action[
- (define-asn-sequence head : Head
+ (define-asn-sequence digest-algorithm : Digest-Algorithm
    ([id : asn-oid]
-    [sep : asn-null #:default (void)]))
- (define-asn-sequence body : Body
-   ([n : asn-integer]
-    [e : asn-integer #:default 65537]))
- (define-asn-sequence nested-seq : Nested-Seq
-   ([head : Head]
-    [bitset : asn-bitstring]
-    [body : body]))
- (define nested-octets
-   (let ([h (make-head #:id (list 1 2 840 113549 1 1 1))]
-         [b (make-body #:n (random-odd-prime 1024))])
-     (nested-seq->bytes (make-nested-seq #:head h #:bitset (cons #"" 0) #:body b))))
- (unsafe-bytes->nested-seq* nested-octets)
- (asn-pretty-print nested-octets)]
+    [parameter : asn-null #:default (void)]))
+ (define-asn-sequence digest-info : Digest-Info
+   ([algorithm : Digest-Algorithm]
+    [digest : asn-octetstring]))
+ 
+ (define sha1-octets
+   (let ([id-sha (make-digest-algorithm #:id (list 1 3 14 3 2 26))])
+     (digest-info->bytes (make-digest-info #:algorithm id-sha #:digest (sha1-bytes #"EMSA-PKCS1-v1_5")))))
+ (unsafe-bytes->digest-info* sha1-octets)
+ (asn-pretty-print sha1-octets)
+
+ (define sha256-octets
+   (let ([id-sha (make-digest-algorithm #:id (list 2 16 840 1 101 3 4 2 1))])
+     (digest-info->bytes (make-digest-info #:algorithm id-sha #:digest (sha256-bytes #"EMSA-PKCS1-v1_5")))))
+ (unsafe-bytes->digest-info* sha256-octets)
+ (asn-pretty-print sha256-octets)]
 
 @handbook-scenario{Sequences with Optional Components}
 

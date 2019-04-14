@@ -36,7 +36,7 @@ This section demonstrates the implementation of @~cite[ASN.1-DER]
 
 @handbook-scenario{Integers}
 
-These testcases for ASN.1 Integer are defined in @~cite[asn1-lib].
+These testcases are defined in @~cite[asn1-lib].
 @tamer-action[
  (asn-primitive 0)
  (asn-primitive 1)
@@ -52,7 +52,7 @@ These testcases for ASN.1 Integer are defined in @~cite[asn1-lib].
 
 @handbook-scenario{Object Identifiers}
 
-The first testcase for ASN.1 Object Identifier is defined in @~cite[MS-DER].
+The first testcase is defined in @~cite[MS-DER].
 @tamer-action[
  (asn-primitive '(1 3 6 1 4 1 311 21 20) asn-oid)
  #;(asn-primitive '(2 999 3) asn-oid #|3, 0x883703|#)
