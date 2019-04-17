@@ -3,12 +3,9 @@
 ;;; https://tools.ietf.org/html/rfc4253
 
 (require "../assignment.rkt")
+(require "../algorithm/crypto/aes.rkt")
 
-; datum definition: #(make-encrypt/decrypt-with-IV-key block-size key-size)
-
-(define ssh-cipher-values : (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
-  (lambda [IV key]
-    (values values values)))
+; datum definition: #(make-encrypt/decrypt-with-IV-key block-size-in-bytes key-size-in-bytes)
 
 (define-ssh-algorithms #:cipher
   (; http://tools.ietf.org/html/rfc4253#section-6.3
@@ -18,11 +15,9 @@
    [twofish-cbc                    OPTIONAL        alias for twofish256-cbc]
    [twofish192-cbc                 OPTIONAL        Twofish with a 192-bit key]
    [twofish128-cbc                 OPTIONAL        Twofish with a 128-bit key]
-   [aes256-cbc                     OPTIONAL        AES in CBC mode with a 256-bit key]
-   ;[aes192-cbc                     OPTIONAL        AES with a 192-bit key]
-   ;[aes128-cbc                     RECOMMENDED     AES with a 128-bit key]
-   [aes192-ctr                     OPTIONAL        AES with a 192-bit key                        #:=> [ssh-cipher-values 0 0]]
-   [aes128-ctr                     RECOMMENDED     AES with a 128-bit key                        #:=> [ssh-cipher-values 0 0]]
+   [aes256-ctr                     OPTIONAL        AES in CTR mode with a 256-bit key            #:=> [aes-ctr 16 32]]
+   [aes192-ctr                     OPTIONAL        AES with a 192-bit key                        #:=> [aes-ctr 16 24]]
+   [aes128-ctr                     RECOMMENDED     AES with a 128-bit key                        #:=> [aes-ctr 16 16]]
    [serpent256-cbc                 OPTIONAL        Serpent in CBC mode with a 256-bit key]
    [serpent192-cbc                 OPTIONAL        Serpent with a 192-bit key]
    [serpent128-cbc                 OPTIONAL        Serpent with a 128-bit key]

@@ -39,13 +39,13 @@
              [(key) (let ([mac (HMAC key)]) (λ [[message : Bytes]] : Bytes (subbytes (mac message) 0 n-byte)))]
              [(key message) (subbytes (HMAC key message) 0 n-byte)])))]))
 
-(define-hmac ssh-hmac-sha1   #:hash sha1-bytes)
-(define-hmac ssh-hmac-sha256 #:hash sha256-bytes)
+(define-hmac hmac-sha1   #:hash sha1-bytes)
+(define-hmac hmac-sha256 #:hash sha256-bytes)
 
-(define-truncated-hmac ssh-hmac-sha1   #:bits 96)
-(define-truncated-hmac ssh-hmac-sha256 #:bits 128)
+(define-truncated-hmac hmac-sha1   #:bits 96)
+(define-truncated-hmac hmac-sha256 #:bits 128)
 
-(define ssh-hmac-none : (case-> [Bytes -> (-> Bytes Bytes)]
+(define hmac-none : (case-> [Bytes -> (-> Bytes Bytes)]
                                 [Bytes Bytes -> Bytes])
   (case-lambda
     [(key-raw) (λ [[message : Bytes]] : Bytes #"")]

@@ -111,19 +111,23 @@
 (define ssh-kex-done : (-> Thread (Option Bytes) (Instance SSH-Key-Exchange<%>) (-> Bytes Bytes) SSH-Transport-Algorithms SSH-Transport-Algorithms
                            Output-Port SSH-Configuration Void)
   (lambda [parent old-session-id kex-process HASH c2s s2c /dev/tcpout rfc]
-    (define-values (c2s-compression s2c-compression) (values (vector-ref c2s 0) (vector-ref s2c 0)))
-    (define-values (c2s-cipher s2c-cipher) (values (vector-ref c2s 1) (vector-ref s2c 1)))
-    (define-values (c2s-hmac s2c-hmac) (values (vector-ref c2s 2) (vector-ref s2c 2)))
     (define-values (shared-secret H) (send kex-process tell-secret))
     (define K : Bytes (ssh-mpint->bytes shared-secret))
     (define session-id : Bytes (or old-session-id H))
+
+    (define-values (c2s-compression s2c-compression) (values (vector-ref c2s 0) (vector-ref s2c 0)))
+    (define-values (c2s-cipher s2c-cipher) (values (vector-ref c2s 1) (vector-ref s2c 1)))
+    (define-values (c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes) (values (vector-ref c2s-cipher 1) (vector-ref s2c-cipher 1)))
+    (define-values (c2s-cipher-key-size-in-bytes s2c-cipher-key-size-in-bytes) (values (vector-ref c2s-cipher 2) (vector-ref s2c-cipher 2)))
+    (define-values (c2s-hmac s2c-hmac) (values (vector-ref c2s 2) (vector-ref s2c 2)))
+    (define-values (c2s-hmac-key-size-in-bytes s2c-hmac-key-size-in-bytes) (values (vector-ref c2s-hmac 1) (vector-ref s2c-hmac 1)))
     
-    (define c2s-initialization-vector : Bytes (ssh-derive-key K H #\A session-id (vector-ref c2s-cipher 1) HASH))
-    (define s2c-initialization-vector : Bytes (ssh-derive-key K H #\B session-id (vector-ref s2c-cipher 1) HASH))
-    (define c2s-cipher-key : Bytes (ssh-derive-key K H #\C session-id (vector-ref c2s-cipher 2) HASH))
-    (define s2c-cipher-key : Bytes (ssh-derive-key K H #\D session-id (vector-ref s2c-cipher 2) HASH))
-    (define c2s-mac-key : Bytes (ssh-derive-key K H #\E session-id (vector-ref c2s-hmac 2) HASH))
-    (define s2c-mac-key : Bytes (ssh-derive-key K H #\F session-id (vector-ref s2c-hmac 2) HASH))
+    (define c2s-initialization-vector : Bytes (ssh-derive-key K H #\A session-id c2s-cipher-block-size-in-bytes HASH))
+    (define s2c-initialization-vector : Bytes (ssh-derive-key K H #\B session-id s2c-cipher-block-size-in-bytes HASH))
+    (define c2s-cipher-key : Bytes (ssh-derive-key K H #\C session-id c2s-cipher-key-size-in-bytes HASH))
+    (define s2c-cipher-key : Bytes (ssh-derive-key K H #\D session-id s2c-cipher-key-size-in-bytes HASH))
+    (define c2s-mac-key : Bytes (ssh-derive-key K H #\E session-id c2s-hmac-key-size-in-bytes HASH))
+    (define s2c-mac-key : Bytes (ssh-derive-key K H #\F session-id s2c-hmac-key-size-in-bytes HASH))
 
     (define-values (c2s-inflate c2s-deflate) (values (vector-ref c2s-compression 0) (vector-ref c2s-compression 1)))
     (define-values (s2c-inflate s2c-deflate) (values (vector-ref s2c-compression 0) (vector-ref s2c-compression 1)))
@@ -134,8 +138,8 @@
     (define newkeys : SSH-Newkeys
       (ssh-newkeys session-id
                    c2s-inflate s2c-inflate c2s-deflate s2c-deflate
-                   c2s-encrypt s2c-encrypt c2s-decrypt s2c-decrypt
-                   c2s-mac s2c-mac (vector-ref c2s-hmac 1) (vector-ref s2c-hmac 1)))
+                   c2s-encrypt s2c-encrypt c2s-decrypt s2c-decrypt c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes
+                   c2s-mac s2c-mac))
 
     (let send-in-flight-messages ()
       (define maybe-message (thread-try-receive))

@@ -12,9 +12,9 @@
    [s2c-encrypt : (-> Bytes Bytes)]
    [c2s-decrypt : (-> Bytes Bytes)]
    [s2c-decrypt : (-> Bytes Bytes)]
+   [c2s-cipher-block-size : Byte]
+   [s2c-cipher-block-size : Byte]
    [c2s-mac : (-> Bytes Bytes)]
-   [s2c-mac : (-> Bytes Bytes)]
-   [c2s-mac-size : Index]
-   [s2c-mac-size : Index])
+   [s2c-mac : (-> Bytes Bytes)])
   #:transparent
   #:type-name SSH-Newkeys)

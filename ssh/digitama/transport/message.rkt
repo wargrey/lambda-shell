@@ -13,14 +13,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration (Option SSH-Newkeys) Nonnegative-Fixnum)
   (lambda [/dev/tcpout msg rfc newkeys]
-    (define traffic : Nonnegative-Fixnum (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes msg) 0 ($ssh-payload-capacity rfc) 0))
+    (define traffic : Nonnegative-Fixnum
+      (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes msg) ($ssh-payload-capacity rfc) 0))
+    
     (ssh-log-message 'debug "sent message ~a[~a] [~a]" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
     (ssh-log-outgoing-message msg traffic 'debug)
     traffic))
 
 (define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Option SSH-Newkeys) (Listof Symbol) (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
   (lambda [/dev/tcpin rfc newkeys groups]
-    (define-values (payload mac traffic) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc) 0))
+    (define-values (payload traffic)
+      (cond [(not newkeys) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc))]
+            [else (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc))]))
+    
     (define message-id : Byte (bytes-ref payload 0))
     (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message payload #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))

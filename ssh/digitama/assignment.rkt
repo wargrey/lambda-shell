@@ -27,9 +27,9 @@
 
 (define-syntax (define-ssh-algorithm stx)
   (syntax-case stx [:]
-    [(_ &database ([name comments ... #:=> [data ...]]))
+    [(_ &database [name comments ... #:=> [data ...]])
      #'(set-box! &database (cons (cons 'name (vector-immutable data ...)) (unbox &database)))]
-    [(_ &database ([name comments ...]))
+    [(_ &database [name comments ...])
     #'(void)]))
 
 (define-syntax (define-ssh-algorithm-database stx)
@@ -41,17 +41,16 @@
                 (define &id : (Boxof (Listof (Pairof Symbol SSH-Type))) (box null))
                 
                 (define id : (case-> [-> (Listof (Pairof Symbol SSH-Type))]
-                                     [(Listof Symbol) -> (Listof (Pairof Symbol SSH-Type))])
+                                     [-> Boolean (Listof (Pairof Symbol SSH-Type))]
+                                     [(Listof Symbol) -> (Listof (Pairof Symbol SSH-Type))]
+                                     [(Listof Symbol) Boolean -> (Listof (Pairof Symbol SSH-Type))])
                   (case-lambda
-                    [() (reverse (unbox &id))]
-                    [(name-list) (let ([base (id)])
-                                   (let filter ([algorithms : (Listof (Pairof Symbol SSH-Type)) null]
-                                                [seman : (Listof Symbol) (reverse name-list)])
-                                     (cond [(null? seman) algorithms]
-                                           [else (let ([maybe (assq (car seman) base)]
-                                                       [rest (cdr seman)])
-                                                   (cond [(not maybe) (filter algorithms rest)]
-                                                         [else (filter (cons maybe algorithms) rest)]))])))]))
+                    [() (id #true)]
+                    [(name-list none-last?) (ssh-filter-algorithms name-list (unbox &id) none-last?)]
+                    [(branch) (cond [(list? branch) (id branch #true)]
+                                    [else (let ([base (unbox &id)])
+                                            (ssh-filter-algorithms (map (inst car Symbol SSH-Type) base)
+                                                                   base branch))])]))
 
                 (define $SSH-Type : (-> (Listof Symbol) (SSH-Algorithm-Listof SSH-Type))
                   (lambda [name-list]
@@ -63,20 +62,36 @@
 (define-syntax (define-ssh-algorithms stx)
   (syntax-case stx [:]
     [(_ #:kex (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-kex-algorithms (definition)) ...)]
+     #'(begin (define-ssh-algorithm &ssh-kex-algorithms definition) ...)]
     [(_ #:hostkey (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-hostkey-algorithms (definition)) ...)]
+     #'(begin (define-ssh-algorithm &ssh-hostkey-algorithms definition) ...)]
     [(_ #:cipher (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-cipher-algorithms (definition)) ...)]
+     #'(begin (define-ssh-algorithm &ssh-cipher-algorithms definition) ...)]
     [(_ #:mac (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-mac-algorithms (definition)) ...)]
+     #'(begin (define-ssh-algorithm &ssh-mac-algorithms definition) ...)]
     [(_ #:compression (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-compression-algorithms (definition)) ...)]
-    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unexpected algorithm type, expected #:hmac, #:cipher, or #:compression" #'keyword)]))
+     #'(begin (define-ssh-algorithm &ssh-compression-algorithms definition) ...)]
+    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unexpected algorithm type, expected #:mac, #:cipher, or #:compression" #'keyword)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector SSH-Key-Exchange<%> (-> Bytes Bytes)))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> PKCS#1-Hash))
-(define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (Immutable-Vector (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes))) Index Index))
-(define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (-> Bytes Bytes)) Index Index))
+(define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (Immutable-Vector (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes))) Byte Index))
+(define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (-> Bytes Bytes)) Index))
 (define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (Immutable-Vector (Option (-> Bytes Bytes)) (Option (-> Bytes Bytes))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))
+  (lambda [name-list algbase none-last?]
+    (define seman : (Listof Symbol)
+      (cond [(not (and none-last? (memq 'none name-list))) (reverse name-list)]
+            [else (cons 'none (reverse (remq* '(none) name-list)))]))
+    
+    (let filter ([algorithms : (Listof (Pairof Symbol a)) null]
+                 [seman : (Listof Symbol) seman])
+      (cond [(null? seman) algorithms]
+            [else (let ([maybe (assq (car seman) algbase)]
+                        [rest (cdr seman)])
+                    (cond [(not maybe) (filter algorithms rest)]
+                          [else (filter (cons maybe algorithms) rest)]))]))))
+  

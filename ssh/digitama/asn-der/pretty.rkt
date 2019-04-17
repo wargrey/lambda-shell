@@ -6,7 +6,7 @@
 
 (require "base.rkt")
 
-(define asn-pretty-print : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:indention Byte #:column Byte #:separator Char) Void)
+(define asn-pretty-print : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:indention Byte #:column Positive-Byte #:separator Char) Void)
   (lambda [basn [start 0] [smart-end 0]
                 #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)]
                 #:indention [indention 0] #:column [column 16] #:separator [separator #\space]]
@@ -14,6 +14,7 @@
     (define-values (base inset ~byte) (if (not base2) (values 16 3 byte->hex-string) (values 2 9 byte->bin-string)))
     (define pad : Bytes (make-bytes inset #x20))
     (define fmt : String (string-append (string separator) "~a"))
+
     (let print-constructed ([idx : Natural (assert start index?)]
                             [pads : Bytes (make-bytes indention #x20)]
                             [end : Index idxmax])
