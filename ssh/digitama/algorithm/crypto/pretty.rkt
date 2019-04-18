@@ -4,6 +4,8 @@
 
 (require digimon/format)
 
+(require "state.rkt")
+
 (define words-pretty-print : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:size Positive-Byte #:column Positive-Byte #:separator Char) Void)
   (lambda [words [start 0] [smart-end 0]
                 #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)]
@@ -25,3 +27,15 @@
                     (print-words (+ idx 1)
                                  (remainder (+ word-idx 1) size)
                                  (remainder (+ column-idx 1) column-boundary)))]))))
+
+(define state-array-pretty-print : (->* (State-Array) (#:binary? Boolean #:port Output-Port #:separator Char) Void)
+  (lambda [s #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)] #:separator [separator #\space]]
+    (define-values (rows cols) (state-array-size s))
+    (define-values (base ~byte) (if (not base2) (values 16 byte->hex-string) (values 2 byte->bin-string)))
+    
+    (for* ([r (in-range rows)]
+           [c (in-range cols)])
+        (fprintf /dev/stdout "~a" (~byte (state-array-ref s r c)))
+      
+        (cond [(= c (sub1 cols)) (newline /dev/stdout)]
+              [else (fprintf /dev/stdout "~a" separator)]))))

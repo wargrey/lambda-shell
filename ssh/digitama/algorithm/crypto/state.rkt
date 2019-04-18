@@ -13,13 +13,13 @@
    [pool : Bytes])
   #:type-name State-Array)
 
-(define make-state-array : (-> Index State-Array)
-  (lambda [Nb]
-    (state-array 4 Nb (make-bytes (* Nb 4)))))
+(define make-state-array : (-> Byte Index State-Array)
+  (lambda [rows Nb]
+    (state-array rows Nb (make-bytes (* Nb rows)))))
 
-(define make-state-array-from-bytes : (->* (Index Bytes) (Natural) State-Array)
-  (lambda [Nb src [start 0]]
-    (define s : State-Array (make-state-array Nb))
+(define make-state-array-from-bytes : (->* (Byte Index Bytes) (Natural) State-Array)
+  (lambda [rows Nb src [start 0]]
+    (define s : State-Array (make-state-array rows Nb))
 
     (state-array-copy-from-bytes! s src start)
     s))
@@ -34,18 +34,39 @@
 (define state-array-copy-from-bytes! : (->* (State-Array Bytes) (Natural) Natural)
   (lambda [s in [start 0]]
     (define-values (row col) (state-array-size s))
+    (define pool : Bytes (state-array-pool s))
     (define end : Natural (+ start (* row col)))
 
-    (bytes-copy! (state-array-pool s) 0 in start end)
+    
+    (let copy-row ([r : Index 0])
+      (when (< r row)
+        (define rn : Nonnegative-Fixnum (unsafe-fx+ r start))
+        (let copy-col ([c : Nonnegative-Fixnum 0])
+          (when (< c col)
+            (unsafe-bytes-set! pool
+                               (unsafe-fx+ c (unsafe-fx* col r))
+                               (bytes-ref in (unsafe-fx+ rn (unsafe-fx* row c))))
+            (copy-col (+ c 1))))
+        (copy-row (+ r 1))))
       
     end))
 
 (define state-array-copy-to-bytes! : (->* (State-Array Bytes) (Natural) Natural)
   (lambda [s out [start 0]]
-    (define-values (row column) (state-array-size s))
-    (define end : Natural (+ start (* row column)))
+    (define-values (row col) (state-array-size s))
+    (define pool : Bytes (state-array-pool s))
+    (define end : Natural (+ start (* row col)))
 
-    (bytes-copy! out start (state-array-pool s))  
+    (let copy-row ([r : Index 0])
+      (when (< r row)
+        (define rn : Nonnegative-Fixnum (unsafe-fx+ r start))
+        (let copy-col ([c : Nonnegative-Fixnum 0])
+          (when (< c col)
+            (bytes-set! out
+                        (unsafe-fx+ rn (unsafe-fx* row c))
+                        (unsafe-bytes-ref pool (unsafe-fx+ c (unsafe-fx* col r))))
+            (copy-col (+ c 1))))
+        (copy-row (+ r 1))))  
 
     end))
 
@@ -64,41 +85,74 @@
 (define state-array-set! : (-> State-Array Integer Integer Byte Void)
   (lambda [s r c v]
     (bytes-set! (state-array-pool s)
-                (+ r (* (state-array-rows s) c))
+                (+ c (* (state-array-cols s) r))
                 v)))
 
 (define unsafe-state-array-set! : (-> State-Array Integer Integer Byte Void)
   (lambda [s r c v]
     (unsafe-bytes-set! (state-array-pool s)
-                       (unsafe-fx+ r (unsafe-fx* (state-array-rows s) c))
+                       (unsafe-fx+ c (unsafe-fx* (state-array-cols s) r))
                        v)))
 
 (define state-array-ref : (-> State-Array Integer Integer Byte)
   (lambda [s r c]
     (bytes-ref (state-array-pool s)
-               (+ r (* (state-array-rows s) c)))))
+               (+ c (* (state-array-cols s) r)))))
 
 (define unsafe-state-array-ref : (-> State-Array Integer Integer Byte)
   (lambda [s r c]
     (unsafe-bytes-ref (state-array-pool s)
-                      (unsafe-fx+ r (unsafe-fx* (state-array-rows s) c)))))
+                      (unsafe-fx+ c (unsafe-fx* (state-array-cols s) r)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Add two numbers in the GF(2^8) finite field
-(define byte+ : (-> Byte Byte Byte)
-  (lambda [n1 n2]
-    (bitwise-xor n1 n2)))
+(define state-array-add-round-key! : (-> State-Array Bytes Index Void)
+  (lambda [s schedule start]
+    (define-values (row col) (state-array-size s))
+    (define pool : Bytes (state-array-pool s))
 
-;; Multiply two numbers in the GF(2^8) finite field defined by the polynomial x^8 + x^4 + x^3 + x + 1 = 0 (#b100011011)
-(define byte* : (-> Byte Byte Byte)
-  (lambda [factor1 factor2] ; TODO: learn timing attack
-    (let russian-peasant ([product : Nonnegative-Fixnum 0]
-                          [factor1 : Nonnegative-Fixnum factor1]
-                          [factor2 : Nonnegative-Fixnum factor2]
-                          [round : Index 0])
-      (cond [(>= round 8) (unsafe-fxand product #xFF)]
-            [else (let ([mask (if (bitwise-bit-set? factor1 7) #xFFFF 0)])
-                    (russian-peasant (unsafe-fxxor product (unsafe-fxand (if (bitwise-bit-set? factor2 0) #xFFFF 0) factor1))
-                                     (unsafe-fxxor (unsafe-fxlshift factor1 1) (unsafe-fxand mask #b100011011))
-                                     (unsafe-fxrshift factor2 1)
-                                     (+ round 1)))]))))
+    (let xor-row ([r : Index 0])
+      (when (< r row)
+        (define rn : Nonnegative-Fixnum (+ r start))
+        (let xor-col ([c : Nonnegative-Fixnum 0])
+          (when (< c col)
+            (define s-idx : Fixnum (unsafe-fx+ c (unsafe-fx* col r)))
+            (define k-idx : Fixnum (unsafe-fx+ rn (unsafe-fx* row c)))
+            
+            (unsafe-bytes-set! pool s-idx (bitwise-xor (unsafe-bytes-ref pool s-idx) (bytes-ref schedule k-idx)))
+            (xor-col (+ c 1))))
+        (xor-row (+ r 1))))))
+
+(define state-array-substitute! : (-> State-Array Bytes Void)
+  (lambda [s s-box]
+    (define pool : Bytes (state-array-pool s))
+    (define idxmax : Index (bytes-length pool))
+
+    (let substitute ([idx : Nonnegative-Fixnum 0])
+      (when (< idx idxmax)
+        (unsafe-bytes-set! pool idx (unsafe-bytes-ref s-box (unsafe-bytes-ref pool idx)))
+        (substitute (+ idx 1))))))
+
+(define state-array-shift-word! : (-> State-Array Integer Integer Byte Void)
+  (lambda [s r wc bits]
+    (define pool : Bytes (state-array-pool s))
+    (define idxmax : Index (bytes-length pool))
+
+    (define idx : Integer (+ (* wc 4) (* (state-array-rows s) r)))
+    (define v : Integer (integer-bytes->integer pool #false #true idx (+ idx 4)))
+
+    (integer->integer-bytes (bitwise-ior (bitwise-and (arithmetic-shift v bits) #xFFFFFFFF) (arithmetic-shift v (- bits 32)))
+                            4 #false #true pool idx)
+
+    (void)))
+
+(define unsafe-state-array-shift-word! : (-> State-Array Integer Integer Byte Void)
+  (lambda [s r wc bits]
+    (define pool : Bytes (state-array-pool s))
+    (define idxmax : Index (bytes-length pool))
+
+    (define idx : Fixnum (unsafe-fx+ (unsafe-fx* wc 4) (unsafe-fx* (state-array-rows s) r)))
+    (define v : Integer (integer-bytes->integer pool #false #true idx (unsafe-fx+ idx 4)))
+
+    (integer->integer-bytes (unsafe-fxxor (unsafe-fxand (unsafe-fxlshift v bits) #xFFFFFFFF) (unsafe-fxrshift v (- 32 bits)))
+                            4 #false #true pool idx)
+
+    (void)))
