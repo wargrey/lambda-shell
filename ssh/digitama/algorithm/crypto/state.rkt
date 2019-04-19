@@ -104,22 +104,20 @@
     (unsafe-bytes-ref (state-array-pool s)
                       (unsafe-fx+ c (unsafe-fx* (state-array-cols s) r)))))
 
-(define state-array-add-round-key! : (-> State-Array Bytes Index Void)
-  (lambda [s schedule start]
+(define state-array-add-round-key! : (-> State-Array (Vectorof Natural) Index Void)
+  (lambda [s rotated-schedule start]
     (define-values (row col) (state-array-size s))
     (define pool : Bytes (state-array-pool s))
 
-    (let xor-row ([r : Index 0])
+    (let add-round-key ([r : Index 0])
       (when (< r row)
-        (define rn : Nonnegative-Fixnum (+ r start))
-        (let xor-col ([c : Nonnegative-Fixnum 0])
-          (when (< c col)
-            (define s-idx : Fixnum (unsafe-fx+ c (unsafe-fx* col r)))
-            (define k-idx : Fixnum (unsafe-fx+ rn (unsafe-fx* row c)))
-            
-            (unsafe-bytes-set! pool s-idx (bitwise-xor (unsafe-bytes-ref pool s-idx) (bytes-ref schedule k-idx)))
-            (xor-col (+ c 1))))
-        (xor-row (+ r 1))))))
+        (define s-idx : Fixnum (unsafe-fx* col r))
+        (define self : Natural (integer-bytes->integer pool #false #true s-idx (unsafe-fx+ s-idx 4)))
+        (define keyv : Natural (vector-ref rotated-schedule (+ r start)))
+
+        (integer->integer-bytes (bitwise-xor self keyv) 4 #false #true pool s-idx)
+        
+        (add-round-key (+ r 1))))))
 
 (define state-array-substitute! : (-> State-Array Bytes Void)
   (lambda [s s-box]

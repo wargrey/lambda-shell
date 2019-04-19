@@ -74,6 +74,7 @@ These test cases are defined in @~cite[AES].
 
 @tamer-action[
  (define state (make-state-array-from-bytes 4 4 (symb0x->octets aes-plaintext)))
+ (aes-key-schedule-rotate! key-schedule128)
  (aes-add-round-key state key-schedule128 0)
  (aes-round-step state key-schedule128 1)
  (aes-round-step state key-schedule128 2)
@@ -192,6 +193,20 @@ These test cases are defined in @~cite[HMAC-SHA].
                (pict:frame (pict:inset (pict:table 4 (map pict:text octets) pict:cc-superimpose pict:cc-superimpose 8 8)
                                        4))))))
 
+       (define rotated-schedule-pict
+         (let ([/dev/stdout (open-output-string '/dev/stdout)])
+           (lambda [schedule start]
+             (define pool (make-bytes 16))
+
+             (integer->integer-bytes (vector-ref schedule (+ start 0)) 4 #false #true pool 00)
+             (integer->integer-bytes (vector-ref schedule (+ start 1)) 4 #false #true pool 04)
+             (integer->integer-bytes (vector-ref schedule (+ start 2)) 4 #false #true pool 08)
+             (integer->integer-bytes (vector-ref schedule (+ start 3)) 4 #false #true pool 12)
+             
+             (let ([octets (string-split (bytes->hex-string pool #:separator " "))])
+               (pict:frame (pict:inset (pict:table 4 (map pict:text octets) pict:cc-superimpose pict:cc-superimpose 8 8)
+                                       4))))))
+       
        (define aes-key-schedule
          (lambda [0xkey column last-one]
            (define key (symb0x->octets 0xkey))
@@ -199,7 +214,7 @@ These test cases are defined in @~cite[HMAC-SHA].
            (printf "Cipher Key = ~a (~a bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
 
            (define schedule (aes-key-expand key 4))
-           (define last-word (integer-bytes->integer schedule #false #true (- (bytes-length schedule) 4)))
+           (define last-word (vector-ref schedule (- (vector-length schedule) 1)))
 
            (words-pretty-print schedule
                                #:column column
@@ -209,19 +224,16 @@ These test cases are defined in @~cite[HMAC-SHA].
 
        (define aes-add-round-key
          (lambda [state schedule start [space 3]]
-           (define key-state (make-state-array-from-bytes 4 4 schedule (* start 4)))
-           
            (define Sin (state-array-pict state))
-           (define K (state-array-pict key-state))
 
-           (state-array-add-round-key! state schedule (* start 4))
+           (state-array-add-round-key! state schedule start)
            
            (pict:hc-append sbox-gapsize
                            (cond [(= space 0) Sin]
                                  [else (apply pict:hc-append sbox-gapsize Sin
                                               (make-list space (pict:ghost Sin)))])
                            (pict:text "⊕")
-                           (state-array-pict key-state)
+                           (rotated-schedule-pict schedule start)
                            (pict:text "="))))
 
        (define aes-round-step

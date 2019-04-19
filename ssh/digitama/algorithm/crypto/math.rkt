@@ -4,6 +4,7 @@
 
 (require racket/unsafe/ops)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Add two numbers in the GF(2^8) finite field
 (define byte+ : (case-> [Byte Byte -> Byte]
                         [Byte Byte Byte -> Byte]
