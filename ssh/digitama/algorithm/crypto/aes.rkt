@@ -4,79 +4,150 @@
 
 (provide (all-defined-out))
 
+(require racket/unsafe/ops)
+
 (require "state.rkt")
 (require "s-box.rkt")
 (require "math.rkt")
 
-(require racket/unsafe/ops)
+(require (for-syntax racket/base))
+
+(define aes-blocksize : 16 16)
+(define aes-Nb : 4 4)
+
+(define-syntax (aes-mix-columns! stx)
+  (syntax-case stx []
+    [(_ state c #:encrypt)
+     #'(let ([s0c (state-array-ref state 0 c)]
+             [s1c (state-array-ref state 1 c)]
+             [s2c (state-array-ref state 2 c)]
+             [s3c (state-array-ref state 3 c)])
+         (state-array-set! state 0 c (byte+ (byte* #x02 s0c) (byte* #x03 s1c) s2c s3c))
+         (state-array-set! state 1 c (byte+ s0c (byte* #x02 s1c) (byte* #x03 s2c) s3c))
+         (state-array-set! state 2 c (byte+ s0c s1c (byte* #x02 s2c) (byte* #x03 s3c)))
+         (state-array-set! state 3 c (byte+ (byte* #x03 s0c) s1c s2c (byte* #x02 s3c))))]
+    [(_ state c #:decrypt)
+     #'(let ([s0c (state-array-ref state 0 c)]
+             [s1c (state-array-ref state 1 c)]
+             [s2c (state-array-ref state 2 c)]
+             [s3c (state-array-ref state 3 c)])
+         (state-array-set! state 0 c (byte+ (byte* #x0e s0c) (byte* #x0b s1c) (byte* #x0d s2c) (byte* #x09 s3c)))
+         (state-array-set! state 1 c (byte+ (byte* #x09 s0c) (byte* #x0e s1c) (byte* #x0b s2c) (byte* #x0d s3c)))
+         (state-array-set! state 2 c (byte+ (byte* #x0d s0c) (byte* #x09 s1c) (byte* #x0e s2c) (byte* #x0b s3c)))
+         (state-array-set! state 3 c (byte+ (byte* #x0b s0c) (byte* #x0d s1c) (byte* #x09 s2c) (byte* #x0e s3c))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-ctr : (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
   (lambda [IV key]
-    (define Nb : Byte (aes-words-size IV))
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
-    (define state : State-Array (make-state-array 4 Nb))
-    (define key-schedule : (Vectorof Natural) (aes-key-expand key Nb))
+    (define state : State-Array (make-state-array 4 aes-Nb))
+    (define key-schedule : (Vectorof Natural) (aes-key-expand key))
 
     (aes-key-schedule-rotate! key-schedule)
-    (values (λ [[plaintext : Bytes]] : Bytes (aes-encrypt-ctr plaintext key-schedule state Nb Nr))
-            (λ [[ciphertext : Bytes]] : Bytes (aes-decrypt-ctr ciphertext key-schedule state Nb Nr)))))
+    (values (λ [[plaintext : Bytes]] : Bytes (aes-encrypt-ctr plaintext key-schedule state Nr))
+            (λ [[ciphertext : Bytes]] : Bytes (aes-decrypt-ctr ciphertext key-schedule state Nr)))))
 
-(define aes-encrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Byte Bytes)
-  (lambda [plaintext schedule state wordstep round]
-    (define blocksize : Index (* wordstep 4))
+(define aes-encrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Bytes)
+  (lambda [plaintext schedule state round]
     (define size : Index (bytes-length plaintext))
     (define ciphertext : Bytes (make-bytes size))
 
     (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
       (when (< block-idx size)
-        (aes-block-encrypt-ctr! plaintext ciphertext block-idx schedule state wordstep round)
-        (encrypt-block (+ block-idx blocksize))))
+        (aes-block-encrypt-ctr! plaintext ciphertext block-idx schedule state round)
+        (encrypt-block (+ block-idx aes-blocksize))))
 
     ciphertext))
 
-(define aes-decrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Byte Bytes)
-  (lambda [ciphertext schedule state wordstep round]
-    ciphertext))
+(define aes-decrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Bytes)
+  (lambda [ciphertext schedule state round]
+    (define size : Index (bytes-length ciphertext))
+    (define plaintext : Bytes (make-bytes size))
+
+    (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
+      (when (< block-idx size)
+        (aes-block-decrypt-ctr! ciphertext plaintext block-idx schedule state round)
+        (encrypt-block (+ block-idx aes-blocksize))))
+
+    plaintext))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-block-encrypt-ctr : (->* (Bytes (Vectorof Natural) State-Array Byte Byte) (Index) Bytes)
-  (lambda [inblock schedule state wordstep round [instart 0]]
+(define aes-block-encrypt-ctr : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
+  (lambda [inblock schedule state round [instart 0]]
     (define outblock : Bytes (make-bytes (state-array-blocksize state)))
     
-    (aes-block-encrypt-ctr! inblock outblock instart schedule state wordstep round 0)
+    (aes-block-encrypt-ctr! inblock outblock instart schedule state round 0)
     outblock))
 
-(define aes-block-encrypt-ctr! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte Byte) ((Option Index)) Natural)
-  (lambda [inblock outblock instart schedule state wordstep round [maybe-outstart #false]]
+(define aes-block-decrypt-ctr : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
+  (lambda [inblock schedule state round [instart 0]]
+    (define outblock : Bytes (make-bytes (state-array-blocksize state)))
+    
+    (aes-block-decrypt-ctr! inblock outblock instart schedule state round 0)
+    outblock))
+
+(define aes-block-encrypt-ctr! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Natural)
+  (lambda [inblock outblock instart schedule state round [maybe-outstart #false]]
     (define outstart : Index (or maybe-outstart instart))
-    (define last-round-idx : Index (* wordstep round))
+    (define last-round-idx : Index (* aes-Nb round))
     
     (state-array-copy-from-bytes! state inblock instart)
     (state-array-add-round-key! state schedule 0)
 
-    (let encrypt ([widx : Nonnegative-Fixnum wordstep])
+    (let encrypt ([widx : Nonnegative-Fixnum aes-Nb])
       (when (< widx last-round-idx)
         (state-array-substitute! state aes-substitute-box)
-        (aes-shift-rows! state)
-        (aes-mix-columns! state)
+        (aes-left-shift-rows! state)
+
+        (aes-mix-columns! state 0 #:encrypt)
+        (aes-mix-columns! state 1 #:encrypt)
+        (aes-mix-columns! state 2 #:encrypt)
+        (aes-mix-columns! state 3 #:encrypt)
+        
         (state-array-add-round-key! state schedule widx)
         
-        (encrypt (+ widx wordstep))))
+        (encrypt (+ widx aes-Nb))))
 
     (state-array-substitute! state aes-substitute-box)
-    (aes-shift-rows! state)
+    (aes-left-shift-rows! state)
     (state-array-add-round-key! state schedule last-round-idx)
     
     (state-array-copy-to-bytes! state outblock outstart)))
 
+(define aes-block-decrypt-ctr! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Natural)
+  (lambda [inblock outblock instart schedule state round [maybe-outstart #false]]
+    (define outstart : Index (or maybe-outstart instart))
+    (define last-round-idx : Index (* aes-Nb round))
+    
+    (state-array-copy-from-bytes! state inblock instart)
+    (state-array-add-round-key! state schedule last-round-idx)
+
+    (let encrypt ([widx : Fixnum (- last-round-idx aes-Nb)])
+      (when (> widx 0)
+        (state-array-substitute! state aes-inverse-substitute-box)
+        (aes-right-shift-rows! state)
+        (state-array-add-round-key! state schedule widx)
+
+        (aes-mix-columns! state 0 #:decrypt)
+        (aes-mix-columns! state 1 #:decrypt)
+        (aes-mix-columns! state 2 #:decrypt)
+        (aes-mix-columns! state 3 #:decrypt)
+        
+        (encrypt (- widx aes-Nb))))
+
+    (state-array-substitute! state aes-inverse-substitute-box)
+    (aes-right-shift-rows! state)
+    (state-array-add-round-key! state schedule 0)
+    
+    (state-array-copy-to-bytes! state outblock outstart)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-key-expand : (-> Bytes Byte (Vectorof Natural))
-  (lambda [key Nb]
+(define aes-key-expand : (-> Bytes (Vectorof Natural))
+  (lambda [key]
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
-    (define size : Index (assert (unsafe-fx* Nb (+ Nr 1)) index?))
+    (define size : Index (assert (unsafe-fx* aes-Nb (+ Nr 1)) index?))
     (define schedule : (Vectorof Natural) (make-vector size))
 
     (let copy ([widx : Index 0])
@@ -146,27 +217,17 @@
   (lambda [Nk]
     (assert (+ Nk 6) byte?)))
 
-(define aes-shift-rows! : (-> State-Array Void)
+(define aes-left-shift-rows! : (-> State-Array Void)
   (lambda [state]
-    (state-array-shift-word! state 1 0 08)
-    (state-array-shift-word! state 2 0 16)
-    (state-array-shift-word! state 3 0 24)))
+    (state-array-left-shift-word! state 1 0 08)
+    (state-array-left-shift-word! state 2 0 16)
+    (state-array-left-shift-word! state 3 0 24)))
 
-(define aes-mix-columns! : (-> State-Array Void)
+(define aes-right-shift-rows! : (-> State-Array Void)
   (lambda [state]
-    (let mix-col ([c : Index 0])
-      (when (< c 4)
-        (define s0c : Byte (state-array-ref state 0 c))
-        (define s1c : Byte (state-array-ref state 1 c))
-        (define s2c : Byte (state-array-ref state 2 c))
-        (define s3c : Byte (state-array-ref state 3 c))
-
-        (state-array-set! state 0 c (byte+ (byte* #x02 s0c) (byte* #x03 s1c) s2c s3c))
-        (state-array-set! state 1 c (byte+ s0c (byte* #x02 s1c) (byte* #x03 s2c) s3c))
-        (state-array-set! state 2 c (byte+ s0c s1c (byte* #x02 s2c) (byte* #x03 s3c)))
-        (state-array-set! state 3 c (byte+ (byte* #x03 s0c) s1c s2c (byte* #x02 s3c)))
-        
-        (mix-col (+ c 1))))))
+    (state-array-right-shift-word! state 1 0 08)
+    (state-array-right-shift-word! state 2 0 16)
+    (state-array-right-shift-word! state 3 0 24)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-substitute+rotate-word : (-> Natural Bytes Byte Natural)

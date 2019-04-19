@@ -133,9 +133,8 @@ These test cases are defined in @~cite[HMAC-SHA].
        (require "../digitama/algorithm/pkcs/emsa-v1_5.rkt")
        (require "../digitama/algorithm/pkcs/primitive.rkt")
 
-       (require "../digitama/algorithm/crypto/aes.rkt")
+       (require "aes.rkt")
        (require "../digitama/algorithm/crypto/s-box.rkt")
-       (require "../digitama/algorithm/crypto/state.rkt")
        (require "../digitama/algorithm/crypto/pretty.rkt")
 
        (define openssl-rsa.pem (digimon-path "tamer" "stone" "openssl_rsa.pem"))
@@ -213,7 +212,7 @@ These test cases are defined in @~cite[HMAC-SHA].
            
            (printf "Cipher Key = ~a (~a bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
 
-           (define schedule (aes-key-expand key 4))
+           (define schedule (aes-key-expand key))
            (define last-word (vector-ref schedule (- (vector-length schedule) 1)))
 
            (words-pretty-print schedule
@@ -243,10 +242,10 @@ These test cases are defined in @~cite[HMAC-SHA].
            (state-array-substitute! state aes-substitute-box)
            (define Ssub (state-array-pict state))
 
-           (aes-shift-rows! state)
+           (aes-left-shift-rows! state)
            (define Sshift (state-array-pict state))
 
-           (aes-mix-columns! state)
+           (aes-mixcolumns! state)
            (pict:hc-append sbox-gapsize Sin Ssub Sshift (aes-add-round-key state schedule (* round 4) 0))))
 
        (define aes-round-done
@@ -256,7 +255,7 @@ These test cases are defined in @~cite[HMAC-SHA].
            (state-array-substitute! state aes-substitute-box)
            (define Ssub (state-array-pict state))
 
-           (aes-shift-rows! state)
+           (aes-left-shift-rows! state)
            (pict:vl-append sbox-gapsize
                            (pict:hc-append sbox-gapsize Sin Ssub (aes-add-round-key state schedule (* round 4) 1))
                            (state-array-pict state))))
@@ -264,14 +263,19 @@ These test cases are defined in @~cite[HMAC-SHA].
        (define aes-cipher
          (lambda [0xplaintext 0xkey 0xciphertext]
            (define plaintext (symb0x->octets 0xplaintext))
+           (define ciphertext (symb0x->octets 0xciphertext))
            (define key (symb0x->octets 0xkey))
            (define-values (encrypt decrypt) (aes-ctr plaintext key))
-
+           (define ctext (encrypt plaintext))
+           (define encryption-okay? (bytes=? ctext ciphertext))
+           
            (printf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
            (printf "Cipher Key = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
-           (printf "~s~n" (bytes->hex-string (symb0x->octets 0xciphertext)))
-           
-           (bytes->hex-string (encrypt plaintext))))
+           (fprintf (if encryption-okay? (current-output-port) (current-error-port))
+                    "Ciphertext = ~a (~a Bytes)~n" (bytes->hex-string ciphertext) (bytes-length ciphertext))
+
+           (let ([ptext (decrypt ctext)])
+             (and encryption-okay? (bytes=? ptext plaintext)))))
        
        (define HMAC
          (lambda [digest hmac-sha256 key message]

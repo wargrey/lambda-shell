@@ -104,7 +104,7 @@
     (unsafe-bytes-ref (state-array-pool s)
                       (unsafe-fx+ c (unsafe-fx* (state-array-cols s) r)))))
 
-(define state-array-add-round-key! : (-> State-Array (Vectorof Natural) Index Void)
+(define state-array-add-round-key! : (-> State-Array (Vectorof Natural) Nonnegative-Fixnum Void)
   (lambda [s rotated-schedule start]
     (define-values (row col) (state-array-size s))
     (define pool : Bytes (state-array-pool s))
@@ -113,7 +113,7 @@
       (when (< r row)
         (define s-idx : Fixnum (unsafe-fx* col r))
         (define self : Natural (integer-bytes->integer pool #false #true s-idx (unsafe-fx+ s-idx 4)))
-        (define keyv : Natural (vector-ref rotated-schedule (+ r start)))
+        (define keyv : Natural (vector-ref rotated-schedule (unsafe-fx+ r start)))
 
         (integer->integer-bytes (bitwise-xor self keyv) 4 #false #true pool s-idx)
         
@@ -129,7 +129,7 @@
         (unsafe-bytes-set! pool idx (unsafe-bytes-ref s-box (unsafe-bytes-ref pool idx)))
         (substitute (+ idx 1))))))
 
-(define state-array-shift-word! : (-> State-Array Integer Integer Byte Void)
+(define state-array-left-shift-word! : (-> State-Array Integer Integer Byte Void)
   (lambda [s r wc bits]
     (define pool : Bytes (state-array-pool s))
     (define idxmax : Index (bytes-length pool))
@@ -142,7 +142,7 @@
 
     (void)))
 
-(define unsafe-state-array-shift-word! : (-> State-Array Integer Integer Byte Void)
+(define unsafe-state-array-left-shift-word! : (-> State-Array Integer Integer Byte Void)
   (lambda [s r wc bits]
     (define pool : Bytes (state-array-pool s))
     (define idxmax : Index (bytes-length pool))
@@ -151,6 +151,32 @@
     (define v : Integer (integer-bytes->integer pool #false #true idx (unsafe-fx+ idx 4)))
 
     (integer->integer-bytes (unsafe-fxxor (unsafe-fxand (unsafe-fxlshift v bits) #xFFFFFFFF) (unsafe-fxrshift v (- 32 bits)))
+                            4 #false #true pool idx)
+
+    (void)))
+
+(define state-array-right-shift-word! : (-> State-Array Integer Integer Byte Void)
+  (lambda [s r wc bits]
+    (define pool : Bytes (state-array-pool s))
+    (define idxmax : Index (bytes-length pool))
+
+    (define idx : Integer (+ (* wc 4) (* (state-array-rows s) r)))
+    (define v : Integer (integer-bytes->integer pool #false #true idx (+ idx 4)))
+
+    (integer->integer-bytes (bitwise-ior (arithmetic-shift v (- bits)) (bitwise-and (arithmetic-shift v (- 32 bits)) #xFFFFFFFF))
+                            4 #false #true pool idx)
+
+    (void)))
+
+(define unsafe-state-array-right-shift-word! : (-> State-Array Integer Integer Byte Void)
+  (lambda [s r wc bits]
+    (define pool : Bytes (state-array-pool s))
+    (define idxmax : Index (bytes-length pool))
+
+    (define idx : Fixnum (unsafe-fx+ (unsafe-fx* wc 4) (unsafe-fx* (state-array-rows s) r)))
+    (define v : Integer (integer-bytes->integer pool #false #true idx (unsafe-fx+ idx 4)))
+
+    (integer->integer-bytes (unsafe-fxxor (unsafe-fxrshift v bits) (unsafe-fxand (unsafe-fxlshift v (- 32 bits)) #xFFFFFFFF))
                             4 #false #true pool idx)
 
     (void)))
