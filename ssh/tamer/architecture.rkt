@@ -267,15 +267,19 @@ These test cases are defined in @~cite[HMAC-SHA].
            (define key (symb0x->octets 0xkey))
            (define-values (encrypt decrypt) (aes-ctr plaintext key))
            (define ctext (encrypt plaintext))
+           (define ptext (decrypt ctext))
            (define encryption-okay? (bytes=? ctext ciphertext))
+           (define decryption-okay? (bytes=? ptext plaintext))
            
            (printf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
            (printf "Cipher Key = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
            (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext = ~a (~a Bytes)~n" (bytes->hex-string ciphertext) (bytes-length ciphertext))
+                    "Ciphertext = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
+           
+           (when (not decryption-okay?)
+             (eprintf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
 
-           (let ([ptext (decrypt ctext)])
-             (and encryption-okay? (bytes=? ptext plaintext)))))
+           (and encryption-okay? decryption-okay?)))
        
        (define HMAC
          (lambda [digest hmac-sha256 key message]

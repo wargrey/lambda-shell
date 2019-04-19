@@ -38,7 +38,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-ctr : (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
-  (lambda [IV key] ; TODO: padding the plaintext if its length is not the multiple of the block size 
+  (lambda [IV key] ; TODO: padding the plaintext if its length is not the multiple of the block size
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
     (define state : State-Array (make-state-array 4 aes-Nb))
@@ -51,7 +51,7 @@
 (define aes-encrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Bytes)
   (lambda [plaintext schedule state round]
     (define size : Index (bytes-length plaintext))
-    (define ciphertext : Bytes (make-bytes size))
+    (define ciphertext : Bytes (make-bytes (* (inexact->exact (ceiling (/ size aes-blocksize))) aes-blocksize)))
 
     (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
       (when (< block-idx size)
