@@ -73,7 +73,7 @@
              => (λ [[response : SSH-Message]] (ssh-write-message /dev/tcpout response rfc oldkeys) (rekex))]
             [(and (send kex-process done?) (ssh:msg:newkeys? msg))
              (ssh-write-message /dev/tcpout msg rfc oldkeys)
-             (ssh-kex-done parent (and oldkeys (ssh-newkeys-session-id oldkeys)) kex-process HASH c2s s2c /dev/tcpout rfc)]
+             (ssh-kex-done parent (and oldkeys (ssh-newkeys-session-id oldkeys)) kex-process HASH c2s s2c /dev/tcpout rfc #true)]
             [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)]))))
 
 
@@ -105,12 +105,12 @@
              => (λ [[response : SSH-Message]]
                   (ssh-write-message /dev/tcpout response rfc oldkeys)
                   (cond [(not (ssh:msg:newkeys? response)) (rekex)]
-                        [else (ssh-kex-done parent (and oldkeys (ssh-newkeys-session-id oldkeys)) kex-process HASH c2s s2c /dev/tcpout rfc)]))]
+                        [else (ssh-kex-done parent (and oldkeys (ssh-newkeys-session-id oldkeys)) kex-process HASH c2s s2c /dev/tcpout rfc #false)]))]
             [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)]))))
 
 (define ssh-kex-done : (-> Thread (Option Bytes) (Instance SSH-Key-Exchange<%>) (-> Bytes Bytes) SSH-Transport-Algorithms SSH-Transport-Algorithms
-                           Output-Port SSH-Configuration Void)
-  (lambda [parent old-session-id kex-process HASH c2s s2c /dev/tcpout rfc]
+                           Output-Port SSH-Configuration Boolean Void)
+  (lambda [parent old-session-id kex-process HASH c2s s2c /dev/tcpout rfc server?]
     (define-values (shared-secret H) (send kex-process tell-secret))
     (define K : Bytes (ssh-mpint->bytes shared-secret))
     (define session-id : Bytes (or old-session-id H))
@@ -133,13 +133,19 @@
     (define-values (s2c-inflate s2c-deflate) (values (vector-ref s2c-compression 0) (vector-ref s2c-compression 1)))
     (define-values (c2s-encrypt c2s-decrypt) ((vector-ref c2s-cipher 0) c2s-initialization-vector c2s-cipher-key))
     (define-values (s2c-encrypt s2c-decrypt) ((vector-ref s2c-cipher 0) s2c-initialization-vector s2c-cipher-key))
-    (define-values (c2s-mac s2c-mac) (values ((vector-ref c2s-hmac 0) c2s-mac-key) ((vector-ref s2c-hmac 0) c2s-mac-key)))
+    (define-values (c2s-checksum s2c-checksum) (values ((vector-ref c2s-hmac 0) c2s-mac-key) ((vector-ref s2c-hmac 0) c2s-mac-key)))
 
     (define newkeys : SSH-Newkeys
-      (ssh-newkeys session-id
-                   c2s-inflate s2c-inflate c2s-deflate s2c-deflate
-                   c2s-encrypt s2c-encrypt c2s-decrypt s2c-decrypt c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes
-                   c2s-mac s2c-mac))
+      (let ([cipher-pool-capacity (+ ($ssh-payload-capacity rfc) (+ 4 1 #xFF))])
+        (if (and server?)
+            (ssh-newkeys session-id (make-bytes cipher-pool-capacity) (make-bytes cipher-pool-capacity)
+                         s2c-inflate c2s-deflate
+                         s2c-encrypt c2s-decrypt s2c-cipher-block-size-in-bytes c2s-cipher-block-size-in-bytes
+                         s2c-checksum c2s-checksum)
+            (ssh-newkeys session-id (make-bytes cipher-pool-capacity) (make-bytes cipher-pool-capacity)
+                         c2s-inflate s2c-deflate
+                         c2s-encrypt s2c-decrypt c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes
+                         c2s-checksum s2c-checksum))))
 
     (let send-in-flight-messages ()
       (define maybe-message (thread-try-receive))

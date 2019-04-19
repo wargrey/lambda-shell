@@ -25,7 +25,7 @@
                                        Nonnegative-Fixnum)
   (lambda [/dev/tcpout payload-raw payload-capacity cipher-blocksize [maybe-inflate #false] [encrypt values] [maybe-mac #false]]
     (define payload : Bytes (if maybe-inflate (maybe-inflate payload-raw) payload-raw))
-    (define payload-length : Index (bytes-length payload))
+    (define payload-length : Index (bytes-length payload-raw))
 
     ;; NOTE: we do not forbid the overloaded packet since we do not know the payload capacity that the peer holds.
     (when (> payload-length payload-capacity)

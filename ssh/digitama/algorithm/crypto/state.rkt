@@ -40,7 +40,7 @@
     (define padding : Fixnum (- (+ start blocksize) total))
     (define maxidx : Index (if (> padding 0) (assert (- blocksize padding) index?) blocksize))
 
-    (when (> padding 0)
+    (when (> padding 0) ; TODO: Perhaps it is not a good idea to pad here 
       (bytes-fill! pool padding))
 
     (let copy-in ([idx : Nonnegative-Fixnum 0])

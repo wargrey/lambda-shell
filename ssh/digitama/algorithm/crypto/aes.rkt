@@ -37,7 +37,20 @@
          (state-array-set! state 3 c (byte+ (byte* #x0b s0c) (byte* #x0d s1c) (byte* #x09 s2c) (byte* #x0e s3c))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-ctr : (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
+(define aes-cipher : (-> Bytes (Values (->* (Bytes) ((Option Bytes)) (Values Bytes Index)) (->* (Bytes) ((Option Bytes)) (Values Bytes Index))))
+  (lambda [key] ; TODO: padding the plaintext if its length is not the multiple of the block size
+    (define Nk : Byte (aes-words-size key))
+    (define Nr : Byte (aes-round Nk))
+    (define state : State-Array (make-state-array 4 aes-Nb))
+    (define key-schedule : (Vectorof Natural) (aes-key-expand key))
+
+    (aes-key-schedule-rotate! key-schedule)
+    (values (λ [[plaintext : Bytes] [maybe-ciphertext : (Option Bytes) #false]] : (Values Bytes Index)
+              (aes-encrypt plaintext maybe-ciphertext key-schedule state Nr))
+            (λ [[ciphertext : Bytes] [maybe-plaintext : (Option Bytes) #false]] : (Values Bytes Index)
+              (aes-decrypt ciphertext maybe-plaintext key-schedule state Nr)))))
+
+(define aes-cipher-ctr : (-> Bytes Bytes (Values (->* (Bytes) ((Option Bytes)) (Values Bytes Index)) (->* (Bytes) ((Option Bytes)) (Values Bytes Index))))
   (lambda [IV key] ; TODO: padding the plaintext if its length is not the multiple of the block size
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
@@ -45,49 +58,38 @@
     (define key-schedule : (Vectorof Natural) (aes-key-expand key))
 
     (aes-key-schedule-rotate! key-schedule)
-    (values (λ [[plaintext : Bytes]] : Bytes (aes-encrypt-ctr plaintext key-schedule state Nr))
-            (λ [[ciphertext : Bytes]] : Bytes (aes-decrypt-ctr ciphertext key-schedule state Nr)))))
+    (values (λ [[plaintext : Bytes] [maybe-ciphertext : (Option Bytes) #false]] : (Values Bytes Index)
+              (aes-encrypt plaintext maybe-ciphertext key-schedule state Nr))
+            (λ [[ciphertext : Bytes] [maybe-plaintext : (Option Bytes) #false]] : (Values Bytes Index)
+              (aes-decrypt ciphertext maybe-plaintext key-schedule state Nr)))))
 
-(define aes-encrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Bytes)
-  (lambda [plaintext schedule state round]
+(define aes-encrypt : (-> Bytes (Option Bytes) (Vectorof Natural) State-Array Byte (Values Bytes Index))
+  (lambda [plaintext maybe-ciphertext schedule state round]
     (define size : Index (bytes-length plaintext))
-    (define ciphertext : Bytes (make-bytes (* (inexact->exact (ceiling (/ size aes-blocksize))) aes-blocksize)))
+    (define ciphersize : Natural (* (inexact->exact (ceiling (/ size aes-blocksize))) aes-blocksize))
+    (define ciphertext : Bytes (or maybe-ciphertext (make-bytes ciphersize)))
 
     (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
       (when (< block-idx size)
-        (aes-block-encrypt! plaintext ciphertext block-idx schedule state round)
+        (aes-block-encrypt plaintext ciphertext block-idx schedule state round)
         (encrypt-block (+ block-idx aes-blocksize))))
 
-    ciphertext))
+    (values ciphertext (unsafe-fxmin (bytes-length ciphertext) ciphersize))))
 
-(define aes-decrypt-ctr : (-> Bytes (Vectorof Natural) State-Array Byte Bytes)
-  (lambda [ciphertext schedule state round]
-    (define size : Index (bytes-length ciphertext))
-    (define plaintext : Bytes (make-bytes size))
+(define aes-decrypt : (-> Bytes (Option Bytes) (Vectorof Natural) State-Array Byte (Values Bytes Index))
+  (lambda [ciphertext maybe-plaintext schedule state round]
+    (define ciphersize : Index (bytes-length ciphertext))
+    (define plaintext : Bytes (or maybe-plaintext (make-bytes ciphersize)))
 
     (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
-      (when (< block-idx size)
-        (aes-block-decrypt! ciphertext plaintext block-idx schedule state round)
+      (when (< block-idx ciphersize)
+        (aes-block-decrypt ciphertext plaintext block-idx schedule state round)
         (encrypt-block (+ block-idx aes-blocksize))))
 
-    plaintext))
+    (values plaintext (unsafe-fxmin (bytes-length plaintext) ciphersize))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-block-encrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
-  (lambda [inblock schedule state round [instart 0]]
-    (define outblock : Bytes (make-bytes (state-array-blocksize state)))
-    
-    (aes-block-encrypt! inblock outblock instart schedule state round 0)
-    outblock))
-
-(define aes-block-decrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
-  (lambda [inblock schedule state round [instart 0]]
-    (define outblock : Bytes (make-bytes (state-array-blocksize state)))
-    
-    (aes-block-decrypt! inblock outblock instart schedule state round 0)
-    outblock))
-
-(define aes-block-encrypt! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Void)
+(define aes-block-encrypt : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Void)
   (lambda [inblock outblock instart schedule state round [maybe-outstart #false]]
     (define outstart : Index (or maybe-outstart instart))
     (define last-round-idx : Index (* aes-Nb round))
@@ -115,7 +117,7 @@
     
     (state-array-copy-to-bytes! state outblock outstart)))
 
-(define aes-block-decrypt! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Void)
+(define aes-block-decrypt : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Void)
   (lambda [inblock outblock instart schedule state round [maybe-outstart #false]]
     (define outstart : Index (or maybe-outstart instart))
     (define last-round-idx : Index (* aes-Nb round))
