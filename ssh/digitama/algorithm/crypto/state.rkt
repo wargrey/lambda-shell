@@ -9,15 +9,15 @@
 
 (struct state-array
   ([rows : Byte]
-   [cols : Index]
+   [cols : Byte]
    [pool : Bytes])
   #:type-name State-Array)
 
-(define make-state-array : (-> Byte Index State-Array)
+(define make-state-array : (-> Byte Byte State-Array)
   (lambda [rows Nb]
     (state-array rows Nb (make-bytes (* Nb rows)))))
 
-(define make-state-array-from-bytes : (->* (Byte Index Bytes) (Natural) State-Array)
+(define make-state-array-from-bytes : (->* (Byte Byte Bytes) (Index) State-Array)
   (lambda [rows Nb src [start 0]]
     (define s : State-Array (make-state-array rows Nb))
 
@@ -31,47 +31,45 @@
     (state-array-copy-to-bytes! s block 0)
     block))
 
-(define state-array-copy-from-bytes! : (->* (State-Array Bytes) (Natural) Natural)
+(define state-array-copy-from-bytes! : (->* (State-Array Bytes) (Index) Void)
   (lambda [s in [start 0]]
     (define-values (row col) (state-array-size s))
     (define pool : Bytes (state-array-pool s))
-    (define end : Natural (+ start (* row col)))
+    (define blocksize : Index (* row col))
+    (define total : Index (bytes-length in))
+    (define padding : Fixnum (- (+ start blocksize) total))
+    (define maxidx : Index (if (> padding 0) (assert (- blocksize padding) index?) blocksize))
 
-    
-    (let copy-row ([r : Index 0])
-      (when (< r row)
-        (define rn : Nonnegative-Fixnum (unsafe-fx+ r start))
-        (let copy-col ([c : Nonnegative-Fixnum 0])
-          (when (< c col)
-            (unsafe-bytes-set! pool
-                               (unsafe-fx+ c (unsafe-fx* col r))
-                               (bytes-ref in (unsafe-fx+ rn (unsafe-fx* row c))))
-            (copy-col (+ c 1))))
-        (copy-row (+ r 1))))
-      
-    end))
+    (when (> padding 0)
+      (bytes-fill! pool padding))
 
-(define state-array-copy-to-bytes! : (->* (State-Array Bytes) (Natural) Natural)
+    (let copy-in ([idx : Nonnegative-Fixnum 0])
+      (when (< idx maxidx)
+        (define c : Index (unsafe-fxquotient idx row))
+        (define r : Byte (unsafe-fxremainder idx row))
+        
+        (unsafe-bytes-set! pool (+ c (* col r)) (unsafe-bytes-ref in (unsafe-fx+ idx start)))
+        (copy-in (+ idx 1))))))
+
+(define state-array-copy-to-bytes! : (->* (State-Array Bytes) (Index) Void)
   (lambda [s out [start 0]]
     (define-values (row col) (state-array-size s))
     (define pool : Bytes (state-array-pool s))
-    (define end : Natural (+ start (* row col)))
+    (define blocksize : Index (* row col))
+    (define capacity : Index (bytes-length out))
+    (define truncated : Fixnum (- (+ start blocksize) capacity))
+    (define maxidx : Index (if (> truncated 0) (assert (- blocksize truncated) index?) blocksize))
 
-    (let copy-row ([r : Index 0])
-      (when (< r row)
-        (define rn : Nonnegative-Fixnum (unsafe-fx+ r start))
-        (let copy-col ([c : Nonnegative-Fixnum 0])
-          (when (< c col)
-            (bytes-set! out
-                        (unsafe-fx+ rn (unsafe-fx* row c))
-                        (unsafe-bytes-ref pool (unsafe-fx+ c (unsafe-fx* col r))))
-            (copy-col (+ c 1))))
-        (copy-row (+ r 1))))  
-
-    end))
+    (let copy-out ([idx : Nonnegative-Fixnum 0])
+      (when (< idx maxidx)
+        (define c : Index (unsafe-fxquotient idx row))
+        (define r : Byte (unsafe-fxremainder idx row))
+        
+        (unsafe-bytes-set! out (unsafe-fx+ idx start) (unsafe-bytes-ref pool (+ c (* col r))))
+        (copy-out (+ idx 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define state-array-size : (-> State-Array (Values Byte Index))
+(define state-array-size : (-> State-Array (Values Byte Byte))
   (lambda [s]
     (values (state-array-rows s)
             (state-array-cols s))))

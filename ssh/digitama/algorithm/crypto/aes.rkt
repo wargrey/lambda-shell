@@ -38,7 +38,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-ctr : (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
-  (lambda [IV key]
+  (lambda [IV key] ; TODO: padding the plaintext if its length is not the multiple of the block size 
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
     (define state : State-Array (make-state-array 4 aes-Nb))
@@ -55,7 +55,7 @@
 
     (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
       (when (< block-idx size)
-        (aes-block-encrypt-ctr! plaintext ciphertext block-idx schedule state round)
+        (aes-block-encrypt! plaintext ciphertext block-idx schedule state round)
         (encrypt-block (+ block-idx aes-blocksize))))
 
     ciphertext))
@@ -67,27 +67,27 @@
 
     (let encrypt-block ([block-idx : Nonnegative-Fixnum 0])
       (when (< block-idx size)
-        (aes-block-decrypt-ctr! ciphertext plaintext block-idx schedule state round)
+        (aes-block-decrypt! ciphertext plaintext block-idx schedule state round)
         (encrypt-block (+ block-idx aes-blocksize))))
 
     plaintext))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-block-encrypt-ctr : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
+(define aes-block-encrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
   (lambda [inblock schedule state round [instart 0]]
     (define outblock : Bytes (make-bytes (state-array-blocksize state)))
     
-    (aes-block-encrypt-ctr! inblock outblock instart schedule state round 0)
+    (aes-block-encrypt! inblock outblock instart schedule state round 0)
     outblock))
 
-(define aes-block-decrypt-ctr : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
+(define aes-block-decrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index) Bytes)
   (lambda [inblock schedule state round [instart 0]]
     (define outblock : Bytes (make-bytes (state-array-blocksize state)))
     
-    (aes-block-decrypt-ctr! inblock outblock instart schedule state round 0)
+    (aes-block-decrypt! inblock outblock instart schedule state round 0)
     outblock))
 
-(define aes-block-encrypt-ctr! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Natural)
+(define aes-block-encrypt! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Void)
   (lambda [inblock outblock instart schedule state round [maybe-outstart #false]]
     (define outstart : Index (or maybe-outstart instart))
     (define last-round-idx : Index (* aes-Nb round))
@@ -115,7 +115,7 @@
     
     (state-array-copy-to-bytes! state outblock outstart)))
 
-(define aes-block-decrypt-ctr! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Natural)
+(define aes-block-decrypt! : (->* (Bytes Bytes Index (Vectorof Natural) State-Array Byte) ((Option Index)) Void)
   (lambda [inblock outblock instart schedule state round [maybe-outstart #false]]
     (define outstart : Index (or maybe-outstart instart))
     (define last-round-idx : Index (* aes-Nb round))
