@@ -72,7 +72,7 @@
                                            [newkeys : (Option SSH-Newkeys) #false]
                                            [traffic : Natural 0])
       (define evt : Any
-        (cond [(and (not maybe-rekex) (> traffic ($ssh-rekex-traffic rfc))) kexinit]
+        (cond [(and (not maybe-rekex) (or (not newkeys) (> traffic ($ssh-rekex-traffic rfc)))) kexinit]
               [else (sync/enable-break /dev/sshin (or maybe-rekex /dev/tcpin))]))
 
       (define-values (maybe-task maybe-newkeys traffic++)

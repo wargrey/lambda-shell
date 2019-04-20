@@ -138,11 +138,11 @@
     (define newkeys : SSH-Newkeys
       (let ([cipher-pool-capacity (+ ($ssh-payload-capacity rfc) (+ 4 1 #xFF))])
         (if (and server?)
-            (ssh-newkeys session-id (make-bytes cipher-pool-capacity) (make-bytes cipher-pool-capacity)
+            (ssh-newkeys session-id (make-bytes cipher-pool-capacity)
                          s2c-inflate c2s-deflate
                          s2c-encrypt c2s-decrypt s2c-cipher-block-size-in-bytes c2s-cipher-block-size-in-bytes
                          s2c-checksum c2s-checksum)
-            (ssh-newkeys session-id (make-bytes cipher-pool-capacity) (make-bytes cipher-pool-capacity)
+            (ssh-newkeys session-id (make-bytes cipher-pool-capacity)
                          c2s-inflate s2c-deflate
                          c2s-encrypt s2c-decrypt c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes
                          c2s-checksum s2c-checksum))))

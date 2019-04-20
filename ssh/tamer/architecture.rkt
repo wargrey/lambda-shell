@@ -86,7 +86,7 @@ These test cases are defined in @~cite[AES].
  (aes-round-step state key-schedule128 8)
  (aes-round-step state key-schedule128 9)
  (aes-round-done state key-schedule128 10)
- (aes-core-cipher aes-plaintext aes-key128 aes-ciphertext)]
+ (aes-core-cipher! aes-plaintext aes-key128 aes-ciphertext)]
 
 @tamer-action[
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f aes-ciphertext128)
@@ -266,20 +266,32 @@ These test cases are defined in @~cite[HMAC-SHA].
            (define ciphertext (symb0x->octets 0xciphertext))
            (define key (symb0x->octets 0xkey))
            (define-values (encrypt decrypt) (aes-cipher key))
-           (define-values (ctext csize) (encrypt plaintext))
-           (define-values (ptext psize) (decrypt ctext))
+           (define ctext (encrypt plaintext))
+           (define ptext (decrypt ctext))
            (define encryption-okay? (bytes=? ctext ciphertext))
            (define decryption-okay? (bytes=? ptext plaintext))
            
            (printf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
            (printf "Cipher Key = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
            (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext = ~a (~a Bytes)~n" (bytes->hex-string ctext) csize)
+                    "Ciphertext = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
            
            (when (not decryption-okay?)
-             (eprintf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) psize))
+             (eprintf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
 
            (and encryption-okay? decryption-okay?)))
+
+       (define aes-core-cipher!
+         (lambda [0xplaintext 0xkey 0xciphertext]
+           (define pool (symb0x->octets 0xplaintext))
+           (define ciphertext (symb0x->octets 0xciphertext))
+           (define key (symb0x->octets 0xkey))
+           (define-values (encrypt! decrypt!) (aes-cipher! key))
+           
+           (encrypt! pool)
+           
+           (values (bytes->hex-string pool)
+                   (bytes=? pool ciphertext))))
        
        (define HMAC
          (lambda [digest hmac-sha256 key message]

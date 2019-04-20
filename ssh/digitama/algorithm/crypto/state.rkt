@@ -17,30 +17,30 @@
   (lambda [rows Nb]
     (state-array rows Nb (make-bytes (* Nb rows)))))
 
-(define make-state-array-from-bytes : (->* (Byte Byte Bytes) (Index) State-Array)
-  (lambda [rows Nb src [start 0]]
+(define make-state-array-from-bytes : (->* (Byte Byte Bytes) (Index Index) State-Array)
+  (lambda [rows Nb src [start 0] [end 0]]
     (define s : State-Array (make-state-array rows Nb))
 
-    (state-array-copy-from-bytes! s src start)
+    (state-array-copy-from-bytes! s src start end)
     s))
 
 (define make-bytes-from-state-array : (-> State-Array Bytes)
   (lambda [s]
     (define block : Bytes (make-bytes (state-array-blocksize s)))
 
-    (state-array-copy-to-bytes! s block 0)
+    (state-array-copy-to-bytes! s block 0 0)
     block))
 
-(define state-array-copy-from-bytes! : (->* (State-Array Bytes) (Index) Void)
-  (lambda [s in [start 0]]
+(define state-array-copy-from-bytes! : (->* (State-Array Bytes) (Index Index) Void)
+  (lambda [s in [start 0] [end 0]]
     (define-values (row col) (state-array-size s))
     (define pool : Bytes (state-array-pool s))
     (define blocksize : Index (* row col))
-    (define total : Index (bytes-length in))
+    (define total : Index (if (<= end start) (bytes-length in) end))
     (define padding : Fixnum (- (+ start blocksize) total))
     (define maxidx : Index (if (> padding 0) (assert (- blocksize padding) index?) blocksize))
 
-    (when (> padding 0) ; TODO: Perhaps it is not a good idea to pad here 
+    (when (> padding 0)
       (bytes-fill! pool padding))
 
     (let copy-in ([idx : Nonnegative-Fixnum 0])
@@ -51,12 +51,12 @@
         (unsafe-bytes-set! pool (+ c (* col r)) (unsafe-bytes-ref in (unsafe-fx+ idx start)))
         (copy-in (+ idx 1))))))
 
-(define state-array-copy-to-bytes! : (->* (State-Array Bytes) (Index) Void)
-  (lambda [s out [start 0]]
+(define state-array-copy-to-bytes! : (->* (State-Array Bytes) (Index Index) Void)
+  (lambda [s out [start 0] [end 0]]
     (define-values (row col) (state-array-size s))
     (define pool : Bytes (state-array-pool s))
     (define blocksize : Index (* row col))
-    (define capacity : Index (bytes-length out))
+    (define capacity : Index (if (<= end start) (bytes-length out) end))
     (define truncated : Fixnum (- (+ start blocksize) capacity))
     (define maxidx : Index (if (> truncated 0) (assert (- blocksize truncated) index?) blocksize))
 

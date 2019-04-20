@@ -4,12 +4,11 @@
 
 (struct ssh-newkeys
   ([session-id : Bytes]
-   [ciphertext-pool : Bytes]
-   [plaintext-pool : Bytes]
+   [packet-pool : Bytes]
    [inflate : (Option (-> Bytes Bytes))]
    [deflate : (Option (-> Bytes Bytes))]
-   [encrypt : (->* (Bytes) ((Option Bytes)) (Values Bytes Index))]
-   [decrypt : (->* (Bytes) ((Option Bytes)) (Values Bytes Index))]
+   [encrypt : (->* (Bytes) (Index Index (Option Bytes) Index Index) Index)]
+   [decrypt : (->* (Bytes) (Index Index (Option Bytes) Index Index) Index)]
    [encrypt-block-size : Byte]
    [decrypt-block-size : Byte]
    [mac-generate : (-> Bytes Bytes)]

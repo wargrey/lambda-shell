@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require digimon/format)
+
 (require "packet.rkt")
 (require "newkeys.rkt")
 
@@ -13,21 +15,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration (Option SSH-Newkeys) Nonnegative-Fixnum)
   (lambda [/dev/tcpout msg rfc newkeys]
+    (define payload : Bytes (ssh-message->bytes msg))
     (define traffic : Nonnegative-Fixnum
-      (ssh-write-binary-packet /dev/tcpout (ssh-message->bytes msg) ($ssh-payload-capacity rfc) 0))
+      (cond [(not newkeys) (ssh-write-plain-packet /dev/tcpout payload ($ssh-payload-capacity rfc))]
+            [else (ssh-write-cipher-packet /dev/tcpout payload ($ssh-payload-capacity rfc) (ssh-newkeys-encrypt-block-size newkeys)
+                                           (ssh-newkeys-inflate newkeys) (ssh-newkeys-encrypt newkeys) (ssh-newkeys-mac-generate newkeys))]))
     
     (ssh-log-message 'debug "sent message ~a[~a] [~a]" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
     (ssh-log-outgoing-message msg traffic 'debug)
+    
     traffic))
 
 (define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Option SSH-Newkeys) (Listof Symbol) (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
   (lambda [/dev/tcpin rfc newkeys groups]
-    (define-values (payload traffic)
-      (cond [(not newkeys) (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc))]
-            [else (ssh-read-binary-packet /dev/tcpin ($ssh-payload-capacity rfc))]))
+    (define-values (payload offset traffic)
+      (cond [(not newkeys) (ssh-read-plain-packet /dev/tcpin ($ssh-payload-capacity rfc))]
+            [else (ssh-read-cipher-packet /dev/tcpin (ssh-newkeys-packet-pool newkeys)
+                                          ($ssh-payload-capacity rfc) (ssh-newkeys-decrypt-block-size newkeys)
+                                          (ssh-newkeys-deflate newkeys) (ssh-newkeys-decrypt newkeys) (ssh-newkeys-mac-verify newkeys))]))
     
     (define message-id : Byte (bytes-ref payload 0))
-    (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message payload #:groups groups))
+    (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message payload offset #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
     (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
     
