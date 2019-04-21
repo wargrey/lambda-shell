@@ -179,7 +179,11 @@ These test cases are defined in @~cite[HMAC-SHA].
 
        (define namelist
          (lambda [names]
-           (define bs (ssh-namelist->bytes names))
+           (define size (ssh-namelist-length names))
+           (define bs (make-bytes size))
+
+           (ssh-namelist->bytes names bs)
+           
            (define-values (restored _) (ssh-bytes->namelist bs))
            (cons restored (bytes->hex-string bs #:separator " "))))
 

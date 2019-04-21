@@ -2,7 +2,7 @@
 
 ;;; http://tools.ietf.org/html/rfc4251#section-5
 
-(provide (all-defined-out) SSH-Bytes->Datum)
+(provide (all-defined-out) SSH-Datum->Bytes SSH-Bytes->Datum)
 
 (require racket/string)
 
@@ -23,18 +23,32 @@
                       [integer-bytes->integer (-> Bytes Boolean Boolean Natural Natural Index)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-boolean->bytes : (-> Any Bytes)
+(define ssh-boolean-length : (-> Any One)
   (lambda [bool]
-    (if bool (bytes 1) (bytes 0))))
+    1))
+
+(define ssh-boolean->bytes : (SSH-Datum->Bytes Any)
+  (case-lambda
+      [(bool) (if bool (bytes 1) (bytes 0))]
+      [(bool pool) (ssh-boolean->bytes bool pool 0)]
+      [(bool pool offset) (bytes-set! pool offset (if bool 1 0)) (+ offset (ssh-boolean-length bool))]))
 
 (define ssh-bytes->boolean : (SSH-Bytes->Datum Boolean)
   (lambda [bbool [offset 0]]
     (values (not (zero? (bytes-ref bbool offset)))
             (+ offset 1))))
 
-(define ssh-uint32->bytes : (-> Natural Bytes)
-  (lambda [u32]
-    (integer->integer-bytes u32 4 #false #true)))
+(define ssh-uint32-length : (-> Any 4)
+  (lambda [u64]
+    4))
+
+(define ssh-uint32->bytes : (SSH-Datum->Bytes Natural)
+  (case-lambda
+    [(u32) (integer->integer-bytes u32 (ssh-uint32-length u32) #false #true)]
+    [(u32 pool) (ssh-uint32->bytes u32 pool 0)]
+    [(u32 pool offset) (let ([u32size (ssh-uint32-length u32)])
+                         (integer->integer-bytes u32 u32size #false #true pool offset)
+                         (+ offset u32size))]))
 
 (define ssh-bytes->uint32 : (SSH-Bytes->Datum Index)
   (lambda [bint [offset 0]]
@@ -42,9 +56,17 @@
     (values (integer-bytes->integer bint #false #true offset end)
             end)))
 
-(define ssh-uint64->bytes : (-> Natural Bytes)
+(define ssh-uint64-length : (-> Any 8)
   (lambda [u64]
-    (integer->integer-bytes u64 8 #false #true)))
+    8))
+
+(define ssh-uint64->bytes : (SSH-Datum->Bytes Natural)
+  (case-lambda
+    [(u64) (integer->integer-bytes u64 (ssh-uint64-length u64) #false #true)]
+    [(u64 pool) (ssh-uint32->bytes u64 pool 0)]
+    [(u64 pool offset) (let ([u64size (ssh-uint64-length u64)])
+                         (integer->integer-bytes u64 u64size #false #true pool offset)
+                         (+ offset u64size))]))
 
 (define ssh-bytes->uint64 : (SSH-Bytes->Datum Natural)
   (lambda [bint [offset 0]]
@@ -52,9 +74,21 @@
     (values (integer-bytes->integer bint #false #true offset end)
             end)))
 
-(define ssh-bstring->bytes : (-> SSH-BString Bytes)
-  (lambda [bs]
-    (bytes-append (ssh-uint32->bytes (bytes-length bs)) bs)))
+(define ssh-bstring-length : (-> SSH-BString Positive-Fixnum)
+  (lambda [bstr]
+    (define bssize : Index (bytes-length bstr))
+
+    (+ (ssh-uint32-length bssize)
+       bssize)))
+
+(define ssh-bstring->bytes : (SSH-Datum->Bytes SSH-BString)
+  (case-lambda
+    [(bstr) (bytes-append (ssh-uint32->bytes (bytes-length bstr)) bstr)]
+    [(bstr pool) (ssh-bstring->bytes bstr pool 0)]
+    [(bstr pool offset) (let* ([bssize (bytes-length bstr)]
+                               [offset++ (ssh-uint32->bytes bssize pool offset)])
+                          (bytes-copy! pool offset++ bstr 0 bssize)
+                          (+ offset++ bssize))]))
 
 (define ssh-bytes->bstring : (SSH-Bytes->Datum SSH-BString)
   (lambda [butf8 [offset 0]]
@@ -63,9 +97,18 @@
     (values (subbytes butf8 offset++ end)
             end)))
 
-(define ssh-string->bytes : (-> String Bytes)
-  (lambda [utf8]
-    (ssh-bstring->bytes (string->bytes/utf-8 utf8))))
+(define ssh-string-length : (-> String Positive-Fixnum)
+  (lambda [str]
+    (define ssize : Index (string-utf-8-length str))
+
+    (+ (ssh-uint32-length ssize)
+       ssize)))
+
+(define ssh-string->bytes : (SSH-Datum->Bytes String)
+  (case-lambda
+    [(utf8) (ssh-bstring->bytes (string->bytes/utf-8 utf8))]
+    [(utf8 pool) (ssh-bstring->bytes (string->bytes/utf-8 utf8) pool 0)]
+    [(utf8 pool offset) (ssh-bstring->bytes (string->bytes/utf-8 utf8) pool offset)]))
 
 (define ssh-bytes->string : (SSH-Bytes->Datum String)
   (lambda [butf8 [offset 0]]
@@ -74,16 +117,23 @@
     (values (bytes->string/utf-8 butf8 #false offset++ end)
             end)))
 
-(define ssh-mpint->bytes : (-> Integer Bytes)
+(define ssh-mpint-length : (-> Integer Positive-Integer)
   (lambda [mpi]
-    (cond [(zero? mpi) (ssh-uint32->bytes 0)]
-          [else (let* ([bmpint : Bytes (integer->network-bytes mpi)]
-                       [size : Index (bytes-length bmpint)])
-                  (cond [(and (positive? mpi) (>= (bytes-ref bmpint 0) #b10000000))
-                         (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #x00) bmpint)]
-                        [(and (negative? mpi) (< (bytes-ref bmpint 0) #b10000000))
-                         (bytes-append (ssh-uint32->bytes (+ size 1)) (bytes #xFF) bmpint)]
-                        [else (bytes-append (ssh-uint32->bytes size) bmpint)]))])))
+    (define bmpint-size : Index (if (= mpi 0) 0 (integer-bytes-length mpi)))
+
+    (+ (ssh-uint32-length bmpint-size)
+       bmpint-size)))
+
+(define ssh-mpint->bytes : (SSH-Datum->Bytes Integer)
+  (case-lambda
+    [(mpi) (let ([bmpi (make-bytes (ssh-mpint-length mpi))]) (ssh-mpint->bytes mpi bmpi 0) bmpi)]
+    [(mpi pool) (ssh-mpint->bytes mpi pool 0)]
+    [(mpi pool offset)
+     (cond [(= mpi 0) (ssh-uint32->bytes 0 pool offset)]
+           [else (let* ([bmpint-size (integer-bytes-length mpi)]
+                        [offset++ (ssh-uint32->bytes bmpint-size pool offset)])
+                   (integer->network-bytes mpi 0 pool offset++)
+                   (+ offset++ bmpint-size))])]))
 
 (define ssh-bytes->mpint : (SSH-Bytes->Datum Integer)
   (lambda [bmpi [offset 0]]
@@ -92,18 +142,36 @@
     (cond [(zero? size) (values 0 end)]
           [else (values (network-bytes->integer bmpi offset++ end) end)])))
 
-(define ssh-name->bytes : (-> Symbol Bytes)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-name-length : (-> Symbol Positive-Fixnum)
   (lambda [name]
-    (ssh-string->bytes (symbol->string name))))
+    (ssh-string-length (symbol->string name))))
+
+(define ssh-name->bytes : (SSH-Datum->Bytes Symbol)
+  (case-lambda
+    [(name) (ssh-string->bytes (symbol->string name))]
+    [(name pool) (ssh-string->bytes (symbol->string name) pool 0)]
+    [(name pool offset) (ssh-string->bytes (symbol->string name) pool offset)]))
 
 (define ssh-bytes->name : (SSH-Bytes->Datum Symbol)
   (lambda [butf8 [offset 0]]
     (define-values (name end) (ssh-bytes->string butf8 offset))
     (values (string->symbol name) end)))
 
-(define ssh-namelist->bytes : (-> (Listof Symbol) Bytes)
+(define ssh-namelist-length : (-> (Listof Symbol) Positive-Integer)
   (lambda [names]
-    (ssh-string->bytes (string-join (map symbol->string names) ","))))
+    (define /dev/nout : Output-Port (ssh-namelist-port names))
+    (define nssize : Natural (file-position /dev/nout))
+
+    (+ (ssh-uint32-length nssize)
+       nssize)))
+
+(define ssh-namelist->bytes : (SSH-Datum->Bytes (Listof Symbol))
+  (case-lambda
+    [(names) (ssh-bstring->bytes (get-output-bytes (ssh-namelist-port names) #true))]
+    [(names pool) (ssh-namelist->bytes names pool 0)]
+    [(names pool offset) (let ([namelist (get-output-bytes (ssh-namelist-port names) #true)])
+                           (ssh-bstring->bytes namelist pool offset))]))
 
 (define ssh-bytes->namelist : (SSH-Bytes->Datum (Listof Symbol))
   (lambda [bascii [offset 0]]
@@ -111,6 +179,7 @@
     (values (map string->symbol (string-split names ","))
             end)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-algorithms->names : (All (a) (-> (SSH-Algorithm-Listof a) (Listof Symbol)))
   (lambda [algorithms]
     (let filter ([names : (Listof Symbol) null]

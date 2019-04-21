@@ -43,7 +43,7 @@
     (ssh-write-message /dev/tcpout self-kexinit rfc oldkeys)
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
                     (let rekex : Void ()
-                      (define-values (msg payload traffic) (ssh-read-transport-message /dev/tcpin rfc oldkeys null))
+                      (define-values (msg payload) (ssh-read-transport-message /dev/tcpin rfc oldkeys null))
                       (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout rfc oldkeys payload)]
                             [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)])))))))
 
@@ -68,7 +68,7 @@
 
     (define kex-msg-group : (Listof Symbol) (list (send kex-process tell-message-group)))
     (let rekex : Void ()
-      (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
+      (define-values (msg payload) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
       (cond [(and (ssh-key-exchange-message? msg) (send kex-process response msg))
              => (λ [[response : SSH-Message]] (ssh-write-message /dev/tcpout response rfc oldkeys) (rekex))]
             [(and (send kex-process done?) (ssh:msg:newkeys? msg))
@@ -100,7 +100,7 @@
     (ssh-write-message /dev/tcpout (send kex-process request) rfc oldkeys)
     
     (let rekex : Void ()
-      (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
+      (define-values (msg payload) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
       (cond [(and (ssh-key-exchange-message? msg) (send kex-process response msg))
              => (λ [[response : SSH-Message]]
                   (ssh-write-message /dev/tcpout response rfc oldkeys)

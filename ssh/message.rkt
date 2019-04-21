@@ -115,14 +115,11 @@
   [SSH_MSG_CHANNEL_FAILURE          100 ([channel : Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-message->bytes : (-> SSH-Message Bytes)
-  (lambda [self]
-    (define name : Symbol (ssh-message-name self))
-    (define message->bytes : (Option SSH-Message->Bytes) (hash-ref ssh-message->bytes-database name (λ [] #false)))
-    (or (and message->bytes (message->bytes self))
-
-        #|this should not happen|#
-        (ssh:msg:ignore->bytes (make-ssh:msg:ignore #:data (format "~s" self))))))
+(define ssh-message->bytes : (SSH-Datum->Bytes SSH-Message)
+  (case-lambda
+    [(self) ((hash-ref ssh-message->bytes-database (ssh-message-name self)) self)]
+    [(self pool) (ssh-message->bytes self pool 0)]
+    [(self pool offset) ((hash-ref ssh-message->bytes-database (ssh-message-name self)) self pool offset)]))
 
 (define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Natural))
   (lambda [bmsg [offset 0] #:groups [groups null]]

@@ -6,6 +6,8 @@
 
 (require racket/unsafe/ops)
 
+(require digimon/number)
+
 (require "state.rkt")
 (require "s-box.rkt")
 (require "math.rkt")
@@ -91,50 +93,46 @@
               (aes-decrypt! ciphertext key-schedule state Nr cstart cend maybe-plaintext pstart pend)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-encrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index Index) Bytes)
+(define aes-encrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural) Bytes)
   (lambda [plaintext schedule state round [pstart 0] [pend0 0]]
-    (define pend : Index (if (<= pend0 pstart) (bytes-length plaintext) pend0))
+    (define pend : Index (bytes-range-end plaintext pstart pend0))
     (define ciphertext : Bytes (make-bytes (aes-ciphertext-size (- pend pstart))))
 
     (aes-encrypt! plaintext schedule state round pstart pend ciphertext)
     ciphertext))
 
-(define aes-encrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index Index (Option Bytes) Index Index) Index)
+(define aes-encrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
   (lambda [plaintext schedule state round [pstart 0] [pend0 0] [maybe-ciphertext #false] [cstart0 0] [cend0 0]]
-    (define pend : Index (if (<= pend0 pstart) (bytes-length plaintext) pend0))
+    (define pend : Index (bytes-range-end plaintext pstart pend0))
     (define-values (ciphertext cstart cend)
       (cond [(not maybe-ciphertext) (values plaintext pstart pend)]
-            [else (values maybe-ciphertext cstart0
-                          (cond [(<= cend0 cstart0) (bytes-length maybe-ciphertext)]
-                                [else cend0]))]))
+            [else (values maybe-ciphertext cstart0 (bytes-range-end maybe-ciphertext cstart0 cend0))]))
     
-    (let encrypt-block ([pidx : Nonnegative-Fixnum pstart]
-                        [cidx : Nonnegative-Fixnum cstart])
+    (let encrypt-block ([pidx : Nonnegative-Fixnum (assert pstart index?)]
+                        [cidx : Nonnegative-Fixnum (assert cstart index?)])
       (when (and (< pidx pend) (< cidx cend))
         (aes-block-encrypt plaintext pidx pend ciphertext cidx cend schedule state round)
         (encrypt-block (+ pidx aes-blocksize) (+ cidx aes-blocksize))))
 
     cend))
 
-(define aes-decrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index Index) Bytes)
+(define aes-decrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural) Bytes)
   (lambda [ciphertext schedule state round [cstart 0] [cend0 0]]
-    (define cend : Index (if (<= cend0 cstart) (bytes-length ciphertext) cend0))
+    (define cend : Index (bytes-range-end ciphertext cstart cend0))
     (define plaintext : Bytes (make-bytes (- cend cstart)))
 
     (aes-decrypt! ciphertext schedule state round cstart cend plaintext)
     plaintext))
 
-(define aes-decrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Index Index (Option Bytes) Index Index) Index)
+(define aes-decrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
   (lambda [ciphertext schedule state round [cstart 0] [cend0 0] [maybe-plaintext #false] [pstart0 0] [pend0 0]]
-    (define cend : Index (if (<= cend0 cstart) (bytes-length ciphertext) cend0))
+    (define cend : Index (bytes-range-end ciphertext cstart cend0))
     (define-values (plaintext pstart pend)
       (cond [(not maybe-plaintext) (values ciphertext cstart cend)]
-            [else (values maybe-plaintext pstart0
-                          (cond [(<= pend0 pstart0) (bytes-length maybe-plaintext)]
-                                [else pend0]))]))
+            [else (values maybe-plaintext pstart0 (bytes-range-end maybe-plaintext pstart0 pend0))]))
     
-    (let encrypt-block ([cidx : Nonnegative-Fixnum 0]
-                        [pidx : Nonnegative-Fixnum 0])
+    (let encrypt-block ([cidx : Nonnegative-Fixnum (assert cstart index?)]
+                        [pidx : Nonnegative-Fixnum (assert pstart index?)])
       (when (and (< cidx cend) (< pidx pend))
         (aes-block-decrypt ciphertext cidx cend plaintext pidx pend schedule state round)
         (encrypt-block (+ cidx aes-blocksize) (+ pidx aes-blocksize))))

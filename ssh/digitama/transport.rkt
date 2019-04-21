@@ -69,46 +69,41 @@
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) #false]
                                            [kexinit : SSH-MSG-KEXINIT kexinit]
-                                           [newkeys : (Option SSH-Newkeys) #false]
-                                           [traffic : Natural 0])
+                                           [newkeys : (Option SSH-Newkeys) #false])
       (define evt : Any
-        (cond [(and (not maybe-rekex) (or (not newkeys) (> traffic ($ssh-rekex-traffic rfc)))) kexinit]
+        (cond [(and (not maybe-rekex) (or (not newkeys))) kexinit]
               [else (sync/enable-break /dev/sshin (or maybe-rekex /dev/tcpin))]))
 
-      (define-values (maybe-task maybe-newkeys traffic++)
+      (define-values (maybe-task maybe-newkeys)
         (cond [(tcp-port? evt)
-               (define-values (msg payload traffic) (ssh-read-transport-message /dev/tcpin rfc newkeys null))
+               (define-values (msg payload) (ssh-read-transport-message /dev/tcpin rfc newkeys null))
                (define maybe-task : Any
                  (cond [(not msg) (write-special payload /dev/sshout)]
                        [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]
                        [(ssh-message-undefined? msg) (thread-send (current-thread) (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
                        [(not (ssh-ignored-incoming-message? msg)) (write-special msg /dev/sshout)]))
-               (values (and (thread? maybe-task) maybe-task) newkeys traffic)]
+               (values (and (thread? maybe-task) maybe-task) newkeys)]
 
               [(ssh-message? evt)
                (if (not maybe-rekex)
-                   (cond [(ssh:msg:kexinit? evt) (values (ssh-kex/starts-with-self evt /dev/tcpin /dev/tcpout rfc newkeys server?) newkeys 0)]
-                         [else (values maybe-rekex newkeys (ssh-write-message /dev/tcpout evt rfc newkeys))])
-                   (cond [(ssh-kex-transparent-message? evt) (values maybe-rekex newkeys (ssh-write-message /dev/tcpout evt rfc newkeys))]
-                         [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys 0)]))]
+                   (cond [(ssh:msg:kexinit? evt) (values (ssh-kex/starts-with-self evt /dev/tcpin /dev/tcpout rfc newkeys server?) newkeys)]
+                         [else (ssh-write-message /dev/tcpout evt rfc newkeys) (values maybe-rekex newkeys)])
+                   (cond [(ssh-kex-transparent-message? evt) (ssh-write-message /dev/tcpout evt rfc newkeys) (values maybe-rekex newkeys)]
+                         [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys)]))]
               
-              [(ssh-newkeys? evt) (values #false evt 0)]
+              [(ssh-newkeys? evt) (values #false evt)]
 
               [(exn? evt)
                (cond [(exn:ssh:kex? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-KEY-EXCHANGE-FAILED rfc newkeys evt)]
                      [(not (exn:ssh:eof? evt)) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-PROTOCOL-ERROR rfc newkeys evt)])
                (raise evt)]
         
-              [else (values maybe-rekex newkeys 0)]))
+              [else (values maybe-rekex newkeys)]))
       
-      (sync-handle-feedback-loop maybe-task
-                                 (if (ssh:msg:kexinit? evt) evt kexinit)
-                                 maybe-newkeys
-                                 (+ (if maybe-task 0 traffic)
-                                    traffic++)))))
+      (sync-handle-feedback-loop maybe-task (if (ssh:msg:kexinit? evt) evt kexinit) maybe-newkeys))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-disconnect : (->* (Output-Port SSH-Disconnection-Reason SSH-Configuration (Option SSH-Newkeys)) ((U String exn False)) Nonnegative-Fixnum)
+(define ssh-disconnect : (->* (Output-Port SSH-Disconnection-Reason SSH-Configuration (Option SSH-Newkeys)) ((U String exn False)) Void)
   (lambda [/dev/tcpout reason rfc newkeys [details #false]]
     (define description : (Option String) (if (exn? details) (exn-message details) details))
     (define msg : SSH-Message (make-ssh:msg:disconnect #:reason reason #:description description))

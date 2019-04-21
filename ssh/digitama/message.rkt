@@ -32,22 +32,22 @@
 
 (define-for-syntax (ssh-datum-pipeline func <FType>)
   (case (syntax->datum <FType>)
-    [(Boolean)     (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values)]
-    [(Index)       (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values)]
-    [(Natural)     (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values)]
-    [(String)      (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values)]
-    [(SSH-BString) (list #'values #'ssh-bstring->bytes #'ssh-bytes->bstring #'values)]
-    [(Integer)     (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values)]
-    [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values)]
-    [(Bytes)       (list #'values #'values             #'ssh-values         #'values)]
+    [(Boolean)     (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values #'ssh-boolean-length)]
+    [(Index)       (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values #'ssh-uint32-length)]
+    [(Natural)     (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values #'ssh-uint64-length)]
+    [(String)      (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values #'ssh-string-length)]
+    [(SSH-BString) (list #'values #'ssh-bstring->bytes #'ssh-bytes->bstring #'values #'ssh-bstring-length)]
+    [(Integer)     (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values #'ssh-mpint-length)]
+    [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values #'ssh-name-length)]
+    [(Bytes)       (list #'values #'ssh-bytes->bytes   #'ssh-values         #'values #'bytes-length)]
     [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
                          [$type (format-id #'T "$~a" (syntax-e #'T))])
             (case (syntax-e #'TypeOf)
-              [(SSH-Bytes)            (list #'values                #'values              (ssh-make-nbytes->bytes #'T) #'values)]
-              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type)]
-              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type)]
+              [(SSH-Bytes)            (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T) #'values #'bytes-length)]
+              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type  #'ssh-uint32-length)]
+              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type  #'ssh-namelist-length)]
               [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
-                        (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values)
+                        (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values #'ssh-namelist-length)
                         (raise-syntax-error func "invalid SSH data type" <FType>))]))]))
 
 (define-syntax (define-message-interface stx)
@@ -58,6 +58,7 @@
                     [constructor (format-id #'id "~a" (gensym 'ssh:msg:))]
                     [SSH:MSG->bytes (format-id #'ssh:msg "~a" (gensym 'ssh:msg:))]
                     [ssh:msg? (format-id #'ssh:msg "~a?" (syntax-e #'ssh:msg))]
+                    [ssh:msg-length (format-id #'ssh:msg "~a-length" (syntax-e #'ssh:msg))]
                     [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
                     [ssh:msg->bytes (format-id #'ssh:msg "~a->bytes" (syntax-e #'ssh:msg))]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
@@ -70,7 +71,7 @@
                                      (values (cons <kw-name> (cons <argls> syns))
                                              (cons <value> slav)))])
                        (list kw-args (reverse seulav)))]
-                    [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket)] ...)
+                    [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket ssh-datum-length)] ...)
                      (for/list ([<field> (in-syntax #'(field ...))]
                                 [<FType> (in-syntax #'(FieldType ...))])
                        (list (format-id <field> "~a-~a" (syntax-e #'ssh:msg) (syntax-e <field>))
@@ -81,12 +82,20 @@
                 (define (make-ssh:msg kw-args ...) : SSH-MSG
                   (constructor val 'SSH-MSG init-values ...))
 
-                (define ssh:msg->bytes : (-> SSH-MSG Bytes)
-                  (let ([head-byte : Bytes (bytes val)])
-                    (lambda [self]
-                      (bytes-append head-byte
-                                    (ssh->bytes (racket->ssh (field-ref self)))
-                                    ...))))
+                (define ssh:msg-length : (-> SSH-MSG Positive-Integer)
+                  (lambda [self]
+                    (+ 1 ; message number
+                       (ssh-datum-length (racket->ssh (field-ref self)))
+                       ...)))
+
+                (define ssh:msg->bytes : (SSH-Datum->Bytes SSH-MSG)
+                  (case-lambda
+                    [(self) (bytes-append (bytes val) (ssh->bytes (racket->ssh (field-ref self))) ...)]
+                    [(self pool) (ssh:msg->bytes self pool 0)]
+                    [(self pool offset) (let* ([offset++ (+ offset 1)]
+                                               [offset++ (ssh->bytes (racket->ssh (field-ref self)) pool offset++)] ...)
+                                          (bytes-set! pool offset val)
+                                          offset++)]))
 
                 (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Natural))
                   (lambda [bmsg [offset 0]]
@@ -100,10 +109,10 @@
                     (define-values (message end-index) (unsafe-bytes->ssh:msg bmsg offset))
                     message))
 
-                (define SSH:MSG->bytes : (-> SSH-Message (Option Bytes))
-                  (lambda [self]
-                    (and (ssh:msg? self)
-                         (ssh:msg->bytes self))))
+                (define SSH:MSG->bytes : SSH-Message->Bytes
+                  (case-lambda
+                    [(self) (ssh:msg->bytes (assert self ssh:msg?))]
+                    [(self pool offset) (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))
                 
                 (hash-set! ssh-message->bytes-database 'SSH-MSG SSH:MSG->bytes)))]))
 
@@ -135,7 +144,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Natural)))
-(define-type SSH-Message->Bytes (-> SSH-Message (Option Bytes)))
+(define-type SSH-Message->Bytes (case-> [SSH-Message -> Bytes] [SSH-Message Bytes Natural -> Natural]))
 
 (struct ssh-message ([number : Byte] [name : Symbol]) #:type-name SSH-Message)
 (struct ssh-message-undefined ssh-message () #:type-name SSH-Message-Undefined)

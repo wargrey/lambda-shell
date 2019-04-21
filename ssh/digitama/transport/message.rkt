@@ -13,7 +13,7 @@
 (require "../../configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration (Option SSH-Newkeys) Nonnegative-Fixnum)
+(define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration (Option SSH-Newkeys) Void)
   (lambda [/dev/tcpout msg rfc newkeys]
     (define payload : Bytes (ssh-message->bytes msg))
     (define traffic : Nonnegative-Fixnum
@@ -22,11 +22,9 @@
                                            (ssh-newkeys-inflate newkeys) (ssh-newkeys-encrypt newkeys) (ssh-newkeys-mac-generate newkeys))]))
     
     (ssh-log-message 'debug "sent message ~a[~a] [~a]" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
-    (ssh-log-outgoing-message msg traffic 'debug)
-    
-    traffic))
+    (ssh-log-outgoing-message msg traffic 'debug)))
 
-(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Option SSH-Newkeys) (Listof Symbol) (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
+(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Option SSH-Newkeys) (Listof Symbol) (Values (Option SSH-Message) Bytes))
   (lambda [/dev/tcpin rfc newkeys groups]
     (define-values (payload offset traffic)
       (cond [(not newkeys) (ssh-read-plain-packet /dev/tcpin ($ssh-payload-capacity rfc))]
@@ -48,7 +46,7 @@
             [(ssh:msg:disconnect? maybe-trans-msg)
              (ssh-raise-eof-error ssh-read-transport-message (symbol->string (ssh:msg:disconnect-reason maybe-trans-msg)))]))
 
-    (values maybe-trans-msg payload traffic)))
+    (values maybe-trans-msg payload)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-kex-transparent-message? : (-> SSH-Message Boolean)
