@@ -13,27 +13,44 @@
 (require "../../configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration (Option SSH-Newkeys) Void)
+(define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration Maybe-Newkeys Natural)
   (lambda [/dev/tcpout msg rfc newkeys]
-    (define payload : Bytes (ssh-message->bytes msg))
+    (define payload-length : Natural (ssh-message-length msg))
+    (define outgoing-parcel : Bytes (ssh-parcel-outgoing (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys))))
+    (define maybe-overload-parcel : (Option Bytes)
+      (and (not (ssh-check-outgoing-payload-size payload-length ($ssh-payload-capacity rfc)))
+           (let ([overload-parcel (make-bytes (ssh-parcel-assess-size payload-length))])
+             (bytes-copy! overload-parcel 0 outgoing-parcel 0 ssh-packet-size-index)
+             overload-parcel)))
+
     (define traffic : Nonnegative-Fixnum
-      (cond [(not newkeys) (ssh-write-plain-packet /dev/tcpout payload ($ssh-payload-capacity rfc))]
-            [else (ssh-write-cipher-packet /dev/tcpout payload ($ssh-payload-capacity rfc) (ssh-newkeys-encrypt-block-size newkeys)
-                                           (ssh-newkeys-inflate newkeys) (ssh-newkeys-encrypt newkeys) (ssh-newkeys-mac-generate newkeys))]))
+      (let ([parcel (or maybe-overload-parcel outgoing-parcel)])
+        (ssh-message->bytes msg parcel ssh-packet-payload-index)
+        (cond [(ssh-parcel? newkeys) (ssh-write-plain-packet /dev/tcpout parcel payload-length)]
+              [else (ssh-write-cipher-packet /dev/tcpout parcel payload-length (ssh-newkeys-inflate newkeys)
+                                             (ssh-newkeys-encrypt newkeys) (ssh-newkeys-encrypt-block-size newkeys) (ssh-newkeys-mac-generate newkeys))])))
+
+    (unless (not maybe-overload-parcel)
+      ; the new sequence number is required
+      ; the content of the overload parcel can also be used as the 'random' padding for following message 
+      (bytes-copy! outgoing-parcel 0 maybe-overload-parcel 0 (bytes-length outgoing-parcel)))
     
     (ssh-log-message 'debug "sent message ~a[~a] [~a]" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
-    (ssh-log-outgoing-message msg traffic 'debug)))
+    (ssh-log-outgoing-message msg traffic 'debug)
 
-(define ssh-read-transport-message : (-> Input-Port SSH-Configuration (Option SSH-Newkeys) (Listof Symbol) (Values (Option SSH-Message) Bytes))
+    traffic))
+
+(define ssh-read-transport-message : (-> Input-Port SSH-Configuration Maybe-Newkeys (Listof Symbol) (Values (Option SSH-Message) Bytes Natural))
   (lambda [/dev/tcpin rfc newkeys groups]
-    (define-values (payload offset traffic)
-      (cond [(not newkeys) (ssh-read-plain-packet /dev/tcpin ($ssh-payload-capacity rfc))]
-            [else (ssh-read-cipher-packet /dev/tcpin (ssh-newkeys-packet-pool newkeys)
+    (define incoming-parcel : Bytes (ssh-parcel-incoming (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys))))
+    (define-values (payload-end traffic)
+      (cond [(ssh-parcel? newkeys) (ssh-read-plain-packet /dev/tcpin incoming-parcel ($ssh-payload-capacity rfc))]
+            [else (ssh-read-cipher-packet /dev/tcpin (ssh-parcel-incoming (ssh-newkeys-parcel newkeys))
                                           ($ssh-payload-capacity rfc) (ssh-newkeys-decrypt-block-size newkeys)
                                           (ssh-newkeys-deflate newkeys) (ssh-newkeys-decrypt newkeys) (ssh-newkeys-mac-verify newkeys))]))
     
-    (define message-id : Byte (bytes-ref payload 0))
-    (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message payload offset #:groups groups))
+    (define message-id : Byte (bytes-ref incoming-parcel ssh-packet-payload-index))
+    (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
     (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
     
@@ -46,7 +63,10 @@
             [(ssh:msg:disconnect? maybe-trans-msg)
              (ssh-raise-eof-error ssh-read-transport-message (symbol->string (ssh:msg:disconnect-reason maybe-trans-msg)))]))
 
-    (values maybe-trans-msg payload)))
+    (values maybe-trans-msg
+            (cond [(and maybe-trans-msg (not (ssh:msg:kexinit? maybe-trans-msg))) #"" #| useless but to satisfy the type system |#]
+                  [else (subbytes incoming-parcel ssh-packet-payload-index end-index)])
+            traffic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-kex-transparent-message? : (-> SSH-Message Boolean)

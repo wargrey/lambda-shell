@@ -74,11 +74,12 @@
     [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unexpected algorithm type, expected #:mac, #:cipher, or #:compression" #'keyword)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-λCipher! (->* (Bytes) (Index Index (Option Bytes) Index Index) Index))
+(define-type SSH-λCipher! (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index))
+(define-type SSH-λCompression (->* (Bytes) (Natural Natural) Bytes))
 
 (define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex #:as (Immutable-Vector SSH-Key-Exchange<%> (-> Bytes Bytes)))
 (define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-HostKey #:as (Immutable-Vector SSH-Host-Key<%> PKCS#1-Hash))
-(define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (Immutable-Vector (Option (-> Bytes Bytes)) (Option (-> Bytes Bytes))))
+(define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (Immutable-Vector (Option SSH-λCompression) (Option SSH-λCompression)))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (Immutable-Vector (-> Bytes Bytes (Values SSH-λCipher! SSH-λCipher!)) Byte Byte))
 (define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
 

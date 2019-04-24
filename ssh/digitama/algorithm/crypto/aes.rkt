@@ -52,8 +52,8 @@
             (λ [[ciphertext : Bytes]] : Bytes (aes-decrypt ciphertext key-schedule state Nr)))))
 
 (define aes-cipher! : (-> Bytes
-                          (Values (->* (Bytes) (Index Index (Option Bytes) Index Index) Index)
-                                  (->* (Bytes) (Index Index (Option Bytes) Index Index) Index)))
+                          (Values (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index)
+                                  (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index)))
   (lambda [key]
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
@@ -61,9 +61,9 @@
     (define key-schedule : (Vectorof Natural) (aes-key-expand key))
 
     (aes-key-schedule-rotate! key-schedule)
-    (values (λ [[plaintext : Bytes] [pstart : Index 0] [pend : Index 0] [maybe-ciphertext #false] [cstart 0] [cend 0]] : Index
+    (values (λ [[plaintext : Bytes] [pstart : Natural 0] [pend : Natural 0] [maybe-ciphertext #false] [cstart 0] [cend 0]] : Index
               (aes-encrypt! plaintext key-schedule state Nr pstart pend maybe-ciphertext cstart cend))
-            (λ [[ciphertext : Bytes] [cstart : Index 0] [cend : Index 0] [maybe-plaintext #false] [pstart 0] [pend 0]] : Index
+            (λ [[ciphertext : Bytes] [cstart : Natural 0] [cend : Natural 0] [maybe-plaintext #false] [pstart 0] [pend 0]] : Index
               (aes-decrypt! ciphertext key-schedule state Nr cstart cend maybe-plaintext pstart pend)))))
 
 (define aes-cipher-ctr : (-> Bytes Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
@@ -78,8 +78,8 @@
             (λ [[ciphertext : Bytes]] : Bytes (aes-decrypt ciphertext key-schedule state Nr)))))
 
 (define aes-cipher-ctr! : (-> Bytes Bytes
-                              (Values (->* (Bytes) (Index Index (Option Bytes) Index Index) Index)
-                                      (->* (Bytes) (Index Index (Option Bytes) Index Index) Index)))
+                              (Values (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index)
+                                      (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index)))
   (lambda [IV key]
     (define Nk : Byte (aes-words-size key))
     (define Nr : Byte (aes-round Nk))
@@ -87,9 +87,9 @@
     (define key-schedule : (Vectorof Natural) (aes-key-expand key))
 
     (aes-key-schedule-rotate! key-schedule)
-    (values (λ [[plaintext : Bytes] [pstart : Index 0] [pend : Index 0] [maybe-ciphertext #false] [cstart 0] [cend 0]] : Index
+    (values (λ [[plaintext : Bytes] [pstart : Natural 0] [pend : Natural 0] [maybe-ciphertext #false] [cstart : Natural 0] [cend : Natural 0]] : Index
               (aes-encrypt! plaintext key-schedule state Nr pstart pend maybe-ciphertext cstart cend))
-            (λ [[ciphertext : Bytes] [cstart : Index 0] [cend : Index 0] [maybe-plaintext #false] [pstart 0] [pend 0]] : Index
+            (λ [[ciphertext : Bytes] [cstart : Natural 0] [cend : Natural 0] [maybe-plaintext #false] [pstart : Natural 0] [pend : Natural 0]] : Index
               (aes-decrypt! ciphertext key-schedule state Nr cstart cend maybe-plaintext pstart pend)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

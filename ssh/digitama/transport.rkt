@@ -6,7 +6,6 @@
 (require racket/port)
 
 (require "transport/identification.rkt")
-(require "transport/packet.rkt")
 (require "transport/message.rkt")
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
@@ -67,43 +66,48 @@
 (define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
   (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
+    (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) #false]
                                            [kexinit : SSH-MSG-KEXINIT kexinit]
-                                           [newkeys : (Option SSH-Newkeys) #false])
+                                           [newkeys : Maybe-Newkeys (make-ssh-parcel ($ssh-payload-capacity rfc))]
+                                           [incoming-traffic : Integer rekex-traffic]
+                                           [outgoing-traffic : Integer rekex-traffic])
       (define evt : Any
-        (cond [(and (not maybe-rekex) (or (not newkeys))) kexinit]
+        (cond [(and (not maybe-rekex) (or (>= incoming-traffic rekex-traffic) (>= outgoing-traffic rekex-traffic))) kexinit]
               [else (sync/enable-break /dev/sshin (or maybe-rekex /dev/tcpin))]))
 
-      (define-values (maybe-task maybe-newkeys)
+      (define-values (maybe-task maybe-newkeys incoming++ outgoing++)
         (cond [(tcp-port? evt)
-               (define-values (msg payload) (ssh-read-transport-message /dev/tcpin rfc newkeys null))
+               (define-values (msg payload itraffic++) (ssh-read-transport-message /dev/tcpin rfc newkeys null))
                (define maybe-task : Any
                  (cond [(not msg) (write-special payload /dev/sshout)]
                        [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]
                        [(ssh-message-undefined? msg) (thread-send (current-thread) (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
                        [(not (ssh-ignored-incoming-message? msg)) (write-special msg /dev/sshout)]))
-               (values (and (thread? maybe-task) maybe-task) newkeys)]
+               (values (and (thread? maybe-task) maybe-task) newkeys itraffic++ 0)]
 
               [(ssh-message? evt)
                (if (not maybe-rekex)
-                   (cond [(ssh:msg:kexinit? evt) (values (ssh-kex/starts-with-self evt /dev/tcpin /dev/tcpout rfc newkeys server?) newkeys)]
-                         [else (ssh-write-message /dev/tcpout evt rfc newkeys) (values maybe-rekex newkeys)])
-                   (cond [(ssh-kex-transparent-message? evt) (ssh-write-message /dev/tcpout evt rfc newkeys) (values maybe-rekex newkeys)]
-                         [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys)]))]
+                   (cond [(ssh:msg:kexinit? evt) (values (ssh-kex/starts-with-self evt /dev/tcpin /dev/tcpout rfc newkeys server?) newkeys 0 0)]
+                         [else (values maybe-rekex newkeys 0 (ssh-write-message /dev/tcpout evt rfc newkeys))])
+                   (cond [(ssh-kex-transparent-message? evt) (values maybe-rekex newkeys 0 (ssh-write-message /dev/tcpout evt rfc newkeys))]
+                         [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys 0 0)]))]
               
-              [(ssh-newkeys? evt) (values #false evt)]
+              [(and (pair? evt) (ssh-newkeys? (car evt)) (exact-nonnegative-integer? (cdr evt)))
+               (values #false (car evt) (- incoming-traffic) (- (cdr evt) outgoing-traffic))]
 
               [(exn? evt)
                (cond [(exn:ssh:kex? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-KEY-EXCHANGE-FAILED rfc newkeys evt)]
                      [(not (exn:ssh:eof? evt)) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-PROTOCOL-ERROR rfc newkeys evt)])
                (raise evt)]
         
-              [else (values maybe-rekex newkeys)]))
+              [else (values maybe-rekex newkeys 0 0)]))
       
-      (sync-handle-feedback-loop maybe-task (if (ssh:msg:kexinit? evt) evt kexinit) maybe-newkeys))))
+      (sync-handle-feedback-loop maybe-task (if (ssh:msg:kexinit? evt) evt kexinit) maybe-newkeys
+                                 (+ incoming-traffic incoming++) (+ outgoing-traffic outgoing++)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-disconnect : (->* (Output-Port SSH-Disconnection-Reason SSH-Configuration (Option SSH-Newkeys)) ((U String exn False)) Void)
+(define ssh-disconnect : (->* (Output-Port SSH-Disconnection-Reason SSH-Configuration Maybe-Newkeys) ((U String exn False)) Natural)
   (lambda [/dev/tcpout reason rfc newkeys [details #false]]
     (define description : (Option String) (if (exn? details) (exn-message details) details))
     (define msg : SSH-Message (make-ssh:msg:disconnect #:reason reason #:description description))

@@ -56,7 +56,6 @@
      (with-syntax* ([SSH-MSG (ssh-typename #'id)]
                     [ssh:msg (ssh-typeid #'id)]
                     [constructor (format-id #'id "~a" (gensym 'ssh:msg:))]
-                    [SSH:MSG->bytes (format-id #'ssh:msg "~a" (gensym 'ssh:msg:))]
                     [ssh:msg? (format-id #'ssh:msg "~a?" (syntax-e #'ssh:msg))]
                     [ssh:msg-length (format-id #'ssh:msg "~a-length" (syntax-e #'ssh:msg))]
                     [make-ssh:msg (format-id #'ssh:msg "make-~a" (syntax-e #'ssh:msg))]
@@ -109,12 +108,15 @@
                     (define-values (message end-index) (unsafe-bytes->ssh:msg bmsg offset))
                     message))
 
-                (define SSH:MSG->bytes : SSH-Message->Bytes
-                  (case-lambda
-                    [(self) (ssh:msg->bytes (assert self ssh:msg?))]
-                    [(self pool offset) (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))
+                (hash-set! ssh-message-length-database 'SSH-MSG
+                           (λ [[self : SSH-Message]] (ssh:msg-length (assert self ssh:msg?))))
                 
-                (hash-set! ssh-message->bytes-database 'SSH-MSG SSH:MSG->bytes)))]))
+                (hash-set! ssh-message->bytes-database 'SSH-MSG
+                           (case-lambda
+                             [([self : SSH-Message])
+                              (ssh:msg->bytes (assert self ssh:msg?))]
+                             [([self : SSH-Message] [pool : Bytes] [offset : Natural])
+                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))))]))
 
 (define-syntax (define-message stx)
   (syntax-case stx [:]
@@ -153,6 +155,7 @@
 (define ssh-bytes->shared-message-database : (HashTable Symbol (HashTable Index Unsafe-SSH-Bytes->Message)) (make-hasheq))
 (define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
 (define ssh-message->bytes-database : (HashTable Symbol SSH-Message->Bytes) (make-hasheq))
+(define ssh-message-length-database : (HashTable Symbol (-> SSH-Message Natural)) (make-hasheq))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-undefined-message : (-> Byte SSH-Message-Undefined)

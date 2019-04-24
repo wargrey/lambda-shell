@@ -115,6 +115,10 @@
   [SSH_MSG_CHANNEL_FAILURE          100 ([channel : Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-message-length : (-> SSH-Message Natural)
+  (lambda [self]
+    ((hash-ref ssh-message-length-database (ssh-message-name self)) self)))
+
 (define ssh-message->bytes : (SSH-Datum->Bytes SSH-Message)
   (case-lambda
     [(self) ((hash-ref ssh-message->bytes-database (ssh-message-name self)) self)]

@@ -5,7 +5,7 @@
 (require math/number-theory)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-cookie : (->* () (Byte) Bytes)
+(define ssh-cookie : (->* () (Index) Bytes)
   (lambda [[n 16]]
     (define cookie : Bytes (make-bytes n))
 
