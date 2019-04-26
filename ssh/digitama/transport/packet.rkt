@@ -26,8 +26,8 @@
 (define ssh-packet-payload-index : 9 9)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-read-plain-packet : (-> Input-Port Bytes Index (Values Positive-Fixnum Positive-Fixnum))
-  (lambda [/dev/tcpin parcel payload-capacity]
+(define ssh-read-plain-packet : (-> Input-Port Bytes Index (Option Log-Level) (Values Positive-Fixnum Positive-Fixnum))
+  (lambda [/dev/tcpin parcel payload-capacity debug-level]
     (ssh-read-bytes! /dev/tcpin parcel ssh-packet-size-index ssh-packet-payload-index ssh-read-plain-packet)
 
     (define-values (packet-length _) (ssh-bytes->uint32 parcel ssh-packet-size-index))
@@ -37,16 +37,21 @@
 
     (ssh-read-bytes! /dev/tcpin parcel ssh-packet-payload-index packet-end ssh-read-plain-packet)
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
+
+    (ssh-pretty-print-packet 'ssh-read-raw-packet parcel packet-end 8 debug-level #:cipher? #false)
     
     (values (+ ssh-packet-payload-index payload-length) (+ packet-length 4))))
 
 (define ssh-read-cipher-packet : (-> Input-Port Bytes Index Byte
                                      (Option (-> Bytes Bytes)) (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index) (->* (Bytes) (Natural Natural) Bytes)
+                                     (Option Log-Level)
                                      (Values Positive-Fixnum Positive-Fixnum))
-  (lambda [/dev/tcpin parcel payload-capacity cipher-blocksize maybe-deflate decrypt! mac]
-    (define head-block-end : Positive-Index (+ ssh-packet-size-index (max cipher-blocksize 8)))
+  (lambda [/dev/tcpin parcel payload-capacity cipher-blocksize maybe-deflate decrypt! mac debug-level]
+    (define blocksize : Byte (max cipher-blocksize 8))
+    (define head-block-end : Index (+ ssh-packet-size-index blocksize))
     
     (ssh-read-bytes! /dev/tcpin parcel ssh-packet-size-index head-block-end ssh-read-cipher-packet)
+    (ssh-pretty-print-packet 'ssh-read-cipher-packet parcel head-block-end blocksize debug-level)
     (decrypt! parcel ssh-packet-size-index head-block-end)
     
     (define-values (packet-length _) (ssh-bytes->uint32 parcel ssh-packet-size-index))
@@ -55,8 +60,9 @@
     (define packet-end : Positive-Fixnum (+ ssh-packet-padding-size-index packet-length))
 
     (ssh-read-bytes! /dev/tcpin parcel head-block-end packet-end ssh-read-cipher-packet)
+    (ssh-pretty-print-packet 'ssh-read-cipher-packet parcel packet-end blocksize debug-level head-block-end)
     (decrypt! parcel head-block-end packet-end)
-
+    
     (define checksum : Bytes (mac parcel 0 packet-end))
     (define mac-length : Index (bytes-length checksum))
 
@@ -66,23 +72,24 @@
       (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
 
       (unless (bytes=? checksum digest)
-        (ssh-raise-defence-error ssh-read-cipher-packet "inconsistent packet integrity"))
-
-      (bytes-copy! parcel packet-end digest 0
-                   (min mac-length (- (bytes-length parcel) packet-end))))
+        (ssh-raise-defence-error ssh-read-cipher-packet "corrupted packet")))
     
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
     
+    (ssh-pretty-print-packet 'packet-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false)
+    
     (values (+ ssh-packet-payload-index payload-length) (+ packet-length mac-length 4))))
 
-(define ssh-write-plain-packet : (-> Output-Port Bytes Natural Index)
-  (lambda [/dev/tcpout parcel payload-length]
+(define ssh-write-plain-packet : (-> Output-Port Bytes Natural (Option Log-Level) Index)
+  (lambda [/dev/tcpout parcel payload-length debug-level]
     (define-values (packet-length padding-length) (ssh-resolve-package-length payload-length 0))
     (define packet-end : Positive-Fixnum (+ ssh-packet-padding-size-index packet-length))
 
     (ssh-uint32->bytes packet-length parcel ssh-packet-size-index)
     (bytes-set! parcel ssh-packet-padding-size-index padding-length)
 
+    (ssh-pretty-print-packet 'ssh-write-raw-packet parcel packet-end 8 debug-level #:cipher? #false)
+    
     (let ([sent (write-bytes parcel /dev/tcpout ssh-packet-size-index packet-end)])
       (flush-output /dev/tcpout)
       (network-natural-bytes++ parcel 0 ssh-packet-size-index)
@@ -90,8 +97,9 @@
 
 (define ssh-write-cipher-packet : (-> Output-Port Bytes Natural (Option (->* (Bytes) (Natural Natural) Bytes))
                                       (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index) Byte (->* (Bytes) (Natural Natural) Bytes)
+                                      (Option Log-Level)
                                       Nonnegative-Fixnum)
-  (lambda [/dev/tcpout parcel raw-payload-length maybe-inflate encrypt! cipher-blocksize mac]
+  (lambda [/dev/tcpout parcel raw-payload-length maybe-inflate encrypt! cipher-blocksize mac debug-level]
     (define payload-length : Natural
       (cond [(not maybe-inflate) raw-payload-length]
             [else (let* ([payload (maybe-inflate parcel ssh-packet-payload-index (+ ssh-packet-payload-index payload-length))]
@@ -105,8 +113,13 @@
     (ssh-uint32->bytes packet-length parcel ssh-packet-size-index)
     (bytes-set! parcel ssh-packet-padding-size-index padding-length)
     
-    (let ([digest : Bytes (mac parcel 0 packet-end)])    ; generate checksum before encrypting
-      (encrypt! parcel ssh-packet-size-index packet-end) ; skip the sequence number
+    (let ([digest (mac parcel 0 packet-end)]             ; generate checksum before encrypting
+          [blocksize (max 8 cipher-blocksize)])
+      (ssh-pretty-print-packet 'ssh-write-cipher-packet:plain parcel packet-end blocksize debug-level #:digest digest #:cipher? #false)
+
+      (encrypt! parcel ssh-packet-size-index packet-end) ; encrypting skipping the sequence number
+      (ssh-pretty-print-packet 'ssh-write-cipher-packet parcel packet-end blocksize debug-level)
+      
       (let ([sent (+ (write-bytes parcel /dev/tcpout ssh-packet-size-index packet-end) (write-bytes digest /dev/tcpout))])
         (flush-output /dev/tcpout)
         (network-natural-bytes++ parcel 0 ssh-packet-size-index)
@@ -140,7 +153,53 @@
            (ssh-raise-defence-error fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity))]
           [else payload-length])))
 
-(define ssh-read-bytes! : (-> Input-Port Bytes Nonnegative-Fixnum Positive-Fixnum Procedure Void)
+(define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean) Void)
+  (let ([/dev/pktout (open-output-string '/dev/pktout)])
+    (lambda [source parcel packet-end blocksize level [offset 0] #:digest [digest #""] #:cipher? [cipher? #true]]
+      (when (and level (not (eq? level 'none)))
+        (define padding-mark-idx-1 : Fixnum (if cipher? packet-end (- packet-end (+ (bytes-ref parcel ssh-packet-padding-size-index) 1))))
+
+        (when (= offset 0)
+          (fprintf /dev/pktout "==> ~a (blocksize: ~a)~n" source (~size blocksize)))
+
+        (with-asserts ([packet-end index?])
+          (let pretty-print ([pidx : Nonnegative-Fixnum (+ ssh-packet-size-index offset)])
+            (when (< pidx packet-end)              
+              (fprintf /dev/pktout "~a:  " (~r (- pidx ssh-packet-size-index) #:base 16 #:min-width 8 #:pad-string "0"))
+
+              (let pretty-print-line ([count : Index 0]
+                                      [srahc : (Listof Char) null])
+                (define idx : Nonnegative-Fixnum (+ pidx count))
+                
+                (cond [(>= idx packet-end)
+                       ; NOTE: logger appends the #\newline
+                       ; NOTE: the packet length should always be the multiple of blocksize
+                       (fprintf /dev/pktout "| ~a" (list->string (reverse srahc)))]
+                      [(>= count blocksize)
+                       (fprintf /dev/pktout "| ~a~n" (list->string (reverse srahc)))
+                       (pretty-print (+ pidx blocksize))]
+                      [else (let ([octet (bytes-ref parcel idx)]
+                                  [count++ (+ count 1)])
+                              (define char : Char
+                                (let ([c (integer->char octet)])
+                                  (cond [(char-graphic? c) c]
+                                        [(> idx padding-mark-idx-1) #\+]
+                                        [else #\.])))
+                              
+                              (fprintf /dev/pktout (if (= idx padding-mark-idx-1) "~a+" "~a ")
+                                       (string-upcase (~r octet #:base 16 #:min-width 2 #:pad-string "0")))
+
+                              (when (= (remainder count++ blocksize) 0)
+                                (fprintf /dev/pktout " "))
+                              
+                              (pretty-print-line count++ (cons char srahc)))])))))
+
+        (unless (bytes=? digest #"")
+          (fprintf /dev/pktout "Digest: ~a" (bytes->hex-string digest #:separator ":")))
+          
+        (ssh-log-message level (bytes->string/utf-8 (get-output-bytes /dev/pktout #true)) #:data blocksize)))))
+
+(define ssh-read-bytes! : (-> Input-Port Bytes Nonnegative-Fixnum Nonnegative-Fixnum Procedure Void)
   (lambda [/dev/sshin parcel start end func]
     (when (eof-object? (read-bytes! parcel /dev/sshin start end))
       (ssh-raise-eof-error func "connection lost"))))

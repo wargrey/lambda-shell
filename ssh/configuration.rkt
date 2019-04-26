@@ -46,4 +46,6 @@
 
    [server-banner-handler : SSH-Server-Line-Handler void]
    [maximum-server-banner-count : Positive-Index 1024]
-   [longest-server-banner-length : Positive-Index 8192]))
+   [longest-server-banner-length : Positive-Index 8192]
+
+   [pretty-log-packet-level : (Option Log-Level) #false]))

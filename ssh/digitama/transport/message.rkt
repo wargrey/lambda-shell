@@ -26,16 +26,17 @@
     (define traffic : Nonnegative-Fixnum
       (let ([parcel (or maybe-overload-parcel outgoing-parcel)])
         (ssh-message->bytes msg parcel ssh-packet-payload-index)
-        (cond [(ssh-parcel? newkeys) (ssh-write-plain-packet /dev/tcpout parcel payload-length)]
+        (cond [(ssh-parcel? newkeys) (ssh-write-plain-packet /dev/tcpout parcel payload-length ($ssh-pretty-log-packet-level rfc))]
               [else (ssh-write-cipher-packet /dev/tcpout parcel payload-length (ssh-newkeys-inflate newkeys)
-                                             (ssh-newkeys-encrypt newkeys) (ssh-newkeys-encrypt-block-size newkeys) (ssh-newkeys-mac-generate newkeys))])))
+                                             (ssh-newkeys-encrypt newkeys) (ssh-newkeys-encrypt-block-size newkeys) (ssh-newkeys-mac-generate newkeys)
+                                             ($ssh-pretty-log-packet-level rfc))])))
 
     (unless (not maybe-overload-parcel)
       ; the new sequence number is required
       ; the content of the overload parcel can also be used as the 'random' padding for following message 
       (bytes-copy! outgoing-parcel 0 maybe-overload-parcel 0 (bytes-length outgoing-parcel)))
     
-    (ssh-log-message 'debug "sent message ~a[~a] [~a]" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
+    (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
     (ssh-log-outgoing-message msg traffic 'debug)
 
     traffic))
@@ -44,15 +45,16 @@
   (lambda [/dev/tcpin rfc newkeys groups]
     (define incoming-parcel : Bytes (ssh-parcel-incoming (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys))))
     (define-values (payload-end traffic)
-      (cond [(ssh-parcel? newkeys) (ssh-read-plain-packet /dev/tcpin incoming-parcel ($ssh-payload-capacity rfc))]
+      (cond [(ssh-parcel? newkeys) (ssh-read-plain-packet /dev/tcpin incoming-parcel ($ssh-payload-capacity rfc) ($ssh-pretty-log-packet-level rfc))]
             [else (ssh-read-cipher-packet /dev/tcpin (ssh-parcel-incoming (ssh-newkeys-parcel newkeys))
                                           ($ssh-payload-capacity rfc) (ssh-newkeys-decrypt-block-size newkeys)
-                                          (ssh-newkeys-deflate newkeys) (ssh-newkeys-decrypt newkeys) (ssh-newkeys-mac-verify newkeys))]))
+                                          (ssh-newkeys-deflate newkeys) (ssh-newkeys-decrypt newkeys) (ssh-newkeys-mac-verify newkeys)
+                                          ($ssh-pretty-log-packet-level rfc))]))
     
     (define message-id : Byte (bytes-ref incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
     (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
-    (ssh-log-message 'debug "received transport layer message ~a[~a] [~a]" message-type message-id (~size traffic))
+    (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)" message-type message-id (~size traffic))
     
     (unless (not maybe-trans-msg)
       (ssh-log-incoming-message maybe-trans-msg traffic 'debug)

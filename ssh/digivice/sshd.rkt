@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require ssh/transport)
+(require ssh/configuration)
 
 (require racket/string)
 (require racket/cmdline)
@@ -40,7 +41,7 @@
      flag-table
      (λ [!voids]
        (with-logging-to-port (current-output-port)
-         (λ [] (let ([sshd (ssh-listen (ssh-target-port))])
+         (λ [] (let ([sshd (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level 'info))])
                  (parameterize ([current-custodian (ssh-custodian sshd)])
                    (with-handlers ([exn:break? (λ [e] (ssh-shutdown sshd))]
                                    [exn? (λ [e] (eprintf "~a~n" (exn-message e)))])
