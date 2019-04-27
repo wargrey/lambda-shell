@@ -26,6 +26,12 @@
    #:date   2001
    #:url    "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf")
 
+@(define-bib libssh2
+   #:title  "A client-side C library implementing the SSH2 protocol"
+   #:author (org-author-name "The libssh2 Project")
+   #:date   2018
+   #:url    "https://www.libssh2.org")
+
 @handbook-story{The Secure Shell Protocol Architecture}
 
 This section demonstrates the implementation of @~cite[SSH-ARCH].
@@ -92,6 +98,14 @@ These test cases are defined in @~cite[AES].
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f aes-ciphertext128)
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f1011121314151617 aes-ciphertext192)
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f aes-ciphertext256)]
+
+The next testcase is dumped from the debug information of @~cite[libssh2].
+
+@tamer-action[
+ (define-values (c2s-plaintext c2s-ciphertext) (values '0x050000000C7373682D75736572617574 '0xb1b5681bd3596d80f34482a7a2f215ad))
+ (define-values (c2s-iv c2s-key) (values '0x409265b173313e3a1c78c714b27bc72c '0x6df8cd5d2a6487aa257dc3e8119a20c1))
+ 
+ (aes-ctr-cipher c2s-plaintext c2s-iv c2s-key c2s-ciphertext)]
 
 @handbook-scenario{Data Integrity Algorithms}
 
@@ -264,27 +278,6 @@ These test cases are defined in @~cite[HMAC-SHA].
                            (pict:hc-append sbox-gapsize Sin Ssub (aes-add-round-key state schedule (* round 4) 1))
                            (state-array-pict state))))
 
-       (define aes-core-cipher
-         (lambda [0xplaintext 0xkey 0xciphertext]
-           (define plaintext (symb0x->octets 0xplaintext))
-           (define ciphertext (symb0x->octets 0xciphertext))
-           (define key (symb0x->octets 0xkey))
-           (define-values (encrypt decrypt) (aes-cipher key))
-           (define ctext (encrypt plaintext))
-           (define ptext (decrypt ctext))
-           (define encryption-okay? (bytes=? ctext ciphertext))
-           (define decryption-okay? (bytes=? ptext plaintext))
-           
-           (printf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
-           (printf "Cipher Key = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
-           (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
-           
-           (when (not decryption-okay?)
-             (eprintf "Plaintext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
-
-           (and encryption-okay? decryption-okay?)))
-
        (define aes-core-cipher!
          (lambda [0xplaintext 0xkey 0xciphertext]
            (define pool (symb0x->octets 0xplaintext))
@@ -296,6 +289,50 @@ These test cases are defined in @~cite[HMAC-SHA].
            
            (values (bytes->hex-string pool)
                    (bytes=? pool ciphertext))))
+       
+       (define aes-core-cipher
+         (lambda [0xplaintext 0xkey 0xciphertext]
+           (define plaintext (symb0x->octets 0xplaintext))
+           (define ciphertext (symb0x->octets 0xciphertext))
+           (define key (symb0x->octets 0xkey))
+           (define-values (encrypt decrypt) (aes-cipher key))
+           (define ctext (encrypt plaintext))
+           (define ptext (decrypt ctext))
+           (define encryption-okay? (bytes=? ctext ciphertext))
+           (define decryption-okay? (bytes=? ptext plaintext))
+           
+           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
+           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
+           (fprintf (if encryption-okay? (current-output-port) (current-error-port))
+                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
+           
+           (when (not decryption-okay?)
+             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
+
+           (and encryption-okay? decryption-okay?)))
+       
+       (define aes-ctr-cipher
+         (lambda [0xplaintext 0xIV 0xkey 0xciphertext]
+           (define plaintext (symb0x->octets 0xplaintext))
+           (define ciphertext (symb0x->octets 0xciphertext))
+           (define IV (symb0x->octets 0xIV))
+           (define key (symb0x->octets 0xkey))
+           (define-values (encrypt decrypt) (aes-cipher-ctr IV key))
+           (define ctext (encrypt plaintext))
+           (define ptext (decrypt ctext))
+           (define encryption-okay? (bytes=? ctext ciphertext))
+           (define decryption-okay? (bytes=? ptext plaintext))
+           
+           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
+           (printf "InitialVector = ~a (~a Bits)~n" (bytes->hex-string IV) (* (bytes-length IV) 8))
+           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
+           (fprintf (if encryption-okay? (current-output-port) (current-error-port))
+                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
+           
+           (when (not decryption-okay?)
+             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
+
+           (and encryption-okay? decryption-okay?)))
        
        (define HMAC
          (lambda [digest hmac-sha256 key message]

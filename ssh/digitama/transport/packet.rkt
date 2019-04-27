@@ -131,11 +131,11 @@
     (let* ([idsize (max cipher-blocksize 8)]
            [packet-draft (+ 4 1 payload-length)]
            [padding-draft (- idsize (remainder packet-draft idsize))]
-           [padding-draft (if (< padding-draft 4) (+ padding-draft idsize) padding-draft)]
            [thwarting-capacity (quotient (- #xFF padding-draft) idsize)]
-           [random-length (+ padding-draft (* idsize (random (+ thwarting-capacity 1))))])
-      (values (assert (- (+ packet-draft random-length) 4) index?)
-              random-length))))
+           [padding-length (+ padding-draft (* idsize (random (+ thwarting-capacity 1))))] ; TODO it seems that it pads too much
+           [padding-length (if (< padding-length 4) (+ padding-length idsize) padding-length)])
+      (values (assert (- (+ packet-draft padding-length) 4) index?)
+              padding-length))))
 
 (define ssh-check-outgoing-payload-size : (-> Natural Index Boolean)
   (lambda [payload-length payload-capacity]
@@ -155,15 +155,15 @@
 
 (define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean) Void)
   (let ([/dev/pktout (open-output-string '/dev/pktout)])
-    (lambda [source parcel packet-end blocksize level [offset 0] #:digest [digest #""] #:cipher? [cipher? #true]]
+    (lambda [source parcel packet-end blocksize level [start ssh-packet-size-index] #:digest [digest #""] #:cipher? [cipher? #true]]
       (when (and level (not (eq? level 'none)))
         (define padding-mark-idx-1 : Fixnum (if cipher? packet-end (- packet-end (+ (bytes-ref parcel ssh-packet-padding-size-index) 1))))
 
-        (when (= offset 0)
+        (when (= start ssh-packet-size-index)
           (fprintf /dev/pktout "==> ~a (blocksize: ~a)~n" source (~size blocksize)))
 
         (with-asserts ([packet-end index?])
-          (let pretty-print ([pidx : Nonnegative-Fixnum (+ ssh-packet-size-index offset)])
+          (let pretty-print ([pidx : Nonnegative-Fixnum start])
             (when (< pidx packet-end)              
               (fprintf /dev/pktout "~a:  " (~r (- pidx ssh-packet-size-index) #:base 16 #:min-width 8 #:pad-string "0"))
 
@@ -187,7 +187,7 @@
                                         [else #\.])))
                               
                               (fprintf /dev/pktout (if (= idx padding-mark-idx-1) "~a+" "~a ")
-                                       (string-upcase (~r octet #:base 16 #:min-width 2 #:pad-string "0")))
+                                       (~r octet #:base 16 #:min-width 2 #:pad-string "0"))
 
                               (when (= (remainder count++ blocksize) 0)
                                 (fprintf /dev/pktout " "))
@@ -195,7 +195,7 @@
                               (pretty-print-line count++ (cons char srahc)))])))))
 
         (unless (bytes=? digest #"")
-          (fprintf /dev/pktout "Digest: ~a" (bytes->hex-string digest #:separator ":")))
+          (fprintf /dev/pktout "~n[digest: ~a]" (bytes->hex-string digest #:separator ":")))
           
         (ssh-log-message level (bytes->string/utf-8 (get-output-bytes /dev/pktout #true)) #:data blocksize)))))
 

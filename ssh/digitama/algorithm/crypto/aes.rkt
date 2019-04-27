@@ -11,6 +11,7 @@
 (require "state.rkt")
 (require "s-box.rkt")
 (require "math.rkt")
+(require "ctr.rkt")
 
 (require (for-syntax racket/base))
 
@@ -72,10 +73,13 @@
     (define Nr : Byte (aes-round Nk))
     (define state : State-Array (make-state-array 4 aes-Nb))
     (define key-schedule : (Vectorof Natural) (aes-key-expand key))
+    (define encrypt-ctr : Bytes (bytes-copy IV))
+    (define decrypt-ctr : Bytes (bytes-copy IV))
+    (define AES-K-IV : Bytes (make-bytes aes-blocksize))
 
     (aes-key-schedule-rotate! key-schedule)
-    (values (λ [[plaintext : Bytes]] : Bytes (aes-encrypt plaintext key-schedule state Nr 0 0 IV))
-            (λ [[ciphertext : Bytes]] : Bytes (aes-decrypt ciphertext key-schedule state Nr 0 0 IV)))))
+    (values (λ [[plaintext : Bytes]] : Bytes (aes-crypt-ctr plaintext encrypt-ctr key-schedule state Nr 0 0 AES-K-IV))
+            (λ [[ciphertext : Bytes]] : Bytes (aes-crypt-ctr ciphertext decrypt-ctr key-schedule state Nr 0 0 AES-K-IV)))))
 
 (define aes-cipher-ctr! : (-> Bytes Bytes
                               (Values (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index)
@@ -85,76 +89,90 @@
     (define Nr : Byte (aes-round Nk))
     (define state : State-Array (make-state-array 4 aes-Nb))
     (define key-schedule : (Vectorof Natural) (aes-key-expand key))
+    (define encrypt-ctr : Bytes (bytes-copy IV))
+    (define decrypt-ctr : Bytes (bytes-copy IV))
+    (define AES-K-IV : Bytes (make-bytes aes-blocksize))
 
     (aes-key-schedule-rotate! key-schedule)
     (values (λ [[plaintext : Bytes] [pstart : Natural 0] [pend : Natural 0] [maybe-ciphertext #false] [cstart : Natural 0] [cend : Natural 0]] : Index
-              (aes-encrypt! plaintext key-schedule state Nr pstart pend maybe-ciphertext cstart cend IV))
+              (aes-crypt-ctr! plaintext encrypt-ctr key-schedule state Nr pstart pend maybe-ciphertext cstart cend AES-K-IV))
             (λ [[ciphertext : Bytes] [cstart : Natural 0] [cend : Natural 0] [maybe-plaintext #false] [pstart : Natural 0] [pend : Natural 0]] : Index
-              (aes-decrypt! ciphertext key-schedule state Nr cstart cend maybe-plaintext pstart pend IV)))))
+              (aes-crypt-ctr! ciphertext decrypt-ctr key-schedule state Nr cstart cend maybe-plaintext pstart pend AES-K-IV)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-encrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural Bytes) Bytes)
-  (lambda [plaintext schedule state round [pstart 0] [pend0 0] [counter #""]]
+(define aes-encrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural) Bytes)
+  (lambda [plaintext schedule state round [pstart 0] [pend0 0]]
     (define pend : Index (bytes-range-end plaintext pstart pend0))
     (define ciphertext : Bytes (make-bytes (aes-ciphertext-size (- pend pstart))))
 
-    (aes-encrypt! plaintext schedule state round pstart pend ciphertext 0 0 counter)
+    (aes-encrypt! plaintext schedule state round pstart pend ciphertext)
     ciphertext))
 
-(define aes-encrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural Bytes) Index)
-  (lambda [plaintext schedule state round [pstart 0] [pend0 0] [maybe-ciphertext #false] [cstart0 0] [cend0 0] [counter #""]]
+(define aes-encrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
+  (lambda [plaintext schedule state round [pstart 0] [pend0 0] [maybe-ciphertext #false] [cstart0 0] [cend0 0]]
     (define pend : Index (bytes-range-end plaintext pstart pend0))
     (define-values (ciphertext cstart cend)
       (cond [(not maybe-ciphertext) (values plaintext pstart pend)]
             [else (values maybe-ciphertext cstart0 (bytes-range-end maybe-ciphertext cstart0 cend0))]))
 
-    (displayln (list (cons pstart pend) (cons cstart cend)))
-    (if (= (bytes-length counter) aes-blocksize)
-        (let encrypt-block ([pidx : Nonnegative-Fixnum (assert pstart index?)]
-                            [cidx : Nonnegative-Fixnum (assert cstart index?)])
-          (when (and (< pidx pend) (< cidx cend))
-            (aes-block-encrypt plaintext pidx pend ciphertext cidx cend schedule state round)
-            (aes-block-ctr-xor ciphertext cidx cend counter)
-            (network-natural-bytes++ counter)
-            (encrypt-block (+ pidx aes-blocksize) (+ cidx aes-blocksize))))
-        (let encrypt-block ([pidx : Nonnegative-Fixnum (assert pstart index?)]
-                            [cidx : Nonnegative-Fixnum (assert cstart index?)])
-          (when (and (< pidx pend) (< cidx cend))
-            (aes-block-encrypt plaintext pidx pend ciphertext cidx cend schedule state round)
-            (encrypt-block (+ pidx aes-blocksize) (+ cidx aes-blocksize)))))
+    (let encrypt-block ([pidx : Nonnegative-Fixnum (assert pstart index?)]
+                        [cidx : Nonnegative-Fixnum (assert cstart index?)])
+      (when (and (< pidx pend) (< cidx cend))
+        (aes-block-encrypt plaintext pidx pend ciphertext cidx cend schedule state round)
+        (encrypt-block (+ pidx aes-blocksize) (+ cidx aes-blocksize))))
 
     cend))
 
-(define aes-decrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural Bytes) Bytes)
-  (lambda [ciphertext schedule state round [cstart 0] [cend0 0] [counter #""]]
+(define aes-decrypt : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural) Bytes)
+  (lambda [ciphertext schedule state round [cstart 0] [cend0 0]]
     (define cend : Index (bytes-range-end ciphertext cstart cend0))
     (define plaintext : Bytes (make-bytes (- cend cstart)))
 
-    (aes-decrypt! ciphertext schedule state round cstart cend plaintext 0 0 counter)
+    (aes-decrypt! ciphertext schedule state round cstart cend plaintext)
     plaintext))
 
-(define aes-decrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural Bytes) Index)
-  (lambda [ciphertext schedule state round [cstart 0] [cend0 0] [maybe-plaintext #false] [pstart0 0] [pend0 0] [counter #""]]
+(define aes-decrypt! : (->* (Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
+  (lambda [ciphertext schedule state round [cstart 0] [cend0 0] [maybe-plaintext #false] [pstart0 0] [pend0 0]]
     (define cend : Index (bytes-range-end ciphertext cstart cend0))
     (define-values (plaintext pstart pend)
       (cond [(not maybe-plaintext) (values ciphertext cstart cend)]
             [else (values maybe-plaintext pstart0 (bytes-range-end maybe-plaintext pstart0 pend0))]))
 
-    (if (= (bytes-length counter) aes-blocksize)
-        (let encrypt-block ([cidx : Nonnegative-Fixnum (assert cstart index?)]
-                            [pidx : Nonnegative-Fixnum (assert pstart index?)])
-          (when (and (< cidx cend) (< pidx pend))
-            (aes-block-decrypt ciphertext cidx cend plaintext pidx pend schedule state round)
-            (aes-block-ctr-xor plaintext pidx pend counter)
-            (network-natural-bytes++ counter)
-            (encrypt-block (+ cidx aes-blocksize) (+ pidx aes-blocksize))))
-        (let encrypt-block ([cidx : Nonnegative-Fixnum (assert cstart index?)]
-                            [pidx : Nonnegative-Fixnum (assert pstart index?)])
-          (when (and (< cidx cend) (< pidx pend))
-            (aes-block-decrypt ciphertext cidx cend plaintext pidx pend schedule state round)
-            (encrypt-block (+ cidx aes-blocksize) (+ pidx aes-blocksize)))))
+    (let encrypt-block ([cidx : Nonnegative-Fixnum (assert cstart index?)]
+                        [pidx : Nonnegative-Fixnum (assert pstart index?)])
+      (when (and (< cidx cend) (< pidx pend))
+        (aes-block-decrypt ciphertext cidx cend plaintext pidx pend schedule state round)
+        (encrypt-block (+ cidx aes-blocksize) (+ pidx aes-blocksize))))
 
     pend))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; NOTE: CTR does not require a decryption algorithm
+
+(define aes-crypt-ctr : (->* (Bytes Bytes (Vectorof Natural) State-Array Byte) (Natural Natural Bytes) Bytes)
+  (lambda [text counter schedule state round [tstart 0] [tend0 0] [aes-k-iv (make-bytes aes-blocksize)]]
+    (define tend : Index (bytes-range-end text tstart tend0))
+    (define result : Bytes (make-bytes (aes-ciphertext-size (- tend tstart))))
+
+    (aes-crypt-ctr! text counter schedule state round tstart tend result 0 0 aes-k-iv)
+    result))
+
+(define aes-crypt-ctr! : (->* (Bytes Bytes (Vectorof Natural) State-Array Byte) (Natural Natural (Option Bytes) Natural Natural Bytes) Index)
+  (lambda [intext counter schedule state round [istart 0] [iend0 0] [maybe-outtext #false] [ostart0 0] [oend0 0] [aes-k-iv (make-bytes aes-blocksize)]]
+    (define iend : Index (bytes-range-end intext istart iend0))
+    (define-values (outtext ostart oend)
+      (cond [(not maybe-outtext) (values intext istart iend)]
+            [else (values maybe-outtext ostart0 (bytes-range-end maybe-outtext ostart0 oend0))]))
+
+    (let crypt-block ([iidx : Nonnegative-Fixnum (assert istart index?)]
+                        [oidx : Nonnegative-Fixnum (assert ostart index?)])
+      (when (and (< iidx iend) (< oidx oend))
+        (aes-block-encrypt counter 0 aes-blocksize aes-k-iv 0 aes-blocksize schedule state round)
+        (ctr-block-xor! intext iidx outtext oidx aes-k-iv aes-blocksize)
+        (network-natural-bytes++ counter)
+        (crypt-block (+ iidx aes-blocksize) (+ oidx aes-blocksize))))
+
+    oend))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-block-encrypt : (-> Bytes Index Index Bytes Index Index (Vectorof Natural) State-Array Byte Void)
@@ -209,21 +227,6 @@
     (state-array-add-round-key! state schedule 0)
     
     (state-array-copy-to-bytes! state plaintext pstart pend)))
-
-(define aes-block-ctr-xor : (-> Bytes Index Positive-Index Bytes Void)
-  (lambda [block start end counter]
-    (define xor-step : 8 8)
-    (let ctr-xor ([bidx : Nonnegative-Fixnum start]
-                  [cidx : Index 0])
-      (when (and (< bidx end) (< cidx aes-blocksize))
-        (define bnext : Nonnegative-Fixnum (+ bidx xor-step))
-        (define cnext : Index (+ cidx xor-step))
-        (define ctr : Integer
-          (bitwise-xor (integer-bytes->integer block #false #true bidx bnext)
-                       (integer-bytes->integer counter #false #true cidx cnext)))
-
-        (integer->integer-bytes ctr xor-step #false #true block bidx)
-        (ctr-xor bnext cnext)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-key-expand : (-> Bytes (Vectorof Natural))
