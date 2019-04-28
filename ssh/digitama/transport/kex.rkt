@@ -137,18 +137,18 @@
     (define-values (s2c-inflate s2c-deflate) (values (vector-ref s2c-compression 0) (vector-ref s2c-compression 1)))
     (define-values (c2s-encrypt c2s-decrypt) ((vector-ref c2s-cipher 0) c2s-initialization-vector c2s-cipher-key))
     (define-values (s2c-encrypt s2c-decrypt) ((vector-ref s2c-cipher 0) s2c-initialization-vector s2c-cipher-key))
-    (define-values (c2s-checksum s2c-checksum) (values ((vector-ref c2s-hmac 0) c2s-mac-key) ((vector-ref s2c-hmac 0) c2s-mac-key)))
+    (define-values (c2s-digest s2c-digest) (values ((vector-ref c2s-hmac 0) c2s-mac-key) ((vector-ref s2c-hmac 0) s2c-mac-key)))
 
     (define newkeys : SSH-Newkeys
       (if (and server?)
           (ssh-newkeys session-id parcel
                        s2c-inflate c2s-deflate
                        s2c-encrypt c2s-decrypt s2c-cipher-block-size-in-bytes c2s-cipher-block-size-in-bytes
-                       s2c-checksum c2s-checksum)
+                       s2c-digest c2s-digest)
           (ssh-newkeys session-id parcel
                        c2s-inflate s2c-deflate
                        c2s-encrypt s2c-decrypt c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes
-                       c2s-checksum s2c-checksum)))
+                       c2s-digest s2c-digest)))
     
     (ssh-parcel-action-on-rekexed parcel)
 

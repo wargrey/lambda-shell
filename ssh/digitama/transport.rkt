@@ -36,6 +36,9 @@
    [sshin : Input-Port])
   #:type-name SSH-Port)
 
+(define ssh-reserved-services : (Listof Symbol) '(ssh-userauth ssh-connection))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define sshc-ghostcat : (-> Output-Port String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification hostname port kexinit rfc]
     (thread
@@ -67,6 +70,7 @@
   (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
+    (define self : Thread (current-thread))
     (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) #false]
                                            [kexinit : SSH-MSG-KEXINIT kexinit]
                                            [newkeys : Maybe-Newkeys (make-ssh-parcel ($ssh-payload-capacity rfc))]
@@ -82,7 +86,11 @@
                (define maybe-task : Any
                  (cond [(not msg) (write-special payload /dev/sshout)]
                        [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]
-                       [(ssh-message-undefined? msg) (thread-send (current-thread) (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
+                       [(ssh-message-undefined? msg) (thread-send self (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
+                       [(ssh:msg:service:request? msg)
+                        (let ([service (ssh:msg:service:request-name msg)])
+                          (if (memq service ssh-reserved-services) (ssh-service-accept self service) (write-special msg /dev/sshout)))]
+                       [(ssh:msg:service:accept? msg)]
                        [(not (ssh-ignored-incoming-message? msg)) (write-special msg /dev/sshout)]))
                (values (and (thread? maybe-task) maybe-task) newkeys itraffic++ 0)]
 
@@ -111,14 +119,20 @@
   (lambda [/dev/tcpout reason rfc newkeys [details #false]]
     (define description : (Option String) (if (exn? details) (exn-message details) details))
     (define msg : SSH-Message (make-ssh:msg:disconnect #:reason reason #:description description))
+    
     (ssh-write-message /dev/tcpout msg rfc newkeys)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-service-accept : (-> Thread Symbol Void)
+  (lambda [self service]
+    (thread-send self (make-ssh:msg:service:accept #:name service))))
+
 (define ssh-sync-disconnect : (->* (Thread SSH-Disconnection-Reason) ((Option String)) Void)
   (lambda [self reason [description #false]]
     (thread-send self (make-ssh:msg:disconnect #:reason reason #:description description))
     (thread-wait self)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-read-special : (All (a) (-> Input-Port (Option Nonnegative-Real) (-> Any Boolean : a) Procedure a))
   (lambda [/dev/sshin timeout ? func]
     (unless (cond [(not timeout) (sync/enable-break /dev/sshin)]

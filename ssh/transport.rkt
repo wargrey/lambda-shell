@@ -135,6 +135,10 @@
      (ssh-sync-disconnect (ssh-port-ghostcat self) reason description)
      (custodian-shutdown-all (ssh-transport-custodian self))]))
 
+(define ssh-accept-service : (-> SSH-Port Symbol Void)
+  (lambda [self service]
+    (ssh-service-accept (ssh-port-ghostcat self) service)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-custodian : (-> (U SSH-Listener SSH-Port) Custodian)
   (lambda [self]

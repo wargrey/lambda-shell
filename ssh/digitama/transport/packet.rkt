@@ -76,7 +76,7 @@
     
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
     
-    (ssh-pretty-print-packet 'packet-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false)
+    (ssh-pretty-print-packet 'ssh-read-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false)
     
     (values (+ ssh-packet-payload-index payload-length) (+ packet-length mac-length 4))))
 
