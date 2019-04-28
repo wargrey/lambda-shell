@@ -19,7 +19,7 @@
 (require "assignment.rkt")
 (require "configuration.rkt")
 
-;;; register builtin assignments
+;;; register builtin assignments for algorithms
 (require "digitama/assignment/diffie-hellman.rkt")
 (require "digitama/assignment/hostkey.rkt")
 (require "digitama/assignment/mac.rkt")
@@ -49,11 +49,14 @@
           (ssh-log-message 'debug "server[~a:~a] identification string: ~a" hostname port (ssh-identification-raw server-id))
           (SSH-Port root sshc-custodian rfc logger sshc /dev/sshin))))))
 
-(define ssh-listen : (->* (Natural) (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
+(define ssh-listen : (->* (Natural)
+                          (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration
+                                 #:services (Listof Symbol) #:disable-reserved-services? Boolean)
                           SSH-Listener)
   (lambda [port [max-allow-wait 4]
                 #:custodian [root (make-custodian)] #:logger [logger (make-logger 'λsh:sshd (current-logger))] #:hostname [hostname #false]
-                #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]]
+                #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]
+                #:services [services null] #:disable-reserved-services? [disable-reserved-services? #false]]
     (define listener-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian listener-custodian]
                    [current-logger logger])
@@ -62,8 +65,8 @@
       (define identification : String (ssh-identification-string rfc))
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
-      (SSH-Listener root listener-custodian rfc logger
-                    sshd identification kexinit
+      (SSH-Listener root listener-custodian rfc logger sshd identification kexinit
+                    (if (not disable-reserved-services?) (list* 'ssh-userauth 'ssh-connection services) services)
                     (format "~a:~a" local-name local-port) local-port))))
 
 (define ssh-accept : (-> SSH-Listener [#:custodian Custodian] SSH-Port)
@@ -80,7 +83,8 @@
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
         (define kexinit : SSH-MSG-KEXINIT  (ssh-listener-kexinit listener))
-        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
+        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener)
+                                             /dev/tcpin /dev/tcpout kexinit (ssh-listener-services listener) rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))

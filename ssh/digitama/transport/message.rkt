@@ -53,8 +53,10 @@
     
     (define message-id : Byte (bytes-ref incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
-    (define message-type : (U Symbol String) (if maybe-trans-msg (ssh-message-name maybe-trans-msg) (format "unrecognized message[~a]" message-id)))
-    (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)" message-type message-id (~size traffic))
+
+    (unless (not maybe-trans-msg)
+      (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"
+                       (ssh-message-name maybe-trans-msg) message-id (~size traffic)))
     
     (unless (not maybe-trans-msg)
       (ssh-log-incoming-message maybe-trans-msg traffic 'debug)

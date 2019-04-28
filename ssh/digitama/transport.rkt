@@ -27,6 +27,7 @@
   ([watchdog : TCP-Listener]
    [identification : String]
    [kexinit : SSH-MSG-KEXINIT]
+   [services : (Listof Symbol)]
    [name : String]
    [port-number : Index])
   #:type-name SSH-Listener)
@@ -35,8 +36,6 @@
   ([ghostcat : Thread]
    [sshin : Input-Port])
   #:type-name SSH-Port)
-
-(define ssh-reserved-services : (Listof Symbol) '(ssh-userauth ssh-connection))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define sshc-ghostcat : (-> Output-Port String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
@@ -51,10 +50,10 @@
 
              (parameterize ([current-client-identification identification]
                             [current-server-identification (ssh-identification-raw peer)])
-               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #false)))))))
+               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit null rfc #false)))))))
 
-(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
-  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
+(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT (Listof Symbol) SSH-Configuration Thread)
+  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit service rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special (if (exn:ssh:eof? e) eof e) /dev/sshout))])
              (define peer : SSH-Identification (ssh-read-client-identification /dev/tcpin rfc))
@@ -64,10 +63,10 @@
 
              (parameterize ([current-client-identification (ssh-identification-raw peer)]
                             [current-server-identification identification])
-               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc  #true)))))))
+               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit service rfc #true)))))))
 
-(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
+(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT (Listof Symbol) SSH-Configuration Boolean Void)
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit services rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (define self : Thread (current-thread))
@@ -87,11 +86,12 @@
                  (cond [(not msg) (write-special payload /dev/sshout)]
                        [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]
                        [(ssh-message-undefined? msg) (thread-send self (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
-                       [(ssh:msg:service:request? msg)
-                        (let ([service (ssh:msg:service:request-name msg)])
-                          (if (memq service ssh-reserved-services) (ssh-service-accept self service) (write-special msg /dev/sshout)))]
-                       [(ssh:msg:service:accept? msg)]
-                       [(not (ssh-ignored-incoming-message? msg)) (write-special msg /dev/sshout)]))
+                       [(ssh-ignored-incoming-message? msg) (void)]
+                       [(not (ssh:msg:service:request? msg)) (write-special msg /dev/sshout)]
+                       [else (let ([service (ssh:msg:service:request-name msg)])
+                               (cond [(memq service services) (ssh-service-accept self service)]
+                                     [else (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE rfc newkeys
+                                                           (format "unrecognized service: ~a" service))]))]))
                (values (and (thread? maybe-task) maybe-task) newkeys itraffic++ 0)]
 
               [(ssh-message? evt)

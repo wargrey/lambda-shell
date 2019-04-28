@@ -40,9 +40,3 @@
 (define-ssh-symbols SSH-Channel-Data-Type : Index
   ; https://tools.ietf.org/html/rfc4250#section-4.4
   ([SSH_EXTENDED_DATA_STDERR                            1]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-algorithms #:compression
-  (; http://tools.ietf.org/html/rfc4253#section-6.2
-   [none                           REQUIRED        no compression           #:=> values]
-   [zlib                           OPTIONAL        ZLIB (LZ77) compression]))
