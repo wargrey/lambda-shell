@@ -5,6 +5,7 @@
 
 (provide (all-defined-out))
 (provide (for-syntax ssh-typename ssh-typeid))
+(provide unsafe-struct*-ref)
 
 (require racket/unsafe/ops)
 
@@ -25,9 +26,18 @@
 (define-for-syntax (ssh-typeid <id>)
   (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) "_" ":")))
 
+(define-for-syntax (ssh-field-index <key> <fields>)
+  (define key (syntax->datum <key>))
+
+  (let search-key ([fields (syntax->datum <fields>)]
+                   [index 0])
+    (cond [(null? fields) (raise-syntax-error 'ssh-field-index "no such field" <key> #false (syntax-e <fields>))]
+          [(eq? key (car fields)) (datum->syntax <key> index)]
+          [else (search-key (cdr fields) (+ index 1))])))
+
 (define-for-syntax (ssh-make-nbytes->bytes <n>)
-  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Nonnegative-Fixnum)
-      (let ([end (unsafe-fx+ offset #,(syntax-e <n>))])
+  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Natural)
+      (let ([end (+ offset #,(syntax-e <n>))])
         (values (subbytes braw offset end) end))))
 
 (define-for-syntax (ssh-datum-pipeline func <FType>)
@@ -116,7 +126,12 @@
                              [([self : SSH-Message])
                               (ssh:msg->bytes (assert self ssh:msg?))]
                              [([self : SSH-Message] [pool : Bytes] [offset : Natural])
-                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))))]))
+                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))))]
+    [(_ id val ([field : FieldType defval ...] ...) #:case key-field)
+     (with-syntax ([key-field-index (ssh-field-index #'key-field #'(field ...))])
+       #'(begin (define-message-interface id val ([field : FieldType defval ...] ...))
+                (hash-set! ssh-bytes->case-message-database val
+                           (cons key-field-index ((inst make-hasheq Any Unsafe-SSH-Bytes->Message))))))]))
 
 (define-syntax (define-message stx)
   (syntax-case stx [:]
@@ -128,21 +143,26 @@
                 (let ([database ((inst hash-ref! Symbol (HashTable Index Unsafe-SSH-Bytes->Message))
                                  ssh-bytes->shared-message-database 'gid (λ [] (make-hasheq)))])
                   (hash-set! database val unsafe-bytes->ssh:msg))))]
-    [(_ id val (field-definition ...))
+    [(_ id val (field-definition ...) conditions ...)
      (with-syntax* ([ssh:msg (ssh-typeid #'id)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
-       #'(begin (define-message-interface id val (field-definition ...))
+       #'(begin (define-message-interface id val (field-definition ...) conditions ...)
                 (hash-set! ssh-bytes->message-database val unsafe-bytes->ssh:msg)))]))
 
 (define-syntax (define-ssh-messages stx)
   (syntax-parse stx #:literals [:]
-    [(_ [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
-     #'(begin (define-message enum val ([field : FieldType defval ...] ...)) ...)]))
+    [(_ [enum:id val:nat ([field:id : FieldType defval ...] ...) conditions ...] ...)
+     #'(begin (define-message enum val ([field : FieldType defval ...] ...) conditions ...) ...)]))
 
 (define-syntax (define-ssh-shared-messages stx)
   (syntax-parse stx #:literals [:]
     [(_ group-name:id [enum:id val:nat ([field:id : FieldType defval ...] ...)] ...)
      #'(begin (define-message enum val #:group group-name ([field : FieldType defval ...] ...)) ...)]))
+
+(define-syntax (define-ssh-case-messages stx)
+  (syntax-parse stx #:literals [:]
+    [(_ val:nat [enum:id ([field:id : FieldType defval ...] ...)] ...)
+     #'(begin (define-message enum val #:case val ([field : FieldType defval ...] ...)) ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Natural)))
@@ -153,6 +173,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-bytes->shared-message-database : (HashTable Symbol (HashTable Index Unsafe-SSH-Bytes->Message)) (make-hasheq))
+(define ssh-bytes->case-message-database : (HashTable Index (cons Index (HashTable Any Unsafe-SSH-Bytes->Message))) (make-hasheq))
 (define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
 (define ssh-message->bytes-database : (HashTable Symbol SSH-Message->Bytes) (make-hasheq))
 (define ssh-message-length-database : (HashTable Symbol (-> SSH-Message Natural)) (make-hasheq))

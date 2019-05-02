@@ -1,7 +1,7 @@
 #lang racket/base
 
-(require ssh/transport)
-(require ssh/configuration)
+(require ssh/base)
+(require ssh/authentication)
 
 (require racket/string)
 (require racket/cmdline)
@@ -26,10 +26,14 @@
 
 (define sshd-serve
   (lambda [sshc]
-    (let sync-read-display-loop ()
-      (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
-      (unless (or (eof-object? datum) (exn? datum))
-        (sync-read-display-loop)))
+    (with-handlers ([exn:fail? (λ [e] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
+      (ssh-user-authenticate sshc)
+      
+      (let sync-read-display-loop ()
+        (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
+        (unless (or (eof-object? datum) (exn? datum))
+          (sync-read-display-loop))))
+    
     (ssh-port-wait sshc)))
 
 (define main

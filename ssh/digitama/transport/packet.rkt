@@ -72,7 +72,7 @@
       (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
 
       (unless (bytes=? checksum digest)
-        (ssh-raise-defence-error ssh-read-cipher-packet "corrupted packet")))
+        (ssh-raise-mac-error ssh-read-cipher-packet "corrupted packet")))
     
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
     

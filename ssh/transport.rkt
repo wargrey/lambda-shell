@@ -47,7 +47,9 @@
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
           (define server-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
           (ssh-log-message 'debug "server[~a:~a] identification string: ~a" hostname port (ssh-identification-raw server-id))
-          (SSH-Port root sshc-custodian rfc logger sshc /dev/sshin))))))
+
+          (define session-id : Bytes (ssh-read-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
+          (ssh-port root sshc-custodian rfc logger session-id sshc /dev/sshin))))))
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration
@@ -65,7 +67,7 @@
       (define identification : String (ssh-identification-string rfc))
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
-      (SSH-Listener root listener-custodian rfc logger sshd identification kexinit
+      (ssh-listener root listener-custodian rfc logger sshd identification kexinit
                     (if (not disable-reserved-services?) (list* 'ssh-userauth 'ssh-connection services) services)
                     (format "~a:~a" local-name local-port) local-port))))
 
@@ -95,8 +97,9 @@
             (ssh-raise-identification-error ssh-accept
                                             "incompatible protoversion: ~a"
                                             (ssh-identification-protoversion client-id)))
-          
-          (SSH-Port root sshd-custodian rfc (current-logger) sshd /dev/sshin))))))
+
+          (define session-id : Bytes (ssh-read-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
+          (ssh-port root sshd-custodian rfc (current-logger) session-id sshd /dev/sshin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
@@ -139,9 +142,9 @@
      (ssh-sync-disconnect (ssh-port-ghostcat self) reason description)
      (custodian-shutdown-all (ssh-transport-custodian self))]))
 
-(define ssh-accept-service : (-> SSH-Port Symbol Void)
-  (lambda [self service]
-    (ssh-service-accept (ssh-port-ghostcat self) service)))
+(define ssh-port-session-identity : (-> SSH-Port Bytes)
+  (lambda [self]
+    (ssh-port-identity self)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-custodian : (-> (U SSH-Listener SSH-Port) Custodian)

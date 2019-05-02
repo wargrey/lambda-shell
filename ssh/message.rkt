@@ -86,8 +86,8 @@
 
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
-  [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol] [method : Symbol] [extra : Bytes])]
-  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (Listof Symbol)] [partially? : Boolean])]
+  [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol] [method : Symbol]) #:case method]
+  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (Listof Symbol)] [partial-success? : Boolean])]
   [SSH_MSG_USERAUTH_SUCCESS          52 ()]
   [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
 
@@ -133,8 +133,15 @@
           [else (let query ([groups : (Listof Symbol) groups])
                   (cond [(null? groups) (values (ssh-undefined-message id) offset)]
                         [else (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
-                                (cond [(and bytes->message) (bytes->message bmsg offset)]
-                                      [else (query (cdr groups))]))]))])))
+                                (cond [(not bytes->message) (query (cdr groups))]
+                                      [(not (hash-has-key? ssh-bytes->case-message-database id)) (bytes->message bmsg offset)]
+                                      [else (let-values ([(msg end) (bytes->message bmsg offset)]
+                                                         [(case-info) (hash-ref ssh-bytes->case-message-database id)])
+                                              (define key : Any (unsafe-struct*-ref msg (car case-info)))
+                                              (displayln (cons key case-info))
+                                              (define bytes->case-message : (Option Unsafe-SSH-Bytes->Message) (hash-ref (cdr case-info) key (λ [] #false)))
+                                              (cond [(not bytes->case-message) (values msg end)]
+                                                    [else (bytes->case-message bmsg offset)]))]))]))])))
 
 (define ssh-bytes->message* : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
   (lambda [bmsg [offset 0] #:groups [groups null]]

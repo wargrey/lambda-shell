@@ -16,7 +16,7 @@
   #:type-name SSH-Parcel)
 
 (struct ssh-newkeys
-  ([session-id : Bytes]
+  ([identity : Bytes]
    [parcel : SSH-Parcel]
    [inflate : (Option (->* (Bytes) (Natural Natural) Bytes))]
    [deflate : (Option (->* (Bytes) (Natural Natural) Bytes))]

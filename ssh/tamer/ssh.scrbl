@@ -8,8 +8,7 @@
 
 @handbook-smart-table[]
 
-@include-section[(submod "architecture.rkt" doc)]
-@include-section[(submod "transport.rkt" doc)]
+@include-section{walkthrough.scrbl}
 @include-section{asnder.scrbl}
 
 @handbook-appendix[#:index? #true]

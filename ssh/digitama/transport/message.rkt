@@ -52,7 +52,7 @@
                                           ($ssh-pretty-log-packet-level rfc))]))
     
     (define message-id : Byte (bytes-ref incoming-parcel ssh-packet-payload-index))
-    (define-values (maybe-trans-msg end-index) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
+    (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
 
     (unless (not maybe-trans-msg)
       (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"
@@ -69,7 +69,7 @@
 
     (values maybe-trans-msg
             (cond [(and maybe-trans-msg (not (ssh:msg:kexinit? maybe-trans-msg))) #"" #| useless but to satisfy the type system |#]
-                  [else (subbytes incoming-parcel ssh-packet-payload-index end-index)])
+                  [else (subbytes incoming-parcel ssh-packet-payload-index payload-end)])
             traffic)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -24,11 +24,9 @@
 
 (provide (all-defined-out))
 
-(provide (all-from-out "message.rkt" "assignment.rkt"))
-(provide (all-from-out "configuration.rkt"))
+(provide (all-from-out "base.rkt"))
+(provide (all-from-out "authentication.rkt"))
 
-(require "message.rkt")
-(require "assignment.rkt")
-(require "transport.rkt")
+(require "base.rkt")
 
-(require "configuration.rkt")
+(require "authentication.rkt")

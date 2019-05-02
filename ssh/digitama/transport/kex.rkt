@@ -116,7 +116,7 @@
 
     (define-values (session-id parcel)
       (cond [(ssh-parcel? maybe-oldkeys) (values H maybe-oldkeys)]
-            [else (values (ssh-newkeys-session-id maybe-oldkeys)
+            [else (values (ssh-newkeys-identity maybe-oldkeys)
                           (ssh-newkeys-parcel maybe-oldkeys))]))
     
     (define-values (c2s-compression s2c-compression) (values (vector-ref c2s 0) (vector-ref s2c 0)))

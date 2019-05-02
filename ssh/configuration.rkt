@@ -37,6 +37,7 @@
    [comments : (Option String) #false]
    [longest-identification-length : Positive-Index 255]
    
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    [payload-capacity : Index 32768]
 
    [timeout : (Option Nonnegative-Real) #false]
@@ -48,4 +49,8 @@
    [maximum-server-banner-count : Positive-Index 1024]
    [longest-server-banner-length : Positive-Index 8192]
 
-   [pretty-log-packet-level : (Option Log-Level) #false]))
+   [pretty-log-packet-level : (Option Log-Level) #false]
+
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   [userauth-timeout : (Option Nonnegative-Real) #false]
+   [userauth-retries : (Option Index) #false]))

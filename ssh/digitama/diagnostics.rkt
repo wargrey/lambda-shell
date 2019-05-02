@@ -12,6 +12,7 @@
 (struct exn:ssh:defence exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
 (struct exn:ssh:kex exn:ssh ())
+(struct exn:ssh:mac exn:ssh ())
 
 (define current-peer-name : (Parameterof (Option Symbol)) (make-parameter #false))
 
@@ -39,6 +40,13 @@
 (define ssh-raise-kex-error : (-> Any String Any * Nothing)
   (lambda [func msgfmt . argl]
     (define errobj : SSH-Error (exn:ssh:kex (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+
+    (ssh-log-error errobj)
+    (raise errobj)))
+
+(define ssh-raise-mac-error : (-> Any String Any * Nothing)
+  (lambda [func msgfmt . argl]
+    (define errobj : SSH-Error (exn:ssh:mac (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
 
     (ssh-log-error errobj)
     (raise errobj)))

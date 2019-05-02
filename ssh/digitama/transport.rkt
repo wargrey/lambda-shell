@@ -33,7 +33,8 @@
   #:type-name SSH-Listener)
 
 (struct ssh-port ssh-transport
-  ([ghostcat : Thread]
+  ([identity : Bytes]
+   [ghostcat : Thread]
    [sshin : Input-Port])
   #:type-name SSH-Port)
 
@@ -70,6 +71,7 @@
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (define self : Thread (current-thread))
+    
     (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) #false]
                                            [kexinit : SSH-MSG-KEXINIT kexinit]
                                            [newkeys : Maybe-Newkeys (make-ssh-parcel ($ssh-payload-capacity rfc))]
@@ -102,10 +104,13 @@
                          [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys 0 0)]))]
               
               [(and (pair? evt) (ssh-newkeys? (car evt)) (exact-nonnegative-integer? (cdr evt)))
+               (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
+                 (write-special (ssh-newkeys-identity (car evt)) /dev/sshout))
                (values #false (car evt) (- incoming-traffic) (- (cdr evt) outgoing-traffic))]
 
               [(exn? evt)
                (cond [(exn:ssh:kex? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-KEY-EXCHANGE-FAILED rfc newkeys evt)]
+                     [(exn:ssh:mac? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-MAC-ERROR rfc newkeys evt)]
                      [(not (exn:ssh:eof? evt)) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-PROTOCOL-ERROR rfc newkeys evt)])
                (raise evt)]
         
