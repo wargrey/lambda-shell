@@ -25,9 +25,9 @@
           (curry eprintf "make: I don't know what does `~a` mean!~n")))
 
 (define sshd-serve
-  (lambda [sshc]
+  (lambda [sshc services]
     (with-handlers ([exn:fail? (λ [e] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
-      (ssh-user-authenticate sshc)
+      (ssh-user-authenticate sshc services)
       
       (let sync-read-display-loop ()
         (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
@@ -52,7 +52,7 @@
                      (let accept-server-loop ()
                        (with-handlers ([exn:fail? (λ [e] (eprintf "~a~n" (exn-message e)))])
                          (let ([sshc (ssh-accept sshd)])
-                           (thread-wait (thread (λ [] (sshd-serve sshc))))))
+                           (thread-wait (thread (λ [] (sshd-serve sshc (ssh-daemon-services sshd)))))))
                        #;(accept-server-loop))))))
          'debug))
      '()

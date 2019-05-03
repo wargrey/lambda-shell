@@ -86,7 +86,7 @@
 
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
-  [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol] [method : Symbol]) #:case method]
+  [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol 'ssh-connection] [method : Symbol 'none]) #:case method]
   [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (Listof Symbol)] [partial-success? : Boolean])]
   [SSH_MSG_USERAUTH_SUCCESS          52 ()]
   [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
@@ -128,20 +128,25 @@
 (define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Natural))
   (lambda [bmsg [offset 0] #:groups [groups null]]
     (define id : Byte (bytes-ref bmsg offset))
-    (define unsafe-bytes->message : (Option Unsafe-SSH-Bytes->Message) (hash-ref ssh-bytes->message-database id (λ [] #false)))
-    (cond [(and unsafe-bytes->message) (unsafe-bytes->message bmsg offset)]
-          [else (let query ([groups : (Listof Symbol) groups])
-                  (cond [(null? groups) (values (ssh-undefined-message id) offset)]
-                        [else (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
-                                (cond [(not bytes->message) (query (cdr groups))]
-                                      [(not (hash-has-key? ssh-bytes->case-message-database id)) (bytes->message bmsg offset)]
-                                      [else (let-values ([(msg end) (bytes->message bmsg offset)]
-                                                         [(case-info) (hash-ref ssh-bytes->case-message-database id)])
-                                              (define key : Any (unsafe-struct*-ref msg (car case-info)))
-                                              (displayln (cons key case-info))
-                                              (define bytes->case-message : (Option Unsafe-SSH-Bytes->Message) (hash-ref (cdr case-info) key (λ [] #false)))
-                                              (cond [(not bytes->case-message) (values msg end)]
-                                                    [else (bytes->case-message bmsg offset)]))]))]))])))
+    (define-values (msg end)
+      (let ([unsafe-bytes->message (hash-ref ssh-bytes->message-database id (λ [] #false))])
+        (cond [(and unsafe-bytes->message) (unsafe-bytes->message bmsg offset)]
+              [else (let query : (Values SSH-Message Natural) ([groups : (Listof Symbol) groups])
+                      (cond [(null? groups) (values (ssh-undefined-message id) offset)]
+                            [else (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
+                                    (cond [(not bytes->message) (query (cdr groups))]
+                                          [else (bytes->message bmsg offset)]))]))])))
+    
+    (let message->conditional-message ([msg : SSH-Message msg]
+                                       [end : Natural end])
+      (define name : Symbol (ssh-message-name msg))
+      (cond [(hash-has-key? ssh-bytes->case-message-database name)
+             (let ([case-info (hash-ref ssh-bytes->case-message-database name)])
+               (define key : Any (unsafe-struct*-ref msg (car case-info)))
+               (define bytes->case-message : (Option Unsafe-SSH-Bytes->Message) (hash-ref (cdr case-info) key (λ [] #false)))
+               (cond [(and bytes->case-message) (call-with-values (λ [] (bytes->case-message bmsg offset)) message->conditional-message)]
+                     [else (values msg end)]))]
+            [else (values msg end)]))))
 
 (define ssh-bytes->message* : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
   (lambda [bmsg [offset 0] #:groups [groups null]]

@@ -15,7 +15,7 @@
 
 (require (for-syntax "primitive.rkt"))
 
-;;; TODO: why the database cannot shared by other modules?
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax asn-sequence-metainfo-database (make-hasheq))
 
 (define-for-syntax (asn-type-info <asn-type>)

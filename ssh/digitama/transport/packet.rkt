@@ -76,7 +76,7 @@
     
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
     
-    (ssh-pretty-print-packet 'ssh-read-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false)
+    (ssh-pretty-print-packet 'ssh-read-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false #:2nd? #true)
     
     (values (+ ssh-packet-payload-index payload-length) (+ packet-length mac-length 4))))
 
@@ -115,7 +115,7 @@
     
     (let ([digest (mac parcel 0 packet-end)]             ; generate checksum before encrypting
           [blocksize (max 8 cipher-blocksize)])
-      (ssh-pretty-print-packet 'ssh-write-cipher-packet:plain parcel packet-end blocksize debug-level #:digest digest #:cipher? #false)
+      (ssh-pretty-print-packet 'ssh-write-cipher-packet:plain parcel packet-end blocksize debug-level #:digest digest #:cipher? #false #:2nd? #true)
 
       (encrypt! parcel ssh-packet-size-index packet-end) ; encrypting skipping the sequence number
       (ssh-pretty-print-packet 'ssh-write-cipher-packet parcel packet-end blocksize debug-level)
@@ -153,14 +153,15 @@
            (ssh-raise-defence-error fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity))]
           [else payload-length])))
 
-(define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean) Void)
-  (let ([/dev/pktout (open-output-string '/dev/pktout)])
-    (lambda [source parcel packet-end blocksize level [start ssh-packet-size-index] #:digest [digest #""] #:cipher? [cipher? #true]]
+(define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)
+  (let ([/dev/pktout (open-output-bytes '/dev/pktout)])
+    (lambda [source parcel packet-end blocksize level [start ssh-packet-size-index] #:digest [digest #""] #:cipher? [cipher? #true] #:2nd? [2nd? #false]]
       (when (and level (not (eq? level 'none)))
         (define padding-mark-idx-1 : Fixnum (if cipher? packet-end (- packet-end (+ (bytes-ref parcel ssh-packet-padding-size-index) 1))))
 
         (when (= start ssh-packet-size-index)
-          (fprintf /dev/pktout "==> ~a (blocksize: ~a)~n" source (~size blocksize)))
+          (fprintf /dev/pktout "~a ~a (blocksize: ~a)~n"
+                   (if 2nd? '>>> '==>) source (~size blocksize)))
 
         (with-asserts ([packet-end index?])
           (let pretty-print ([pidx : Nonnegative-Fixnum start])

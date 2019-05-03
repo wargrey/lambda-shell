@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide SSH-Port SSH-Listener)
+(provide SSH-Port SSH-Daemon)
+(provide ssh-daemon-services)
 
 (require racket/tcp)
 (require racket/port)
@@ -54,7 +55,7 @@
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration
                                  #:services (Listof Symbol) #:disable-reserved-services? Boolean)
-                          SSH-Listener)
+                          SSH-Daemon)
   (lambda [port [max-allow-wait 4]
                 #:custodian [root (make-custodian)] #:logger [logger (make-logger 'λsh:sshd (current-logger))] #:hostname [hostname #false]
                 #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]
@@ -67,26 +68,26 @@
       (define identification : String (ssh-identification-string rfc))
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
-      (ssh-listener root listener-custodian rfc logger sshd identification kexinit
-                    (if (not disable-reserved-services?) (list* 'ssh-userauth 'ssh-connection services) services)
-                    (format "~a:~a" local-name local-port) local-port))))
+      (ssh-daemon root listener-custodian rfc logger sshd identification kexinit
+                  (if (not disable-reserved-services?) (list* 'ssh-userauth 'ssh-connection services) services)
+                  (format "~a:~a" local-name local-port) local-port))))
 
-(define ssh-accept : (-> SSH-Listener [#:custodian Custodian] SSH-Port)
+(define ssh-accept : (-> SSH-Daemon [#:custodian Custodian] SSH-Port)
   (lambda [listener #:custodian [root (make-custodian)]]
     (define rfc : SSH-Configuration (ssh-transport-preference listener))
     (define sshd-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian sshd-custodian]
                    [current-logger (ssh-transport-logger listener)])
-      (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-listener-watchdog listener)))
+      (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-daemon-watchdog listener)))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
       (define client-name : Symbol (string->symbol (format "${~a:~a}" remote-name remote-port)))
       (ssh-log-message 'debug "accepted ~a" client-name)
       
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
-        (define kexinit : SSH-MSG-KEXINIT  (ssh-listener-kexinit listener))
-        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener)
-                                             /dev/tcpin /dev/tcpout kexinit (ssh-listener-services listener) rfc))
+        (define kexinit : SSH-MSG-KEXINIT  (ssh-daemon-kexinit listener))
+        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-daemon-identification listener)
+                                             /dev/tcpin /dev/tcpout kexinit (ssh-daemon-services listener) rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
@@ -132,7 +133,7 @@
     (thread-wait (ssh-port-ghostcat self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-shutdown : (case-> [SSH-Listener -> Void]
+(define ssh-shutdown : (case-> [SSH-Daemon -> Void]
                                [SSH-Port SSH-Disconnection-Reason -> Void]
                                [SSH-Port SSH-Disconnection-Reason (Option String) -> Void])
   (case-lambda
@@ -147,15 +148,15 @@
     (ssh-port-identity self)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-custodian : (-> (U SSH-Listener SSH-Port) Custodian)
+(define ssh-custodian : (-> (U SSH-Daemon SSH-Port) Custodian)
   (lambda [self]
     (ssh-transport-custodian self)))
 
-(define ssh-logger : (-> (U SSH-Listener SSH-Port) Logger)
+(define ssh-logger : (-> (U SSH-Daemon SSH-Port) Logger)
   (lambda [self]
     (ssh-transport-logger self)))
 
-(define ssh-managed-list : (-> (U SSH-Listener SSH-Port) (Listof Any))
+(define ssh-managed-list : (-> (U SSH-Daemon SSH-Port) (Listof Any))
   (lambda [self]
     (define root : Custodian (ssh-transport-root self))
     (define (unbox [child : Any]) : Any

@@ -54,6 +54,8 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
          <identification>)]
 
 @chunk[<identification>
+       (require "message.rkt")
+       
        (require "../digitama/transport/identification.rkt")
        (require "../main.rkt")
 
@@ -65,10 +67,4 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
            (define-values (/dev/sshin /dev/sshout) (make-pipe #false '/dev/sshin '/dev/sshout))
            (ssh-write-text /dev/sshout idstring (string-length idstring))
            (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
-             (ssh-read-client-identification /dev/sshin rfc))))
-
-       (define ssh-message
-         (lambda [self]
-           (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
-             (define payload (ssh-message->bytes self))
-             (values payload (ssh-bytes->message* payload)))))]
+             (ssh-read-client-identification /dev/sshin rfc))))]

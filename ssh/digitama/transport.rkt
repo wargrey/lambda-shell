@@ -23,14 +23,14 @@
    [logger : Logger])
   #:type-name SSH-Transport)
 
-(struct ssh-listener ssh-transport
+(struct ssh-daemon ssh-transport
   ([watchdog : TCP-Listener]
    [identification : String]
    [kexinit : SSH-MSG-KEXINIT]
    [services : (Listof Symbol)]
    [name : String]
    [port-number : Index])
-  #:type-name SSH-Listener)
+  #:type-name SSH-Daemon)
 
 (struct ssh-port ssh-transport
   ([identity : Bytes]
