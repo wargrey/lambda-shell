@@ -20,14 +20,15 @@
 (require "assignment.rkt")
 (require "configuration.rkt")
 
-;;; register builtin assignments for algorithms
+;; register builtin assignments for algorithms
 (require "digitama/assignment/diffie-hellman.rkt")
 (require "digitama/assignment/hostkey.rkt")
 (require "digitama/assignment/mac.rkt")
 (require "digitama/assignment/cipher.rkt")
 (require "digitama/assignment/compression.rkt")
 
-(define-type SSH-Datum (U SSH-Message Bytes EOF exn))
+(define-type SSH-EOF (U SSH-MSG-DISCONNECT exn))
+(define-type SSH-Datum (U SSH-Message SSH-EOF Bytes))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-connect : (-> String Natural [#:custodian Custodian] [#:logger Logger] [#:configuration SSH-Configuration] [#:kexinit SSH-MSG-KEXINIT] SSH-Port)
@@ -142,6 +143,11 @@
     [(self reason description)
      (ssh-sync-disconnect (ssh-port-ghostcat self) reason description)
      (custodian-shutdown-all (ssh-transport-custodian self))]))
+
+(define ssh-eof? : (-> SSH-Datum Boolean : #:+ SSH-EOF)
+  (lambda [datum]
+    (or (ssh:msg:disconnect? datum)
+        (exn? datum))))
 
 (define ssh-port-session-identity : (-> SSH-Port Bytes)
   (lambda [self]

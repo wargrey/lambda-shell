@@ -8,7 +8,7 @@
 (define-type SSH-Error exn:ssh)
 
 (struct exn:ssh exn:fail:network ())
-(struct exn:ssh:eof exn:ssh ())
+(struct exn:ssh:eof exn:ssh ([reason : Symbol]))
 (struct exn:ssh:defence exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
 (struct exn:ssh:kex exn:ssh ())
@@ -51,11 +51,13 @@
     (ssh-log-error errobj)
     (raise errobj)))
 
-(define ssh-raise-eof-error : (-> Procedure String Any * Nothing)
-  (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error (exn:ssh:eof (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+(define ssh-raise-eof-error : (->* (Procedure Symbol String) (#:logging? Boolean) #:rest Any Nothing)
+  (lambda [func reason #:logging? [logging? #true] msgfmt . argl]
+    (define errobj : SSH-Error (exn:ssh:eof (ssh-exn-message func msgfmt argl) (current-continuation-marks) reason))
 
-    (ssh-log-error errobj)
+    (when logging?
+      (ssh-log-error errobj))
+    
     (raise errobj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -27,12 +27,13 @@
 (define sshd-serve
   (lambda [sshc services]
     (with-handlers ([exn:fail? (λ [e] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
-      (ssh-user-authenticate sshc services)
-      
-      (let sync-read-display-loop ()
-        (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
-        (unless (or (eof-object? datum) (exn? datum))
-          (sync-read-display-loop))))
+      (define maybe-user (ssh-user-authenticate sshc services))
+
+      (when (ssh-user? maybe-user)
+        (let sync-read-display-loop ()
+          (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
+          (unless (ssh-eof? datum)
+            (sync-read-display-loop)))))
     
     (ssh-port-wait sshc)))
 

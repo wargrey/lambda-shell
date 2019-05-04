@@ -3,23 +3,36 @@
 (provide (all-defined-out))
 
 (require "digitama/diagnostics.rkt")
-(require "digitama/assignment/authentication.rkt")
+(require "digitama/authentication/message.rkt")
 
 (require "transport.rkt")
 (require "message.rkt")
 (require "assignment.rkt")
 (require "configuration.rkt")
 
+;; register builtin assignments for authentication methods
+(require "digitama/assignment/authentication.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) Void)
-  (lambda [port services]
-    (let authenticate ()
-      (define datum (sync/enable-break (ssh-port-datum-evt port)))
+(struct ssh-user
+  ([name : Symbol]
+   [service : Symbol])
+  #:transparent
+  #:type-name SSH-User)
 
-      (unless (or (eof-object? datum) (exn? datum))
-        (when (bytes? datum)
-          (define-values (msg _) (ssh-bytes->message datum))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-user-request : (->* (SSH-Port Symbol) (Symbol) (U SSH-EOF True))
+  (lambda [sshd username [service 'ssh-connection]]
+    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshd null)])
+      (define datum (sync/enable-break datum-evt))
+      
+      (cond [(ssh-eof? datum) datum]
+            [else (authenticate (ssh-authentication-datum-evt sshd null))]))))
 
-          (displayln msg))
-        
-        (authenticate)))))
+(define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) (U SSH-EOF SSH-User))
+  (lambda [sshc services]
+    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc null)])
+      (define datum (sync/enable-break datum-evt))
+      
+      (cond [(ssh-eof? datum) datum]
+            [else (authenticate (ssh-authentication-datum-evt sshc null))]))))

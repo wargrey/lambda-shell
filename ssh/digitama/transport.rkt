@@ -42,7 +42,7 @@
 (define sshc-ghostcat : (-> Output-Port String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification hostname port kexinit rfc]
     (thread
-     (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special (if (exn:ssh:eof? e) eof e) /dev/sshout))])
+     (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-write-special-error e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
              (define peer : SSH-Identification (ssh-read-server-identification /dev/tcpin rfc))
 
@@ -56,7 +56,7 @@
 (define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT (Listof Symbol) SSH-Configuration Thread)
   (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit service rfc]
     (thread
-     (λ [] (with-handlers ([exn? (λ [[e : exn]] (write-special (if (exn:ssh:eof? e) eof e) /dev/sshout))])
+     (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-write-special-error e /dev/sshout))])
              (define peer : SSH-Identification (ssh-read-client-identification /dev/tcpin rfc))
 
              (ssh-write-text /dev/tcpout identification)
@@ -147,3 +147,10 @@
     (define exn-or-datum (read-byte-or-special /dev/sshin))
     (cond [(exn? exn-or-datum) (raise exn-or-datum)]
           [else (assert exn-or-datum ?)])))
+
+(define ssh-write-special-error : (-> exn Output-Port Boolean)
+  (lambda [e /dev/sshout]
+    (cond [(not (exn:ssh:eof? e)) (write-special e /dev/sshout)]
+          [else (let ([reason (assert (exn:ssh:eof-reason e) SSH-Disconnection-Reason?)])
+                  (write-special (make-ssh:msg:disconnect #:reason reason #:description (exn-message e))
+                                 /dev/sshout))])))

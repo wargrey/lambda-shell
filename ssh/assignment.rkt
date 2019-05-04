@@ -4,8 +4,8 @@
 ;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
-(provide SSH-Kex SSH-Cipher SSH-HostKey SSH-Compression SSH-MAC)
-(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-mac-algorithms ssh-compression-algorithms)
+(provide SSH-Kex SSH-Cipher SSH-HostKey SSH-Compression SSH-MAC SSH-Authentication)
+(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-mac-algorithms ssh-compression-algorithms ssh-authentication-methods)
 (provide define-ssh-symbols define-ssh-algorithms)
 
 (require "digitama/assignment.rkt")

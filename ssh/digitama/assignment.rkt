@@ -19,11 +19,17 @@
   (syntax-case stx [:]
     [(_ TypeU : Type ([enum val] ...))
      (with-syntax ([$id (format-id #'TypeU "$~a" (syntax-e #'TypeU))]
+                   [id? (format-id #'TypeU "~a?" (syntax-e #'TypeU))]
                    [(name ...) (for/list ([<enum> (in-syntax #'(enum ...))]) (ssh-typename <enum>))])
        #'(begin (define-type TypeU (U 'name ... 'enum ...))
+
                 (define $id : (case-> [Symbol -> Type] [Integer -> TypeU])
                   (λ [v] (cond [(symbol? v) (case v [(enum name) val] ... [else 0])]
-                               [else (case v [(val) 'name] ... [else (error 'TypeU "unrecognized assignment: ~a" v)])])))))]))
+                               [else (case v [(val) 'name] ... [else (error 'TypeU "unrecognized assignment: ~a" v)])])))
+
+                (define id? : (-> Any Boolean : TypeU)
+                  (λ [v] (cond [(or (eq? v 'name) (eq? v 'enum)) #true] ...
+                               [else #false])))))]))
 
 (define-syntax (define-ssh-algorithm stx)
   (syntax-case stx [:]
@@ -71,7 +77,11 @@
      #'(begin (define-ssh-algorithm &ssh-mac-algorithms definition) ...)]
     [(_ #:compression (definition ...))
      #'(begin (define-ssh-algorithm &ssh-compression-algorithms definition) ...)]
-    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm "unexpected algorithm type, expected #:mac, #:cipher, or #:compression" #'keyword)]))
+    [(_ #:authentication (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-authentication-methods definition) ...)]
+    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm
+                                                       "unexpected algorithm type, expected #:mac, #:cipher, #:compression, or #:authentication"
+                                                       #'keyword)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type SSH-λCipher! (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index))
@@ -82,6 +92,8 @@
 (define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression #:as (Immutable-Vector (Option SSH-λCompression) (Option SSH-λCompression)))
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (Immutable-Vector (-> Bytes Bytes (Values SSH-λCipher! SSH-λCipher!)) Byte Byte))
 (define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
+
+(define-ssh-algorithm-database ssh-authentication-methods : SSH-Authentication #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

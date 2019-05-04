@@ -37,7 +37,7 @@
       (bytes-copy! outgoing-parcel 0 maybe-overload-parcel 0 (bytes-length outgoing-parcel)))
     
     (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
-    (ssh-log-outgoing-message msg traffic 'debug)
+    (ssh-log-outgoing-message msg 'debug)
 
     traffic))
 
@@ -54,18 +54,19 @@
     (define message-id : Byte (bytes-ref incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
 
-    (unless (not maybe-trans-msg)
-      (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"
-                       (ssh-message-name maybe-trans-msg) message-id (~size traffic)))
+    (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a)" message-id (~size traffic))]
+          [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"
+                                 (ssh-message-name maybe-trans-msg) message-id (~size traffic))])
     
     (unless (not maybe-trans-msg)
-      (ssh-log-incoming-message maybe-trans-msg traffic 'debug)
+      (ssh-log-incoming-message maybe-trans-msg 'debug)
 
       (cond [(ssh:msg:debug? maybe-trans-msg)
              (($ssh-debug-message-handler rfc)
               (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))]
             [(ssh:msg:disconnect? maybe-trans-msg)
-             (ssh-raise-eof-error ssh-read-transport-message (symbol->string (ssh:msg:disconnect-reason maybe-trans-msg)))]))
+             (ssh-raise-eof-error ssh-read-transport-message #:logging? #false
+                                  (ssh:msg:disconnect-reason maybe-trans-msg) (ssh:msg:disconnect-description maybe-trans-msg))]))
 
     (values maybe-trans-msg
             (cond [(and maybe-trans-msg (not (ssh:msg:kexinit? maybe-trans-msg))) #"" #| useless but to satisfy the type system |#]
@@ -98,8 +99,8 @@
     (ssh-log-message level "~a c2s compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-compressions msg)))
     (ssh-log-message level "~a s2c compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-compressions msg)))))
 
-(define ssh-log-outgoing-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
-  (lambda [msg traffic [level 'debug]]
+(define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
+  (lambda [msg [level 'debug]]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
              (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg)))]
@@ -109,8 +110,8 @@
           [(ssh:msg:unimplemented? msg)
            (ssh-log-message level "cannot not deal with message" (ssh:msg:unimplemented-number msg))])))
 
-(define ssh-log-incoming-message : (->* (SSH-Message Nonnegative-Fixnum) (Log-Level) Void)
-  (lambda [msg traffic [level 'debug]]
+(define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
+  (lambda [msg [level 'debug]]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
              (ssh-log-message level "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg)))]
