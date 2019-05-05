@@ -91,9 +91,9 @@
                        [(ssh-ignored-incoming-message? msg) (void)]
                        [(not (ssh:msg:service:request? msg)) (write-special msg /dev/sshout)]
                        [else (let ([service (ssh:msg:service:request-name msg)])
-                               (cond [(memq service services) (ssh-service-accept self service)]
-                                     [else (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE rfc newkeys
-                                                           (format "unrecognized service: ~a" service))]))]))
+                               (thread-send self (cond [(memq service services) (ssh-service-accept-message service)]
+                                                       [else (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
+                                                                                      #:description (ssh-service-reject-description service))])))]))
                (values (and (thread? maybe-task) maybe-task) newkeys itraffic++ 0)]
 
               [(ssh-message? evt)
@@ -128,9 +128,13 @@
     (ssh-write-message /dev/tcpout msg rfc newkeys)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-service-accept : (-> Thread Symbol Void)
-  (lambda [self service]
-    (thread-send self (make-ssh:msg:service:accept #:name service))))
+(define ssh-service-accept-message : (-> Symbol SSH-MSG-SERVICE-ACCEPT)
+  (lambda [service]
+    (make-ssh:msg:service:accept #:name service)))
+
+(define ssh-service-reject-description : (-> Symbol String)
+  (lambda [service]
+    (format "service '~a' not available" service)))
 
 (define ssh-sync-disconnect : (->* (Thread SSH-Disconnection-Reason) ((Option String)) Void)
   (lambda [self reason [description #false]]

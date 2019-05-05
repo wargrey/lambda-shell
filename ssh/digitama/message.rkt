@@ -25,10 +25,13 @@
 (require (for-syntax "conditional-message.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-for-syntax ssh-case-message-field-database:1 (make-hasheq))
-
 (define-for-syntax (ssh-typename <id>)
   (format-id <id> "~a" (string-replace (symbol->string (syntax-e <id>)) "_" "-")))
+
+(define-for-syntax (ssh-typename* <id> <id-suffix>)
+  (syntax-case <id-suffix> []
+    [(suffix) (ssh-typename (format-id <id-suffix> "~a~a" (syntax-e <id>) (syntax-e #'suffix)))]
+    [suffix (ssh-typename (format-id <id-suffix> "~a_~a" (syntax-e <id>) (syntax-e #'suffix)))]))
 
 (define-for-syntax (ssh-typeid <id>)
   (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) #px"[_-]" ":")))
@@ -236,9 +239,9 @@
 
 (define-syntax (define-ssh-case-message stx)
   (syntax-parse stx #:literals [:]
-    [(_ id id-suffix case-value ([field:id : FieldType defval ...] ...) conditions ...)
+    [(_ id id-suffix datum:keyword case-value ([field:id : FieldType defval ...] ...) conditions ...)
      (with-syntax* ([PSSH-MSG (ssh-typename #'id)]
-                    [SSH-MSG (format-id #'case-value "~a_~a" (syntax-e #'id) (syntax->datum #'id-suffix))]
+                    [SSH-MSG (ssh-typename* #'id #'id-suffix)]
                     [ssh:msg (ssh-typeid #'SSH-MSG)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
                     [(n [pield-field PieldType smart_defval ...] ...)
@@ -263,8 +266,8 @@
 
 (define-syntax (define-ssh-case-messages stx)
   (syntax-parse stx #:literals [:]
-    [(_ id [id-suffix case-value ([field:id : FieldType defval ...] ...) conditions ...] ...)
-     #'(begin (define-ssh-case-message id id-suffix case-value ([field : FieldType defval ...] ...) conditions ...)
+    [(_ id [id-suffix datum:keyword case-value ([field:id : FieldType defval ...] ...) conditions ...] ...)
+     #'(begin (define-ssh-case-message id id-suffix datum case-value ([field : FieldType defval ...] ...) conditions ...)
               ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -39,6 +39,9 @@
     (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
     (ssh-log-outgoing-message msg 'debug)
 
+    (when (ssh:msg:disconnect? msg)
+      (ssh-suicide ssh-write-message msg))
+
     traffic))
 
 (define ssh-read-transport-message : (-> Input-Port SSH-Configuration Maybe-Newkeys (Listof Symbol) (Values (Option SSH-Message) Bytes Natural))
@@ -65,8 +68,7 @@
              (($ssh-debug-message-handler rfc)
               (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))]
             [(ssh:msg:disconnect? maybe-trans-msg)
-             (ssh-raise-eof-error ssh-read-transport-message #:logging? #false
-                                  (ssh:msg:disconnect-reason maybe-trans-msg) (ssh:msg:disconnect-description maybe-trans-msg))]))
+             (ssh-suicide ssh-read-transport-message maybe-trans-msg)]))
 
     (values maybe-trans-msg
             (cond [(and maybe-trans-msg (not (ssh:msg:kexinit? maybe-trans-msg))) #"" #| useless but to satisfy the type system |#]
@@ -105,10 +107,11 @@
            (when (ssh:msg:debug-display? msg)
              (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg)))]
           [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "terminate the connection because of ~a, details: ~a"
-                            (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
+           (ssh-log-message level "terminate the connection ~a because of ~a, details: ~a"
+                            (current-peer-name) (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
-           (ssh-log-message level "cannot not deal with message" (ssh:msg:unimplemented-number msg))])))
+           (ssh-log-message level "cannot not deal with message ~a from ~a"
+                            (ssh:msg:unimplemented-number msg) (current-peer-name))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
@@ -119,5 +122,10 @@
            (ssh-log-message level "~a has disconnected with the reason ~a(~a)" (current-peer-name)
                             (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
-           (ssh-log-message level "~a cannot deal with message ~a" (current-peer-name)
-                            (ssh:msg:unimplemented-number msg))])))
+           (ssh-log-message level "~a cannot deal with message ~a"
+                            (current-peer-name) (ssh:msg:unimplemented-number msg))])))
+
+(define ssh-suicide : (-> Procedure SSH-MSG-DISCONNECT Nothing)
+  (lambda [func msg]
+    (ssh-raise-eof-error func (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg)
+                         #:logging? #false)))

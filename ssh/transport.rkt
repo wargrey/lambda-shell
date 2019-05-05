@@ -126,6 +126,11 @@
   (lambda [self payload [display? #false]]
     (ssh-port-send self (make-ssh:msg:debug #:display? display? #:message (format "~a" payload)))))
 
+(define ssh-port-reject-service : (-> SSH-Port Symbol Void)
+  (lambda [self service]
+    (ssh-shutdown self 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
+                  (ssh-service-reject-description service))))
+
 (define ssh-port-wait : (-> SSH-Port [#:abandon? Boolean] Void)
   (lambda [self #:abandon? [abandon? #false]]
     (unless (not abandon?)

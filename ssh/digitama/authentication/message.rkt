@@ -16,6 +16,12 @@
                      (or (and (bytes? datum) (ssh-filter-authentication-message datum groups))
                          datum))))))
 
+(define ssh-write-authentication-message : (-> SSH-Port SSH-Message Void)
+  (lambda [self message]
+    (ssh-log-outgoing-message message 'debug)
+
+    (ssh-port-send self message)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-authentication-message : (-> Bytes (Listof Symbol) (Option SSH-Message))
   (lambda [payload groups]
@@ -33,23 +39,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
-    (cond [(ssh:msg:debug? msg)
-           (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg)))]
-          [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "terminate the connection because of ~a, details: ~a"
-                            (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
-          [(ssh:msg:unimplemented? msg)
-           (ssh-log-message level "cannot not deal with message" (ssh:msg:unimplemented-number msg))])))
+    (cond [(ssh:msg:userauth:banner? msg)
+           (ssh-log-message level "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
-    (cond [(ssh:msg:debug? msg)
-           (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg)))]
-          [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "~a has disconnected with the reason ~a(~a)" (current-peer-name)
-                            (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
-          [(ssh:msg:unimplemented? msg)
-           (ssh-log-message level "~a cannot deal with message ~a" (current-peer-name)
-                            (ssh:msg:unimplemented-number msg))])))
+    (cond [(ssh:msg:userauth:banner? msg)
+           (ssh-log-message 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))

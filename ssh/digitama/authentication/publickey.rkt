@@ -8,7 +8,7 @@
 (require (for-syntax "../../message.rkt"))
 
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST
-  [PUBLICKEY 'publickey ([has-signature? : Boolean #false] [algorithm : String] [blob : String]) #:case has-signature?])
+  [PUBLICKEY #:method 'publickey ([adequate? : Boolean #false] [algorithm : String] [blob : String]) #:case adequate?])
 
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST-PUBLICKEY
-  [SIGNED    '#true ([signature : String])])
+  [($)    #:adequate? '#true ([signature : String])])
