@@ -10,17 +10,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax ssh-message-hidden-fields-count 2)
 
-(define-for-syntax (ssh-field-index <key> <fields>)
+(define-for-syntax (ssh-field-index <key> <fields> offset)
   (define key (syntax->datum <key>))
 
   (let search-key ([fields (syntax->datum <fields>)]
-                   [index ssh-message-hidden-fields-count])
+                   [index (+ ssh-message-hidden-fields-count offset)])
     (cond [(null? fields) (raise-syntax-error 'ssh-field-index "no such field" <key> #false (syntax-e <fields>))]
           [(eq? key (car fields)) (datum->syntax <key> index)]
           [else (search-key (cdr fields) (+ index 1))])))
 
-(define-for-syntax (ssh-case-message-fields <number> <fields> <Types> <defvals> <index>)
-  (define index (syntax-e <index>))
+(define-for-syntax (ssh-case-message-fields <number> <fields> <Types> <defvals> index)
   (cons (syntax-e <number>)
         (for/list ([field (in-list (syntax->datum <fields>))]
                    [type (in-list (syntax->datum <Types>))]
