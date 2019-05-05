@@ -76,7 +76,6 @@
              (ssh-kex-done parent oldkeys kex-process HASH c2s s2c /dev/tcpout rfc #true)]
             [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)]))))
 
-
 (define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes Void)
   (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc oldkeys Is]
     (ssh-log-kexinit self-kexinit "local client")

@@ -28,12 +28,13 @@
    [identification : String]
    [kexinit : SSH-MSG-KEXINIT]
    [services : (Listof Symbol)]
-   [name : String]
+   [local-name : Symbol]
    [port-number : Index])
   #:type-name SSH-Daemon)
 
 (struct ssh-port ssh-transport
-  ([identity : Bytes]
+  ([peer-name : Symbol]
+   [identity : Bytes]
    [ghostcat : Thread]
    [sshin : Input-Port])
   #:type-name SSH-Port)

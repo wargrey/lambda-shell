@@ -18,8 +18,8 @@ This section demonstrates the implementation of @~cite[SSH-USERAUTH].
 
 @tamer-action[
  (ssh-message (make-ssh:msg:userauth:request #:username 'wargrey #:method 'none))
- (ssh-message (make-ssh:msg:userauth:request:publickey #:username 'wargrey #:algorithm "algorithm" #:blob "blob"))
- (define-values (octets adequate-request) (ssh-message (make-ssh:msg:userauth:request:publickey$ #:username 'wargrey #:signature "signature" #:algorithm "algorithm" #:blob "blob")))
+ (ssh-message (make-ssh:msg:userauth:request:publickey #:username 'wargrey #:algorithm "algorithm" #:key #"key"))
+ (define-values (octets adequate-request) (ssh-message (make-ssh:msg:userauth:request:publickey$ #:username 'wargrey #:signature #"signature" #:algorithm "algorithm" #:key #"key")))
  (values octets adequate-request)
  (ssh:msg:userauth:request? adequate-request)
  (ssh:msg:userauth:request:publickey? adequate-request)]

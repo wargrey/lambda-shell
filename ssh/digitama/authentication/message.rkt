@@ -6,7 +6,6 @@
 
 (require "../../message.rkt")
 (require "../../transport.rkt")
-(require "../../configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-authentication-datum-evt : (-> SSH-Port (Listof Symbol) (Evtof SSH-Datum))
@@ -38,11 +37,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
-  (lambda [msg [level 'debug]]
+  (lambda [self msg [level 'debug]]
     (cond [(ssh:msg:userauth:banner? msg)
            (ssh-log-message level "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:userauth:banner? msg)
-           (ssh-log-message 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
+           (ssh-log-message 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
+          [(ssh:msg:userauth:request? msg)
+           (let ([method (ssh:msg:userauth:request-method msg)])
+             (if (eq? method 'none)
+                 (ssh-log-message level "~a@~a is requesting the authentication methods" (ssh:msg:userauth:request-username msg) (current-peer-name))
+                 (ssh-log-message level "~a@~a is requesting to authenticate via '~a' method" (ssh:msg:userauth:request-username msg) (current-peer-name) method)))])))

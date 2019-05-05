@@ -37,7 +37,7 @@
   (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) #px"[_-]" ":")))
 
 (define-for-syntax (ssh-message-constructors <ssh:msg>)
-  (list (format-id <ssh:msg> "~a" (gensym 'ssh:msg:))
+  (list (format-id <ssh:msg> "~a" (gensym (format "~a:" (syntax-e <ssh:msg>))))
         (format-id <ssh:msg> "make-~a" (syntax-e <ssh:msg>))))
 
 (define-for-syntax (ssh-message-procedures <id>)

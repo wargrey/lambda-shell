@@ -87,7 +87,7 @@
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
   [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol 'ssh-connection] [method : Symbol 'none]) #:case method]
-  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (SSH-Algorithm-Listof SSH-Authentication) (ssh-authentication-methods)] [partial-success? : Boolean])]
+  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (SSH-Algorithm-Listof SSH-Authentication) (ssh-authentication-methods)] [partial-success? : Boolean #false])]
   [SSH_MSG_USERAUTH_SUCCESS          52 ()]
   [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
 

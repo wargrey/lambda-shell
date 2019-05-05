@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide SSH-Port SSH-Daemon)
-(provide ssh-daemon-services)
+(provide ssh-daemon-services ssh-port-peer-name)
 
 (require racket/tcp)
 (require racket/port)
@@ -37,7 +37,7 @@
     (define sshc-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian sshc-custodian]
                    [current-logger logger])
-      (define server-name : Symbol (string->symbol (format "${~a:~a}" hostname port)))
+      (define server-name : Symbol (string->symbol (format "<~a:~a>" hostname port)))
       (ssh-log-message 'debug "connecting to ~a" server-name)
 
       (parameterize ([current-peer-name server-name])
@@ -51,7 +51,7 @@
           (ssh-log-message 'debug "server[~a:~a] identification string: ~a" hostname port (ssh-identification-raw server-id))
 
           (define session-id : Bytes (ssh-read-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port root sshc-custodian rfc logger session-id sshc /dev/sshin))))))
+          (ssh-port root sshc-custodian rfc logger server-name session-id sshc /dev/sshin))))))
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration
@@ -67,11 +67,12 @@
       (define sshd : TCP-Listener (tcp-listen port max-allow-wait #true hostname))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses sshd #true))
       (define identification : String (ssh-identification-string rfc))
+
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
       (ssh-daemon root listener-custodian rfc logger sshd identification kexinit
                   (if (not disable-reserved-services?) (list* 'ssh-userauth 'ssh-connection services) services)
-                  (format "~a:~a" local-name local-port) local-port))))
+                  (string->symbol (format "~a:~a" local-name local-port)) local-port))))
 
 (define ssh-accept : (-> SSH-Daemon [#:custodian Custodian] SSH-Port)
   (lambda [listener #:custodian [root (make-custodian)]]
@@ -81,7 +82,7 @@
                    [current-logger (ssh-transport-logger listener)])
       (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-daemon-watchdog listener)))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
-      (define client-name : Symbol (string->symbol (format "${~a:~a}" remote-name remote-port)))
+      (define client-name : Symbol (string->symbol (format "<~a:~a>" remote-name remote-port)))
       (ssh-log-message 'debug "accepted ~a" client-name)
       
       (parameterize ([current-peer-name client-name])
@@ -101,7 +102,7 @@
                                             (ssh-identification-protoversion client-id)))
 
           (define session-id : Bytes (ssh-read-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port root sshd-custodian rfc (current-logger) session-id sshd /dev/sshin))))))
+          (ssh-port root sshd-custodian rfc (current-logger) client-name session-id sshd /dev/sshin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))

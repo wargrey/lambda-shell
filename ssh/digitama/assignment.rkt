@@ -7,6 +7,7 @@
 
 (require "kex.rkt")
 (require "message.rkt")
+(require "userauth.rkt")
 (require "algorithm/pkcs/hash.rkt")
 
 (require "../datatype.rkt")
@@ -93,7 +94,7 @@
 (define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher #:as (Immutable-Vector (-> Bytes Bytes (Values SSH-λCipher! SSH-λCipher!)) Byte Byte))
 (define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
 
-(define-ssh-algorithm-database ssh-authentication-methods : SSH-Authentication #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
+(define-ssh-algorithm-database ssh-authentication-methods : SSH-Authentication #:as SSH-User-Authentication<%>)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

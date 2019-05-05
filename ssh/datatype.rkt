@@ -192,10 +192,20 @@
 
 (define ssh-algorithms-clean : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof* a)))
   (lambda [dirty-list]
-    (let filter ([algorithms : (Listof (Pairof Symbol a)) null]
+    (let filter ([algorithms : (SSH-Algorithm-Listof* a) null]
                  [smhtirogla : (SSH-Algorithm-Listof a) (reverse dirty-list)])
       (cond [(null? smhtirogla) algorithms]
             [else (let ([algorithm (car smhtirogla)]
                         [rest (cdr smhtirogla)])
                     (cond [(cdr algorithm) (filter (cons algorithm algorithms) rest)]
                           [else (filter algorithms rest)]))]))))
+
+(define ssh-algorithms-remove : (All (a) (-> Symbol (SSH-Algorithm-Listof* a) (SSH-Algorithm-Listof* a)))
+  (lambda [name algbase]
+    (let filter ([algorithms : (SSH-Algorithm-Listof* a) null]
+                 [smhtirogla : (SSH-Algorithm-Listof* a) (reverse algbase)])
+      (cond [(null? smhtirogla) algorithms]
+            [else (let ([algorithm (car smhtirogla)]
+                        [rest (cdr smhtirogla)])
+                    (cond [(eq? name (car algorithm)) (filter algorithms rest)]
+                          [else (filter (cons algorithm algorithms) rest)]))]))))

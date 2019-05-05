@@ -2,7 +2,16 @@
 
 (provide (all-defined-out))
 
-(require "../message.rkt")
-(require "../../message.rkt")
+(require "../assignment.rkt")
+(require "../authentication/publickey.rkt")
 
-(require (for-syntax "../../message.rkt"))
+; datum definition: #(Request Response)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-ssh-algorithms #:authentication
+  ; https://tools.ietf.org/html/rfc4252#section-5
+  ([publickey    REQUIRED        #:=> ssh-userauth-publickey%]
+   [password     OPTIONAL]
+   [hostbased    OPTIONAL]
+   [none         NOT RECOMMANDED]))
