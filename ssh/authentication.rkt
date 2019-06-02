@@ -3,11 +3,13 @@
 ;;; https://tools.ietf.org/html/rfc4252
 
 (provide (all-defined-out))
+(provide SSH-User-Authentication<%>)
 
 (require typed/racket/class)
 
 (require "digitama/userauth.rkt")
 (require "digitama/authentication/message.rkt")
+(require "digitama/diagnostics.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")
@@ -28,38 +30,37 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-request : (->* (SSH-Port Symbol) (Symbol) (U SSH-EOF True))
   (lambda [sshd username [service 'ssh-connection]]
-    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshd null)])
+    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshd #false)])
       (define datum (sync/enable-break datum-evt))
       
       (cond [(ssh-eof? datum) datum]
-            [else (authenticate (ssh-authentication-datum-evt sshd null))]))))
+            [else (authenticate (ssh-authentication-datum-evt sshd #false))]))))
 
 (define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) [#:methods (SSH-Algorithm-Listof* SSH-Authentication)] (U SSH-EOF SSH-User Void))
   (lambda [sshc services #:methods [all-methods (ssh-authentication-methods)]]
     #;(when (and (string? banner) (> (string-length banner) 0))
       (ssh-write-authentication-message sshc (make-ssh:msg:userauth:banner #:message banner)))
     
-    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc null)]
+    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)]
                        [methods : (SSH-Algorithm-Listof* SSH-Authentication) all-methods]
                        [auth-process% : (Option (Instance SSH-User-Authentication<%>)) #false])
       (define datum : SSH-Datum (sync/enable-break datum-evt))
       
       (cond [(ssh-eof? datum) datum]
+            [(null? methods) (ssh-shutdown sshc 'SSH-DISCONNECT-NO-MORE-AUTH-METHODS-AVAILABLE)]
             [(not (ssh:msg:userauth:request? datum)) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT)]
             [else (let* ([username (ssh:msg:userauth:request-username datum)]
                          [service (ssh:msg:userauth:request-service datum)]
                          [method (ssh:msg:userauth:request-method datum)]
                          [maybe-method (assq method methods)])
-                    (define result : (U Void Boolean)
+                    (define result : (U Void Boolean (Instance SSH-User-Authentication<%>))
                       (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
-                            [(and (not maybe-method) (eq? method 'none)) (ssh-write-authentication-message sshc (make-ssh:msg:userauth:failure #:methods methods))]
-                            [(pair? maybe-method)
-                             (let* ([auth% (new (cdr maybe-method) [session-id (ssh-port-session-identity sshc)] [username username] [service service])]
-                                    [response (send auth% response datum)])
-                               (and (ssh-message? response)
-                                    (ssh-write-authentication-message sshc response)
-                                    (when (send auth% done?) #true)))]
-                            [else #false]))
+                            [(not maybe-method) (ssh-write-auth-failure sshc methods #false)]
+                            [else (let* ([auth% (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth-process%)]
+                                         [response (send auth% response datum)])
+                                    (cond [(or (eq? response #true) (ssh:msg:userauth:success? response)) (ssh-write-auth-success sshc #false response)]
+                                          [(or (eq? response #false) (ssh:msg:userauth:failure? response)) (and (ssh-write-auth-failure sshc methods response) auth%)]
+                                          [(ssh-message? response) (ssh-write-authentication-message sshc response) auth%]))]))
                     (cond [(eq? result #true) (ssh-user username service)]
-                          [(void? result) (authenticate (ssh-authentication-datum-evt sshc null) methods auth-process%)]
-                          [else (authenticate (ssh-authentication-datum-evt sshc null) (ssh-algorithms-remove method methods) auth-process%)]))]))))
+                          [(void? result) (authenticate (ssh-authentication-datum-evt sshc auth-process%) methods auth-process%)]
+                          [else (authenticate (ssh-authentication-datum-evt sshc result) methods result)]))]))))

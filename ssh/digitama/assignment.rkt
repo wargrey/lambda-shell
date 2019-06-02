@@ -36,6 +36,8 @@
   (syntax-case stx [:]
     [(_ &database [name comments ... #:=> [data ...]])
      #'(set-box! &database (cons (cons 'name (vector-immutable data ...)) (unbox &database)))]
+    [(_ &database [name comments ... #:=> datum])
+     #'(set-box! &database (cons (cons 'name datum) (unbox &database)))]
     [(_ &database [name comments ...])
     #'(void)]))
 

@@ -5,7 +5,7 @@
 (require "../assignment.rkt")
 (require "../authentication/publickey.rkt")
 
-; datum definition: #(Request Response)
+; datum definition: userauth%
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

@@ -19,7 +19,7 @@
   [PUBLICKEY #:method 'publickey ([adequate? : Boolean #false] [algorithm : String] [key : SSH-BString]) #:case adequate?])
 
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST-PUBLICKEY
-  [($)    #:adequate? '#true ([signature : SSH-BString])])
+  [($)       #:adequate? '#true ([signature : SSH-BString])])
 
 (define-ssh-shared-messages publickey
   [SSH_MSG_USERAUTH_PK_OK 60 ([algorithm : String] [key : SSH-BString])])
@@ -27,12 +27,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-userauth-publickey% : SSH-User-Authentication<%>
   (class object% (super-new)
-    (init-field session-id username service)
+    (init-field session-id)
 
-    (define/public (tell-message-group)
+    (define/public (tell-method-name)
       'publickey)
 
-    (define/public (request response)
+    (define/public (request username service response)
       (or response (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey)))
 
     (define/public (response request)
@@ -42,5 +42,5 @@
                (make-ssh:msg:userauth:pk:ok #:algorithm (ssh:msg:userauth:request:publickey-algorithm request)
                                             #:key (ssh:msg:userauth:request:publickey-key request)))))
 
-    (define/public (done?)
-      #false)))
+    (define/public (abort)
+      (void))))
