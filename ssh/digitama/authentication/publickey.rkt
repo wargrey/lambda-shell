@@ -35,12 +35,12 @@
     (define/public (request username service response)
       (or response (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey)))
 
-    (define/public (response request)
-      (or (and (ssh:msg:userauth:request:publickey$? request)
-               #false)
-          (and (ssh:msg:userauth:request:publickey? request)
-               (make-ssh:msg:userauth:pk:ok #:algorithm (ssh:msg:userauth:request:publickey-algorithm request)
-                                            #:key (ssh:msg:userauth:request:publickey-key request)))))
+    (define/public (response request username service)
+      (cond [(ssh:msg:userauth:request:publickey$? request) #false]
+            [(ssh:msg:userauth:request:publickey? request)
+             (make-ssh:msg:userauth:pk:ok #:algorithm (ssh:msg:userauth:request:publickey-algorithm request)
+                                          #:key (ssh:msg:userauth:request:publickey-key request))]
+            [else #false]))
 
     (define/public (abort)
       (void))))

@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide SSH-Port SSH-Daemon)
-(provide ssh-daemon-services ssh-port-peer-name)
+(provide ssh-daemon-services ssh-port-peer-name ssh-transport-preference)
 
 (require racket/tcp)
 (require racket/port)
@@ -150,7 +150,7 @@
      (ssh-sync-disconnect (ssh-port-ghostcat self) reason description)
      (custodian-shutdown-all (ssh-transport-custodian self))]))
 
-(define ssh-eof? : (-> SSH-Datum Boolean : #:+ SSH-EOF)
+(define ssh-eof? : (-> Any Boolean : #:+ SSH-EOF)
   (lambda [datum]
     (or (ssh:msg:disconnect? datum)
         (exn? datum))))

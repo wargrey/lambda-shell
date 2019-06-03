@@ -42,6 +42,9 @@
 
 (define ssh-write-auth-success : (-> SSH-Port (Option String) (U SSH-MSG-USERAUTH-SUCCESS True) True)
   (lambda [self banner maybe-msg:success]
+    #;(when (and (string? banner) (> (string-length banner) 0))
+        (ssh-write-authentication-message sshc (make-ssh:msg:userauth:banner #:message banner)))
+    
     (ssh-write-authentication-message self
                                       (cond [(ssh-message? maybe-msg:success) maybe-msg:success]
                                             [else (make-ssh:msg:userauth:success)]))

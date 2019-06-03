@@ -52,5 +52,5 @@
    [pretty-log-packet-level : (Option Log-Level) #false]
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   [userauth-timeout : (Option Nonnegative-Real) #false]
-   [userauth-retries : (Option Index) #false]))
+   [userauth-timeout : Index 600]
+   [userauth-retry : Index 20]))
