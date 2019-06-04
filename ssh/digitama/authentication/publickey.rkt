@@ -36,7 +36,8 @@
       (or response (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey)))
 
     (define/public (response request username service)
-      (cond [(ssh:msg:userauth:request:publickey$? request) #false]
+      (cond [(ssh:msg:userauth:request:publickey$? request)
+             (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-ILLEGAL-USER-NAME)]
             [(ssh:msg:userauth:request:publickey? request)
              (make-ssh:msg:userauth:pk:ok #:algorithm (ssh:msg:userauth:request:publickey-algorithm request)
                                           #:key (ssh:msg:userauth:request:publickey-key request))]
