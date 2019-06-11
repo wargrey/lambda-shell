@@ -6,6 +6,6 @@
 
 (define-ffi-definer define-adler32 adler32-lib)
 
-(define-adler32 adler32_base (_fun -> _ulong))
+(define-adler32 identity (_fun _int -> _int))
 
-(adler32_base)
+(identity 12)
