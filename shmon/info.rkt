@@ -8,3 +8,7 @@
 (define version "1.0")
 (define deps '("base" "typed-racket-lib" "typed-racket-more"))
 (define build-deps '("scribble-lib" "racket-doc"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define msvc-sdk-root "C:\\Program Files (x86)\\Windows Kits\\10")
+(define msvc-sdk-library "10.0.17763.0")

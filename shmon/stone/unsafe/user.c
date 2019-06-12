@@ -39,7 +39,7 @@ static char* user_fill_passwd_by_name(const char* name, struct passwd* pwd) {
 }
 #endif
 
-size_t user_home_dir(const char* name, char* pool, size_t psize) {
+_LAMBDA size_t user_home_dir(const char* name, char* pool, size_t psize) {
     size_t dirsize = 0;
 
     if (name != NULL) {
