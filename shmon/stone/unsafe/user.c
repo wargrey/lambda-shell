@@ -1,15 +1,20 @@
-#include <string.h>
-
-#ifndef __windows__
-#include <pwd.h>
+#ifdef __windows__
+#include <stdio.h>
+#include <shlobj_core.h>
+#include <Knownfolders.h>
+#include <combaseapi.h>
+#else
+#include <sys/types.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
+#include <pwd.h>
 #endif
 
 #ifndef __windows__
-static char* user_fill_passwd_by_name(const char* name, struct passwd* pwd) {
+static char* user_fill_passwd(const char* name, struct passwd* pwd) {
     struct passwd* result = NULL;
     char* pool = NULL;
     long psize = 0L;
@@ -26,10 +31,14 @@ static char* user_fill_passwd_by_name(const char* name, struct passwd* pwd) {
         }
 
         pool = (char*)malloc(psize);
-        retcode = getpwnam_r(name, pwd, pool, psize, &result);
+
+        if (name == NULL) {
+            retcode = getpwnam_r(name, pwd, pool, psize, &result);
+        } else {
+            retcode = getpwuid_r(geteuid(), pwd, pool, psize, &result);
+        }
     } while (retcode == ERANGE);
 
-        
     if (result == NULL) {
         free(pool);
         pool = NULL;
@@ -42,20 +51,25 @@ static char* user_fill_passwd_by_name(const char* name, struct passwd* pwd) {
 F_LAMBDA size_t user_home_dir(const char* name, char* pool, size_t psize) {
     size_t dirsize = 0;
 
-    if (name != NULL) {
-#ifndef __windows__
-        struct passwd pwd;
-        char* buffer = user_fill_passwd_by_name(name, &pwd);
-        
-        if (buffer != NULL) {
-            dirsize = strnlen(pwd.pw_dir, psize);
-            strncpy(pool, pwd.pw_dir, dirsize);
+#ifdef __windows__
+    PWSTR homedir = NULL;
+    HRESULT retcode = SHGetKnownFolderPath(&FOLDERID_Profile, KF_FLAG_DEFAULT, NULL, &homedir);
 
-            free(buffer);
-        }
-#endif
+    if ((retcode == S_OK) && (homedir != NULL)) {
+        dirsize = snprintf(pool, psize, "%S", homedir);
+        CoTaskMemFree(homedir);
     }
+#else
+    struct passwd pwd;
+    char* buffer = user_fill_passwd(name, &pwd);
+        
+    if (buffer != NULL) {
+        dirsize = strnlen(pwd.pw_dir, psize);
+        strncpy(pool, pwd.pw_dir, dirsize);
+
+        free(buffer);
+    }
+#endif
 
     return dirsize;
 }
-
