@@ -1,11 +1,12 @@
+#include <stdlib.h>
+
 #ifdef __windows__
 #include <stdio.h>
-#include <shlobj_core.h>
+#include <windows.h> /* ld:library: (Advapi32 Ole32) */
+#include <ShlObj.h>  /* ld:library: (Shell32) */
 #include <Knownfolders.h>
-#include <combaseapi.h>
 #else
 #include <sys/types.h>
-#include <stdlib.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <errno.h>
@@ -32,7 +33,7 @@ static char* user_fill_passwd(const char* name, struct passwd* pwd) {
 
         pool = (char*)malloc(psize);
 
-        if (name == NULL) {
+        if ((name != NULL) && (strlen(name) > 0)) {
             retcode = getpwnam_r(name, pwd, pool, psize, &result);
         } else {
             retcode = getpwuid_r(geteuid(), pwd, pool, psize, &result);
@@ -49,16 +50,34 @@ static char* user_fill_passwd(const char* name, struct passwd* pwd) {
 #endif
 
 F_LAMBDA size_t user_home_dir(const char* name, char* pool, size_t psize) {
-    size_t dirsize = 0;
+	size_t dirsize = 0;
 
 #ifdef __windows__
-    PWSTR homedir = NULL;
-    HRESULT retcode = SHGetKnownFolderPath(&FOLDERID_Profile, KF_FLAG_DEFAULT, NULL, &homedir);
+	HANDLE user = NULL;
+	PWSTR homedir = NULL;
+	BOOL user_ok = TRUE;
+	
+	if ((name != NULL) && (strlen(name) > 0)) {
+		user_ok = LogonUserA(name, ".", NULL, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &user);
+	}
 
-    if ((retcode == S_OK) && (homedir != NULL)) {
-        dirsize = snprintf(pool, psize, "%S", homedir);
-        CoTaskMemFree(homedir);
-    }
+	if (user_ok == TRUE) {
+		HRESULT retcode = SHGetKnownFolderPath(&FOLDERID_Profile, KF_FLAG_DEFAULT, user, &homedir);
+
+		if (retcode == S_OK) {
+			dirsize = snprintf(pool, psize, "%S", homedir);
+
+			if (dirsize >= psize) {
+				dirsize = psize - 1;
+			}
+
+			CoTaskMemFree(homedir);
+		} else {
+			printf("%s: HRESULT: %d\n", name, retcode);
+		}
+	} else {
+		printf("%s: errno: %ld\n", name, GetLastError());
+	}
 #else
     struct passwd pwd;
     char* buffer = user_fill_passwd(name, &pwd);
