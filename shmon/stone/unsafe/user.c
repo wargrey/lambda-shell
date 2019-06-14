@@ -2,8 +2,8 @@
 
 #ifdef __windows__
 #include <stdio.h>
-#include <windows.h> /* ld:library: (Advapi32 Ole32) */
-#include <ShlObj.h>  /* ld:library: (Shell32) */
+#include <windows.h> /* ld:static: Advapi32 Ole32 */
+#include <ShlObj.h>  /* ld:static: Shell32 */
 #include <Knownfolders.h>
 #else
 #include <sys/types.h>
