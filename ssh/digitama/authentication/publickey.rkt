@@ -16,13 +16,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; https://tools.ietf.org/html/rfc4252#section-8
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST
-  [PUBLICKEY #:method 'publickey ([adequate? : Boolean #false] [algorithm : String] [key : SSH-BString]) #:case adequate?])
+  [PUBLICKEY #:method 'publickey ([signed? : Boolean #false] [algorithm : Symbol] [key : SSH-BString]) #:case signed?])
 
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST-PUBLICKEY
   [($)       #:adequate? '#true ([signature : SSH-BString])])
 
 (define-ssh-shared-messages publickey
-  [SSH_MSG_USERAUTH_PK_OK 60 ([algorithm : String] [key : SSH-BString])])
+  [SSH_MSG_USERAUTH_PK_OK 60 ([algorithm : Symbol] [key : SSH-BString])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-userauth-publickey% : SSH-User-Authentication<%>
@@ -42,6 +42,9 @@
              (make-ssh:msg:userauth:pk:ok #:algorithm (ssh:msg:userauth:request:publickey-algorithm request)
                                           #:key (ssh:msg:userauth:request:publickey-key request))]
             [else #false]))
+
+    (define/public (userauth-option username)
+      #false)
 
     (define/public (abort)
       (void))))

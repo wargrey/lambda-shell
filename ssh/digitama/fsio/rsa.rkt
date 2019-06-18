@@ -1,13 +1,15 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide (all-from-out "algorithm/pkcs/key.rkt"))
+(provide (all-from-out "../algorithm/pkcs/key.rkt"))
 
-(require "algorithm/pkcs/key.rkt")
-(require "asn-der/primitive.rkt")
-(require "asn-der/pretty.rkt")
 (require "pem.rkt")
 
+(require "../algorithm/pkcs/key.rkt")
+(require "../asn-der/primitive.rkt")
+(require "../asn-der/pretty.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define rsa-read : (-> (U Input-Port Path-String) (Option RSA-Private-Key))
   (lambda [/dev/rsain]
     (define-values (key-octets rsa?) (pem-read /dev/rsain #:label 'RSA-Private-Key))

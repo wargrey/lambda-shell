@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 
 (require ssh/digitama/algorithm/rsa)
-(require ssh/digitama/rsa)
+(require ssh/digitama/fsio/rsa)
 
 (require "cmdenv.rkt")
 (require "../cmdenv.rkt")

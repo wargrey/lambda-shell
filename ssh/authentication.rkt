@@ -4,14 +4,17 @@
 
 (provide (all-defined-out))
 (provide SSH-User-Authentication<%>)
+(provide (all-from-out "digitama/authentication/option.rkt"))
 
 (require racket/port)
 
 (require typed/racket/class)
 
 (require "digitama/userauth.rkt")
-(require "digitama/authentication/message.rkt")
 (require "digitama/diagnostics.rkt")
+
+(require "digitama/authentication/option.rkt")
+(require "digitama/authentication/message.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")
@@ -25,7 +28,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct ssh-user
   ([name : Symbol]
-   [service : Symbol])
+   [service : Symbol]
+   [options : SSH-Userauth-Option])
   #:transparent
   #:type-name SSH-User)
 
@@ -47,7 +51,7 @@
     (define (authenticate) : (U SSH-EOF SSH-User Void)
       (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)]
                          [methods : (SSH-Algorithm-Listof* SSH-Authentication) all-methods]
-                         [auth-process% : (Option (Instance SSH-User-Authentication<%>)) #false]
+                         [auth% : (Option (Instance SSH-User-Authentication<%>)) #false]
                          [retry : Fixnum limit])
         (define datum : SSH-Datum (sync/enable-break datum-evt))
         
@@ -62,14 +66,14 @@
                       (define result : (U Void Boolean (Instance SSH-User-Authentication<%>))
                         (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
                               [(not maybe-method) (ssh-write-auth-failure sshc methods #false)]
-                              [else (let* ([auth% (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth-process%)]
+                              [else (let* ([auth% (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth%)]
                                            [response (send auth% response datum username service)])
                                       (cond [(or (eq? response #true) (ssh:msg:userauth:success? response)) (ssh-write-auth-success sshc #false response)]
                                             [(or (eq? response #false) (ssh:msg:userauth:failure? response)) (and (ssh-write-auth-failure sshc methods response) auth%)]
                                             [else (ssh-write-authentication-message sshc response) auth%]))]))
                       (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
-                      (cond [(eq? result #true) (ssh-user username service)]
-                            [(void? result) (authenticate (ssh-authentication-datum-evt sshc auth-process%) methods auth-process% retry--)]
+                      (cond [(eq? result #true) (ssh-user username service (or (and auth% (send auth% userauth-option username)) ssh-default-userauth-option))]
+                            [(void? result) (authenticate (ssh-authentication-datum-evt sshc auth%) methods auth% retry--)]
                             [else (authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
 
     (cond [(= timeout 0) (authenticate)]

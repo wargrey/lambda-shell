@@ -12,7 +12,7 @@
 (require "pkcs/emsa-v1_5.rkt")
 
 (require "../kex.rkt")
-(require "../rsa.rkt")
+(require "../fsio/rsa.rkt")
 
 (require "../../datatype.rkt")
 
@@ -23,7 +23,7 @@
     (init-field hash-algorithm)
     
     (define key : RSA-Private-Key
-      (let ([id-rsa (digimon-path "stone" "hostkey" "id_rsa")])
+      (let ([id-rsa (digimon-path 'stone "hostkey" "id_rsa")])
         (unless (file-exists? id-rsa)
           (rsa-write (rsa-keygen (rsa-distinct-primes #:modulus-bits 2048) #:e 65537)
                      id-rsa))

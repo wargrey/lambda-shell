@@ -139,7 +139,7 @@ These test cases are defined in @~cite[HMAC-SHA].
        (require (prefix-in pict: pict))
        
        (require "../datatype.rkt")
-       (require "../digitama/rsa.rkt")
+       (require "../digitama/fsio/rsa.rkt")
        (require "../digitama/algorithm/rsa.rkt")
        (require "../digitama/algorithm/hmac.rkt")
        
