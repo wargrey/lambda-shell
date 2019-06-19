@@ -72,7 +72,7 @@
                                             [(or (eq? response #false) (ssh:msg:userauth:failure? response)) (and (ssh-write-auth-failure sshc methods response) auth%)]
                                             [else (ssh-write-authentication-message sshc response) auth%]))]))
                       (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
-                      (cond [(eq? result #true) (ssh-user username service (or (and auth% (send auth% userauth-option username)) ssh-default-userauth-option))]
+                      (cond [(eq? result #true) (ssh-user username service (or (and auth% (send auth% userauth-option username)) (make-ssh-userauth-option)))]
                             [(void? result) (authenticate (ssh-authentication-datum-evt sshc auth%) methods auth% retry--)]
                             [else (authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
 
