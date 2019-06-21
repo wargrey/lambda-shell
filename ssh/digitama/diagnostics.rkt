@@ -61,13 +61,12 @@
     (raise errobj)))
 
 
-(define ssh-raise-syntax-error : (-> Any Input-Port String Any * Nothing)
-  (lambda [func /dev/stdin msgfmt . argl]
+(define ssh-raise-syntax-error : (-> Any Any (Option Natural) (Option Natural) String Any * Nothing)
+  (lambda [func /dev/stdin line col msgfmt . argl]
     (define errobj : SSH-Error
-      (let-values ([(line col _) (port-next-location /dev/stdin)])                             
-        (exn:ssh:fsio (cond [(and line col) (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* (object-name /dev/stdin) line col argl))]
-                            [else (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* (object-name /dev/stdin) argl))])
-                      (current-continuation-marks))))
+      (exn:ssh:fsio (cond [(and line col) (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* /dev/stdin line col argl))]
+                          [else (ssh-exn-message func (string-append "~a: " msgfmt) (list* /dev/stdin argl))])
+                    (current-continuation-marks)))
 
     (ssh-log-error errobj #:level 'warning)
     (raise errobj)))

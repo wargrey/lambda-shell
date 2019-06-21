@@ -24,6 +24,15 @@ This section demonstrates the implementation of @~cite[SSH-USERAUTH].
  (ssh:msg:userauth:request? signed-request)
  (ssh:msg:userauth:request:publickey? signed-request)]
 
+@handbook-scenario{Authorized_keys}
+
+The format of @deftech{authorized_keys} is defined in @exec{man sshd}.
+
+@tamer-action[
+ (with-logging-to-port (current-error-port)
+   (λ [] (read-authorized-keys* authorized_keys #:count-lines? #true))
+   'debug)]
+
 @handbook-reference[]
 
 @; Chunks after `handbook-reference[]` will never be rendered in documents
@@ -40,7 +49,12 @@ This section demonstrates the implementation of @~cite[SSH-USERAUTH].
          <request>)]
 
 @chunk[<request>
+       (require racket/logging)
+       
        (require "message.rkt")
 
        (require "../message.rkt")
-       (require "../digitama/authentication/publickey.rkt")]
+       (require "../digitama/authentication/publickey.rkt")
+       (require "../digitama/fsio/authorized-keys.rkt")
+
+       (define authorized_keys (digimon-path "tamer" "stone" "authorized_keys"))]
