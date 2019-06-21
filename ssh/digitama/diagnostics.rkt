@@ -13,6 +13,7 @@
 (struct exn:ssh:identification exn:ssh ())
 (struct exn:ssh:kex exn:ssh ())
 (struct exn:ssh:mac exn:ssh ())
+(struct exn:ssh:fsio exn:ssh ())
 
 (define current-peer-name : (Parameterof (Option Symbol)) (make-parameter #false))
 
@@ -25,35 +26,57 @@
 
 (define ssh-raise-defence-error : (-> Any String Any * Nothing)
   (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error (exn:ssh:defence (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+    (define errobj : SSH-Error
+      (exn:ssh:defence (ssh-exn-message func msgfmt argl)
+                       (current-continuation-marks)))
 
     (ssh-log-error errobj)
     (raise errobj)))
 
 (define ssh-raise-identification-error : (-> Procedure String Any * Nothing)
   (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error (exn:ssh:identification (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+    (define errobj : SSH-Error
+      (exn:ssh:identification (ssh-exn-message func msgfmt argl)
+                              (current-continuation-marks)))
 
     (ssh-log-error errobj)
     (raise errobj)))
 
 (define ssh-raise-kex-error : (-> Any String Any * Nothing)
   (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error (exn:ssh:kex (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+    (define errobj : SSH-Error
+      (exn:ssh:kex (ssh-exn-message func msgfmt argl)
+                   (current-continuation-marks)))
 
     (ssh-log-error errobj)
     (raise errobj)))
 
 (define ssh-raise-mac-error : (-> Any String Any * Nothing)
   (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error (exn:ssh:mac (ssh-exn-message func msgfmt argl) (current-continuation-marks)))
+    (define errobj : SSH-Error
+      (exn:ssh:mac (ssh-exn-message func msgfmt argl)
+                   (current-continuation-marks)))
 
     (ssh-log-error errobj)
     (raise errobj)))
 
+
+(define ssh-raise-syntax-error : (-> Any Input-Port String Any * Nothing)
+  (lambda [func /dev/stdin msgfmt . argl]
+    (define errobj : SSH-Error
+      (let-values ([(line col _) (port-next-location /dev/stdin)])                             
+        (exn:ssh:fsio (cond [(and line col) (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* (object-name /dev/stdin) line col argl))]
+                            [else (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* (object-name /dev/stdin) argl))])
+                      (current-continuation-marks))))
+
+    (ssh-log-error errobj #:level 'warning)
+    (raise errobj)))
+
 (define ssh-raise-eof-error : (->* (Procedure Symbol String) (#:logging? Boolean) #:rest Any Nothing)
   (lambda [func reason #:logging? [logging? #true] msgfmt . argl]
-    (define errobj : SSH-Error (exn:ssh:eof (ssh-exn-message func msgfmt argl) (current-continuation-marks) reason))
+    (define errobj : SSH-Error
+      (exn:ssh:eof (ssh-exn-message func msgfmt argl)
+                   (current-continuation-marks) reason))
 
     (when logging?
       (ssh-log-error errobj))
