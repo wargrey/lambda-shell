@@ -37,7 +37,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-read-key-line : (-> Input-Port (U Authorized-Key EOF exn))
   (lambda [/dev/keyin]
-    (with-handlers ([exn:ssh:fsio? (λ [[e : exn:ssh:fsio]] e)])
+    (with-handlers ([exn:ssh:fsio? (λ [[e : exn:ssh:fsio]] (read-line /dev/keyin) e)])
       (let readline ([type : Symbol '||]
                      [key : (Option Bytes) #false]
                      [comment : (Option String) #false]
@@ -62,26 +62,27 @@
 
 (define ssh-read-key-options : (-> Input-Port Symbol (Option Char) (Values SSH-Userauth-Option (Option Char)))
   (lambda [/dev/keyin leading-sym this-char]
-    (let read-option ([flags : (Listof Symbol) null]
-                      [parameters : (Listof (Pairof Symbol (List String (Option Natural) (Option Natural)))) null]
+    (let read-option ([sgalf : (Listof Symbol) null]
+                      [sretemarap : (Listof (Pairof Symbol (List String (Option Natural) (Option Natural)))) null]
                       [sym : Symbol leading-sym]
                       [ch : (Option Char) this-char])
       (cond [(eq? ch #\,)
              (let-values ([(token maybe-char) (ssh-read-key-token /dev/keyin #\= #\space #\,)])
-               (read-option (if (eq? sym '||) flags (cons sym flags))
-                            parameters (string->symbol token) maybe-char))]
+               (read-option (if (eq? sym '||) sgalf (cons sym sgalf))
+                            sretemarap (string->symbol token) maybe-char))]
             [(eq? ch #\=)
              (let-values ([(line col _) (port-next-location /dev/keyin)])
-               (when (and (assq sym parameters) (not (memq sym ssh-multiple-options)))
+               (when (and (assq sym sretemarap) (not (memq sym ssh-multiple-options)))
                  (discard-broken-key ssh-read-key-options /dev/keyin "multiple '~a' clauses" sym))
                (cond [(eq? sym '||) (discard-broken-key ssh-read-key-options /dev/keyin "lack option name")]
                      [else (let-values ([(value maybe-char) (ssh-read-key-token /dev/keyin #\space #\,)])
                              (define this-parameter : (Pairof Symbol (List String (Option Natural) (Option Natural)))
                                (cons sym (list value line (and col (+ col 1)))))
-                             (read-option flags (cons this-parameter parameters) '|| maybe-char))]))]
+                             (read-option sgalf (cons this-parameter sretemarap) '|| maybe-char))]))]
             [else ; (memq ch '(#false #\newline #\space))
-             (values (make-ssh-userauth-option #:flags (reverse flags) #:parameters (reverse parameters) #:source (object-name /dev/keyin))
-                     ch)]))))
+             (let ([flags (reverse (if (eq? sym '||) sgalf (cons sym sgalf)))])
+               (values (make-ssh-userauth-option #:flags flags #:parameters (reverse sretemarap) #:source (object-name /dev/keyin))
+                       ch))]))))
 
 (define ssh-read-key-token : (-> Input-Port Char * (Values String (Option Char)))
   (lambda [/dev/keyin . terminators]
@@ -146,7 +147,6 @@
   (lambda [func /dev/keyin errfmt . messages]
     (define-values (line col _) (port-next-location /dev/keyin))
 
-    (read-line /dev/keyin)
     (apply ssh-raise-syntax-error func (object-name /dev/keyin) line col errfmt messages)))
 
 (define key-srahc->token : (-> (Listof Char) String)
