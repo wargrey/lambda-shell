@@ -12,6 +12,7 @@
 (struct exn:ssh:defence exn:ssh ())
 (struct exn:ssh:identification exn:ssh ())
 (struct exn:ssh:kex exn:ssh ())
+(struct exn:ssh:kex:hostkey exn:ssh:kex ())
 (struct exn:ssh:mac exn:ssh ())
 (struct exn:ssh:fsio exn:ssh ())
 
@@ -42,11 +43,12 @@
     (ssh-log-error errobj)
     (raise errobj)))
 
-(define ssh-raise-kex-error : (-> Any String Any * Nothing)
-  (lambda [func msgfmt . argl]
+(define ssh-raise-kex-error : (->* (Any String) (#:hostkey? Boolean) #:rest Any Nothing)
+  (lambda [func #:hostkey? [hostkey? #false] msgfmt . argl]
     (define errobj : SSH-Error
-      (exn:ssh:kex (ssh-exn-message func msgfmt argl)
-                   (current-continuation-marks)))
+      ((if hostkey? exn:ssh:kex:hostkey exn:ssh:kex)
+       (ssh-exn-message func msgfmt argl)
+       (current-continuation-marks)))
 
     (ssh-log-error errobj)
     (raise errobj)))

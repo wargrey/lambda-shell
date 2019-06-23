@@ -5,12 +5,16 @@
 (require typed/racket/class)
 
 (require "../userauth.rkt")
+(require "../fsio/authorized-keys.rkt")
+(require "../algorithm/pkcs/key.rkt")
 
 (require "../message.rkt")
 (require "../../message.rkt")
 (require "../../datatype.rkt")
 
-; `define-ssh-case-messages` requires this because of Racket phase compilation model
+(require "../diagnostics.rkt")
+
+; `define-ssh-case-messages` requires this because of Racket's phase isolated compilation model
 (require (for-syntax "../../message.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -36,15 +40,30 @@
       (or response (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey)))
 
     (define/public (response request username service)
-      (cond [(ssh:msg:userauth:request:publickey$? request)
-             (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-ILLEGAL-USER-NAME)]
-            [(ssh:msg:userauth:request:publickey? request)
-             (make-ssh:msg:userauth:pk:ok #:algorithm (ssh:msg:userauth:request:publickey-algorithm request)
-                                          #:key (ssh:msg:userauth:request:publickey-key request))]
-            [else #false]))
-
-    (define/public (userauth-option username)
-      #false)
+      (with-handlers ([exn:fail:filesystem? (λ _ (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-ILLEGAL-USER-NAME))])
+        (define authorized-keys : (Option (Immutable-HashTable Symbol (Listof Authorized-Key)))
+          (let ([.authorized-keys (build-path (expand-user-path (format "~~~a/.ssh/authorized_keys" username)))])
+            (and (file-exists? .authorized-keys)
+                 (read-authorized-keys* .authorized-keys))))
+        (and authorized-keys
+             (cond [(ssh:msg:userauth:request:publickey$? request)
+                    (let* ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
+                           [rawkey (ssh:msg:userauth:request:publickey-key request)]
+                           [key (authorized-key-ref authorized-keys keytype rawkey)])
+                      (and (authorized-key? key)
+                           (case keytype
+                             [(ssh-rsa)
+                              (let-values ([(pubkey _) (unsafe-bytes->rsa-public-key (authorized-key-raw key) 7)])
+                                (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-MAC-ERROR))]
+                             [else #false])
+                           (authorized-key-options key)))]
+                   [(ssh:msg:userauth:request:publickey? request)
+                    (let ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
+                          [rawkey (ssh:msg:userauth:request:publickey-key request)])
+                      (and (authorized-key-ref authorized-keys keytype rawkey)
+                           (ssh-log-message 'debug "~a partially accepted, continue" (current-peer-name))
+                           (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey)))]
+                   [else #false]))))
 
     (define/public (abort)
       (void))))

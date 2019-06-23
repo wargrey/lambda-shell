@@ -110,7 +110,8 @@
                (values #false (car evt) (- incoming-traffic) (- (cdr evt) outgoing-traffic))]
 
               [(exn? evt)
-               (cond [(exn:ssh:kex? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-KEY-EXCHANGE-FAILED rfc newkeys evt)]
+               (cond [(exn:ssh:kex:hostkey? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-HOST-KEY-NOT-VERIFIABLE rfc newkeys evt)]
+                     [(exn:ssh:kex? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-KEY-EXCHANGE-FAILED rfc newkeys evt)]
                      [(exn:ssh:mac? evt) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-MAC-ERROR rfc newkeys evt)]
                      [(not (exn:ssh:eof? evt)) (ssh-disconnect /dev/tcpout 'SSH-DISCONNECT-PROTOCOL-ERROR rfc newkeys evt)])
                (raise evt)]

@@ -118,7 +118,8 @@
                                "'f' is out of range, expected in [1, p-1]"))
         
         (unless (bytes=? (send hostkey make-signature H) s)
-          (ssh-raise-kex-error ssh-diffie-hellman-exchange%
+          (ssh-raise-kex-error #:hostkey? #true
+                               ssh-diffie-hellman-exchange%
                                "Hostkey signature is mismatch"))
 
         (set-box! &shared-secret K)

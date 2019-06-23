@@ -13,8 +13,7 @@
   (Class (init-field [session-id Bytes])
          [tell-method-name (-> Symbol)]
          [request (-> Symbol Symbol (Option SSH-Message) SSH-Message)]
-         [response (-> SSH-Message Symbol Symbol (U SSH-Message Boolean))]
-         [userauth-option (-> Symbol (Option SSH-Userauth-Option))]
+         [response (-> SSH-Message Symbol Symbol (U SSH-Message SSH-Userauth-Option False))]
          [abort (-> Void)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

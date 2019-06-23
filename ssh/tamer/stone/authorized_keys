@@ -8,6 +8,8 @@ permitopen="22000" ssh-rsa AAAAB5...21S== lack hostname
 environment="=8080" ssh-rsa AAAAB5...21S== bad environment
 command="dump /home",command="uptime" ssh-rsa AAAA1f8...IrrC5== multiple commands
 ="=",restrict ssh-rsa AAAAB5...21S== lack option name
+ssl-rsa AAAAB5...21S== unsupported keytype without option
+command="sh netstart tun0" ssl-rsa AAAAB5...21S== lack unsupported keytype
 
 # valid keys
 ssh-rsa AAAAB3Nza...LiPk== user@example.net

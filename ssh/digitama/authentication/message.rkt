@@ -30,21 +30,22 @@
 
     (ssh-port-send self message)))
 
-(define ssh-write-auth-failure : (-> SSH-Port (SSH-Algorithm-Listof* SSH-Authentication) (Option SSH-MSG-USERAUTH-FAILURE) Boolean)
-  (lambda [self methods maybe-msg:failure]
-    (define okay? : Boolean
-      (cond [(not maybe-msg:failure) #false]
-            [else (ssh:msg:userauth:failure-partial-success? maybe-msg:failure)]))
-
-    (ssh-write-authentication-message self (make-ssh:msg:userauth:failure #:methods methods #:partial-success? okay?))
-
-    okay?))
+(define ssh-write-auth-failure : (case-> [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication) -> False]
+                                         [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication) SSH-MSG-USERAUTH-FAILURE -> Boolean])
+  (case-lambda
+    [(self methods)
+     (ssh-write-authentication-message self (make-ssh:msg:userauth:failure #:methods methods #:partial-success? #false))
+     #false]
+    [(self methods msg:failure)
+     (let ([okay? (ssh:msg:userauth:failure-partial-success? msg:failure)])
+       (ssh-write-authentication-message self (make-ssh:msg:userauth:failure #:methods methods #:partial-success? okay?))
+       okay?)]))
 
 (define ssh-write-auth-success : (-> SSH-Port (Option String) (U SSH-MSG-USERAUTH-SUCCESS True) True)
   (lambda [self banner maybe-msg:success]
     #;(when (and (string? banner) (> (string-length banner) 0))
         (ssh-write-authentication-message sshc (make-ssh:msg:userauth:banner #:message banner)))
-    
+
     (ssh-write-authentication-message self
                                       (cond [(ssh-message? maybe-msg:success) maybe-msg:success]
                                             [else (make-ssh:msg:userauth:success)]))

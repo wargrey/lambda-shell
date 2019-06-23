@@ -63,23 +63,25 @@
                            [service (ssh:msg:userauth:request-service datum)]
                            [method (ssh:msg:userauth:request-method datum)]
                            [maybe-method (assq method methods)])
-                      (define result : (U Void Boolean (Instance SSH-User-Authentication<%>))
+                      (define result : (U False Void SSH-Userauth-Option (Instance SSH-User-Authentication<%>))
                         (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
-                              [(not maybe-method) (ssh-write-auth-failure sshc methods #false)]
+                              [(not maybe-method) (ssh-write-auth-failure sshc methods)]
                               [else (let* ([auth% (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth%)]
-                                           [response (send auth% response datum username service)])
-                                      (cond [(or (eq? response #true) (ssh:msg:userauth:success? response)) (ssh-write-auth-success sshc #false response)]
-                                            [(or (eq? response #false) (ssh:msg:userauth:failure? response)) (and (ssh-write-auth-failure sshc methods response) auth%)]
-                                            [else (ssh-write-authentication-message sshc response) auth%]))]))
+                                           [response (with-handlers ([exn? (λ [[e : exn]] e)]) (send auth% response datum username service))])
+                                      (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
+                                            [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth%]
+                                            [(ssh-userauth-option? response) (ssh-write-auth-success sshc #false #true) response]
+                                            [(ssh:msg:userauth:success? response) (ssh-write-auth-success sshc #false response) (make-ssh-userauth-option)]
+                                            [(ssh-message? response) (ssh-write-authentication-message sshc response) auth%]
+                                            [else (ssh-shutdown sshc 'SSH-DISCONNECT-RESERVED (exn-message response))]))]))
                       (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
-                      (cond [(eq? result #true) (ssh-user username service (or (and auth% (send auth% userauth-option username)) (make-ssh-userauth-option)))]
-                            [(void? result) (authenticate (ssh-authentication-datum-evt sshc auth%) methods auth% retry--)]
-                            [else (authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
+                      (cond [(ssh-userauth-option? result) (ssh-user username service result)]
+                            [(not (void? result)) (authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
 
     (cond [(= timeout 0) (authenticate)]
           [else (parameterize ([current-custodian (make-custodian)])
                   (let-values ([(/dev/stdin /dev/stdout) (make-pipe-with-specials)])
-                  (define ghostcat : Thread (thread (λ [] (write-special (with-syntax ([exn? values]) (authenticate)) /dev/stdout))))
+                  (define ghostcat : Thread (thread (λ [] (write-special (authenticate) /dev/stdout))))
                   
                   (let ([datum (sync/timeout/enable-break timeout (wrap-evt /dev/stdin (λ _ (read-byte-or-special /dev/stdin))))])
                     (custodian-shutdown-all (current-custodian))

@@ -5,21 +5,22 @@
 (require digimon/binscii)
 (require digimon/filesystem)
 
-(require "../diagnostics.rkt")
 (require "../authentication/option.rkt")
+
+(require "../diagnostics.rkt")
+(require "../assignment.rkt")
+(require "../../datatype.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct authorized-key
   ([type : Symbol]
+   [base64 : Bytes]
    [raw : Bytes]
    [comment : (Option String)]
    [options : (Option SSH-Userauth-Option)])
   #:constructor-name make-authorized-key
   #:type-name Authorized-Key
   #:transparent)
-
-(define ssh-predefined-keytypes : (Listof Symbol)
-  (list 'ecdsa-sha2-nistp256 'ecdsa-sha2-nistp384 'ecdsa-sha2-nistp521 'ssh-ed25519 'ssh-dss 'ssh-rsa))
 
 (define-file-reader read-authorized-keys #:+ (Immutable-HashTable Symbol (Listof Authorized-Key))
   (lambda [/dev/keyin]
@@ -34,9 +35,18 @@
                 (cons key (hash-ref keys (authorized-key-type key)
                                     (λ [] null)))))))
 
+(define authorized-key-ref : (-> (Immutable-HashTable Symbol (Listof Authorized-Key)) Symbol Bytes (Option Authorized-Key))
+  (lambda [key-database keytype key]
+    (let ref ([keys : (Listof Authorized-Key) (hash-ref key-database keytype (λ [] null))])
+      (and (pair? keys)
+           (let ([k (car keys)])
+             (or (and (bytes=? (authorized-key-raw k) key) k)
+                 (ref (cdr keys))))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-read-key-line : (-> Input-Port (U Authorized-Key EOF exn))
   (lambda [/dev/keyin]
+    (define public-keytypes : (Listof Symbol) (ssh-algorithms->names (ssh-hostkey-algorithms)))
     (with-handlers ([exn:ssh:fsio? (λ [[e : exn:ssh:fsio]] (read-line /dev/keyin) e)])
       (let readline ([type : Symbol '||]
                      [key : (Option Bytes) #false]
@@ -45,17 +55,17 @@
                      [this-char : (Option Char) #\space])
         (cond [(or (not this-char) (eq? this-char #\newline))
                (cond [(not key) (if (eq? this-char #\newline) (ssh-read-key-line /dev/keyin) eof)]
-                     [else (make-authorized-key type key comment option)])]
+                     [else (make-authorized-key type key (base64-decode key) comment option)])]
               [(eq? type '||)
                (let-values ([(token maybe-char) (ssh-read-key-token /dev/keyin #\= #\space #\,)])
                  (define maybe-type : Symbol (string->symbol (string-downcase token)))
-                 (cond [(memq maybe-type ssh-predefined-keytypes) (readline maybe-type key comment option maybe-char)]
+                 (cond [(memq maybe-type public-keytypes) (readline maybe-type key comment option maybe-char)]
                        [(and option) (discard-broken-key ssh-read-key-line /dev/keyin "bad option")]
                        [else (let-values ([(option separator) (ssh-read-key-options /dev/keyin maybe-type maybe-char)])
                                (readline type key comment option separator))]))]
               [(not key)
                (let-values ([(token maybe-char) (ssh-read-key-token /dev/keyin #\space)])
-                 (readline type (base64-decode token) comment option maybe-char))]
+                 (readline type (string->bytes/utf-8 token) comment option maybe-char))]
               [else ; maybe comment
                (let-values ([(token maybe-char) (ssh-read-key-token /dev/keyin)])
                  (readline type key (and (not (string=? token "")) token) option maybe-char))])))))
