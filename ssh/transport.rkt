@@ -37,7 +37,7 @@
     (define sshc-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian sshc-custodian]
                    [current-logger logger])
-      (define server-name : Symbol (string->symbol (format "<~a:~a>" hostname port)))
+      (define server-name : Symbol (string->symbol (format "~a:~a" hostname port)))
       (ssh-log-message 'debug "connecting to ~a" server-name)
 
       (parameterize ([current-peer-name server-name])
@@ -82,8 +82,8 @@
                    [current-logger (ssh-transport-logger listener)])
       (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-daemon-watchdog listener)))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
-      (define client-name : Symbol (string->symbol (format "<~a:~a>" remote-name remote-port)))
-      (ssh-log-message 'debug "accepted ~a" client-name)
+      (define client-name : Symbol (string->symbol (format "~a:~a" remote-name remote-port)))
+      (ssh-log-message 'debug "accepted ~a" client-name #:with-peer-name? #false)
       
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))

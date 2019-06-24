@@ -197,7 +197,7 @@
         (unless (bytes=? digest #"")
           (fprintf /dev/pktout "~n[digest: ~a]" (bytes->hex-string digest #:separator ":")))
           
-        (ssh-log-message level (bytes->string/utf-8 (get-output-bytes /dev/pktout #true)) #:data blocksize)))))
+        (ssh-log-message #:with-peer-name? #false level (bytes->string/utf-8 (get-output-bytes /dev/pktout #true)) #:data blocksize)))))
 
 (define ssh-read-bytes! : (-> Input-Port Bytes Nonnegative-Fixnum Nonnegative-Fixnum Procedure Void)
   (lambda [/dev/sshin parcel start end func]

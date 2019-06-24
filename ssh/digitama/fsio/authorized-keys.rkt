@@ -6,6 +6,7 @@
 (require digimon/filesystem)
 
 (require "../authentication/option.rkt")
+(require "../algorithm/fingerprint.rkt")
 
 (require "../diagnostics.rkt")
 (require "../assignment.rkt")
@@ -14,8 +15,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct authorized-key
   ([type : Symbol]
-   [base64 : Bytes]
    [raw : Bytes]
+   [fingerprint : String]
    [comment : (Option String)]
    [options : (Option SSH-Userauth-Option)])
   #:constructor-name make-authorized-key
@@ -55,7 +56,9 @@
                      [this-char : (Option Char) #\space])
         (cond [(or (not this-char) (eq? this-char #\newline))
                (cond [(not key) (if (eq? this-char #\newline) (ssh-read-key-line /dev/keyin) eof)]
-                     [else (make-authorized-key type key (base64-decode key) comment option)])]
+                     [else (make-authorized-key type (base64-decode key)
+                                                (ssh-key-fingerprint type key #:hash sha256-bytes #:digest base64-encode)
+                                                comment option)])]
               [(eq? type '||)
                (let-values ([(token maybe-char) (ssh-read-key-token /dev/keyin #\= #\space #\,)])
                  (define maybe-type : Symbol (string->symbol (string-downcase token)))

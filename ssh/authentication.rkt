@@ -70,13 +70,14 @@
                                            [response (with-handlers ([exn? (λ [[e : exn]] e)]) (send auth% response datum username service))])
                                       (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
                                             [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth%]
-                                            [(ssh-userauth-option? response) (ssh-write-auth-success sshc #false #true) response]
+                                            [(eq? response #true) (ssh-write-auth-success sshc #false #true) (make-ssh-userauth-option)]
                                             [(ssh:msg:userauth:success? response) (ssh-write-auth-success sshc #false response) (make-ssh-userauth-option)]
+                                            [(ssh-userauth-option? response) (ssh-write-auth-success sshc #false #true) response]
                                             [(ssh-message? response) (ssh-write-authentication-message sshc response) auth%]
                                             [else (ssh-shutdown sshc 'SSH-DISCONNECT-RESERVED (exn-message response))]))]))
                       (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
                       (cond [(ssh-userauth-option? result) (ssh-user username service result)]
-                            [(not (void? result)) (authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
+                            [(not (void? result))(authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
 
     (cond [(= timeout 0) (authenticate)]
           [else (parameterize ([current-custodian (make-custodian)])

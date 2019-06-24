@@ -92,37 +92,41 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-kexinit : (->* (SSH-MSG-KEXINIT String) (Log-Level) Void)
   (lambda [msg prefix [level 'debug]]
-    (ssh-log-message level "~a KEX algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-kexes msg)))
-    (ssh-log-message level "~a host key algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-hostkeys msg)))
-    (ssh-log-message level "~a c2s encryption algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-ciphers msg)))
-    (ssh-log-message level "~a s2c encryption algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-ciphers msg)))
-    (ssh-log-message level "~a c2s MAC algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-macs msg)))
-    (ssh-log-message level "~a s2c MAC algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-macs msg)))
-    (ssh-log-message level "~a c2s compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-compressions msg)))
-    (ssh-log-message level "~a s2c compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-compressions msg)))))
+    (ssh-log-message level "~a KEX algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-kexes msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a host key algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-hostkeys msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a c2s encryption algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-ciphers msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a s2c encryption algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-ciphers msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a c2s MAC algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-macs msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a s2c MAC algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-macs msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a c2s compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-compressions msg)) #:with-peer-name? #false)
+    (ssh-log-message level "~a s2c compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-compressions msg)) #:with-peer-name? #false)))
 
 (define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg)))]
+             (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg) #:with-peer-name? #false))]
           [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "terminate the connection ~a because of ~a, details: ~a"
+           (ssh-log-message #:with-peer-name? #false
+                            level "terminate the connection ~a because of ~a, details: ~a"
                             (current-peer-name) (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
-           (ssh-log-message level "cannot not deal with message ~a from ~a"
+           (ssh-log-message #:with-peer-name? #false
+                            level "cannot not deal with message ~a from ~a"
                             (ssh:msg:unimplemented-number msg) (current-peer-name))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg)))]
+             (ssh-log-message level "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg) #:with-peer-name? #false))]
           [(ssh:msg:disconnect? msg)
-           (ssh-log-message level "~a has disconnected with the reason ~a(~a)" (current-peer-name)
+           (ssh-log-message #:with-peer-name? #false
+                            level "~a has disconnected with the reason ~a(~a)" (current-peer-name)
                             (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
-           (ssh-log-message level "~a cannot deal with message ~a"
+           (ssh-log-message #:with-peer-name? #false
+                            level "~a cannot deal with message ~a"
                             (current-peer-name) (ssh:msg:unimplemented-number msg))])))
 
 (define ssh-suicide : (-> Procedure SSH-MSG-DISCONNECT Nothing)

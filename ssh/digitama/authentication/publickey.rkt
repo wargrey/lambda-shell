@@ -56,12 +56,13 @@
                               (let-values ([(pubkey _) (unsafe-bytes->rsa-public-key (authorized-key-raw key) 7)])
                                 (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-MAC-ERROR))]
                              [else #false])
-                           (authorized-key-options key)))]
+                           (or (authorized-key-options key) #true)))]
                    [(ssh:msg:userauth:request:publickey? request)
-                    (let ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
-                          [rawkey (ssh:msg:userauth:request:publickey-key request)])
-                      (and (authorized-key-ref authorized-keys keytype rawkey)
-                           (ssh-log-message 'debug "~a partially accepted, continue" (current-peer-name))
+                    (let* ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
+                           [rawkey (ssh:msg:userauth:request:publickey-key request)]
+                           [key (authorized-key-ref authorized-keys keytype rawkey)])
+                      (and (authorized-key? key)
+                           (ssh-log-message 'debug "partially accepted ~a, continue" (authorized-key-fingerprint key))
                            (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey)))]
                    [else #false]))))
 

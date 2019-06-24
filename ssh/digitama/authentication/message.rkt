@@ -70,17 +70,17 @@
 (define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:userauth:banner? msg)
-           (ssh-log-message level "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
+           (ssh-log-message level #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
           [(ssh:msg:userauth:failure? msg)
            (if (ssh:msg:userauth:failure-partial-success? msg)
-               (ssh-log-message level "~a partially accepted, continue" (current-peer-name))
-               (ssh-log-message level "~a is denied, methods that can continue: ~a"
-                                (current-peer-name) (ssh-algorithms->names (ssh:msg:userauth:failure-methods msg))))])))
+               (ssh-log-message level "partially accepted, continue")
+               (ssh-log-message level "denied, methods that can continue: ~a"
+                                (ssh-algorithms->names (ssh:msg:userauth:failure-methods msg))))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:userauth:banner? msg)
-           (ssh-log-message 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
+           (ssh-log-message #:with-peer-name? #false 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
           [(ssh:msg:userauth:request? msg)
-           (ssh-log-message level "~a@~a requests authentication with method '~a'"
-                            (ssh:msg:userauth:request-username msg) (current-peer-name) (ssh:msg:userauth:request-method msg))])))
+           (ssh-log-message level "'~a' requests authentication with method '~a'"
+                            (ssh:msg:userauth:request-username msg) (ssh:msg:userauth:request-method msg))])))

@@ -85,12 +85,17 @@
     (raise errobj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-log-message : (->* (Log-Level String) (#:data Any) #:rest Any Void)
-  (lambda [level msgfmt #:data [data #false] . argl]
+(define ssh-log-message : (->* (Log-Level String) (#:data Any #:with-peer-name? Boolean) #:rest Any Void)
+  (lambda [level msgfmt #:data [data #false] #:with-peer-name? [peername? #true] . argl]
+    (define message-raw : String (if (null? argl) msgfmt (apply format msgfmt argl)))
+    
     (log-message (current-logger)
                  level
                  #false
-                 (if (null? argl) msgfmt (apply format msgfmt argl))
+                 (cond [(not peername?) message-raw]
+                       [else (let ([peer (current-peer-name)])
+                               (cond [(not peer) message-raw]
+                                     [else (format "~a: ~a" peer message-raw)]))])
                  data)))
 
 (define ssh-log-error : (->* (SSH-Error) (#:level Log-Level) Void)
@@ -104,5 +109,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-exn-message : (-> Any String (Listof Any) String)
   (lambda [func msgfmt argl]
-    (string-append (format "~a: ~a: " (current-peer-name) (object-name func))
+    (define peername (current-peer-name))
+    
+    (string-append (cond [(not peername) (format "a: " (object-name func))]
+                         [else (format "~a: ~a: " peername (object-name func))])
                    (if (null? argl) msgfmt (apply format msgfmt argl)))))
