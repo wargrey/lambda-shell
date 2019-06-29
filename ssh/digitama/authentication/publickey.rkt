@@ -59,11 +59,14 @@
                              (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey))
                         (let ([message (bytes-append (ssh-bstring->bytes session-id) (ssh:msg:userauth:request:publickey->bytes request))])
                           (and (case keytype
-                                 [(ssh-rsa)
+                                 [(ssh-rsa rsa-sha2-256)
                                   (let-values ([(pubkey) (rsa-bytes->public-key (authorized-key-raw key))]
                                                [(algname sigraw) (rsa-bytes->signature (ssh:msg:userauth:request:publickey$-signature request))])
                                     (and (eq? keytype algname)
-                                         (ssh-rsa-verify pubkey message sigraw)
+                                         (case keytype
+                                           [(ssh-rsa) (ssh-rsa-verify pubkey message sigraw)]
+                                           [(rsa-sha2-256) (ssh-rsa-256-verify pubkey message sigraw)]
+                                           [else #false])
                                          (ssh-log-message 'debug "verified ~a" (authorized-key-fingerprint key))))]
                                  [else #false])
                                (or (authorized-key-options key) #true)))))))))

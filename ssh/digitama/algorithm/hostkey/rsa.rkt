@@ -56,7 +56,11 @@
 
 (define rsa-make-signature : (-> RSA-Private-Key Bytes PKCS#1-Hash Bytes)
   (lambda [key message hash]
-    (bytes-append (ssh-name->bytes ssh-rsa-keyname)
+    (define keytype : Symbol
+      (cond [(eq? hash pkcs#1-id-sha256) 'rsa-sha2-256]
+            [else ssh-rsa-keyname]))
+    
+    (bytes-append (ssh-name->bytes keytype)
                   (ssh-bstring->bytes (rsa-sign key message hash)))))
 
 (define rsa-bytes->signature : (-> Bytes (Values Symbol Bytes))
@@ -69,3 +73,7 @@
 (define ssh-rsa-verify : (-> RSA-Public-Key Bytes Bytes Boolean)
   (lambda [pubkey message signature]
     (rsa-verify pubkey message signature pkcs#1-id-sha1)))
+
+(define ssh-rsa-256-verify : (-> RSA-Public-Key Bytes Bytes Boolean)
+  (lambda [pubkey message signature]
+    (rsa-verify pubkey message signature pkcs#1-id-sha256)))
