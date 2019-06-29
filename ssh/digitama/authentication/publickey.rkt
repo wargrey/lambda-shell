@@ -1,15 +1,14 @@
 #lang typed/racket/base
 
+;;; https://tools.ietf.org/html/rfc4252#section-7
+
 (provide (all-defined-out))
 
 (require typed/racket/class)
 
 (require "../userauth.rkt")
 (require "../fsio/authorized-keys.rkt")
-
-(require "../algorithm/pkcs1/key.rkt")
-(require "../algorithm/pkcs1/hash.rkt")
-(require "../algorithm/pkcs1/emsa-v1_5.rkt")
+(require "../algorithm/hostkey/rsa.rkt")
 
 (require "../message.rkt")
 (require "../../message.rkt")
@@ -61,26 +60,13 @@
                         (let ([message (bytes-append (ssh-bstring->bytes session-id) (ssh:msg:userauth:request:publickey->bytes request))])
                           (and (case keytype
                                  [(ssh-rsa)
-                                  (let ([pubkey (ssh-bytes->rsa-public-key (authorized-key-raw key))]
-                                        [sigraw (ssh-bytes->rsa-signature (ssh:msg:userauth:request:publickey$-signature request))])
-                                    (and (rsa-verify pubkey message sigraw id-sha1)
+                                  (let-values ([(pubkey) (rsa-bytes->public-key (authorized-key-raw key))]
+                                               [(algname sigraw) (rsa-bytes->signature (ssh:msg:userauth:request:publickey$-signature request))])
+                                    (and (eq? keytype algname)
+                                         (ssh-rsa-verify pubkey message sigraw)
                                          (ssh-log-message 'debug "verified ~a" (authorized-key-fingerprint key))))]
                                  [else #false])
                                (or (authorized-key-options key) #true)))))))))
 
     (define/public (abort)
       (void))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-bytes->rsa-public-key : (-> Bytes RSA-Public-Key)
-  (lambda [key]
-    (let*-values ([(_ offset) (ssh-bytes->string key)]
-                  [(e offset) (ssh-bytes->mpint key offset)]
-                  [(n offset) (ssh-bytes->mpint key offset)])
-      (make-rsa-public-key #:e e #:n n))))
-
-(define ssh-bytes->rsa-signature : (-> Bytes Bytes)
-  (lambda [sig]
-    (define-values (_ offset) (ssh-bytes->string sig))
-
-    (subbytes sig offset)))

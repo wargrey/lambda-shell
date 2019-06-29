@@ -14,7 +14,7 @@
   (lambda [hash #:DER id]
     (pkcs#1-hash (if (list? id) (apply bytes id) id) hash)))
 
-(define id-sha1 : PKCS#1-Hash
+(define pkcs#1-id-sha1 : PKCS#1-Hash
   (make-pkcs#1-hash sha1-bytes
                     #:DER (list #x30 #x21 #| type SEQUENCE, length #x21 |#
                                 #x30 #x09 #| type SEQUENCE, length #x09 |#
@@ -23,7 +23,7 @@
                                 #x05 #x00 #| NULL |#
                                 #x04 #x14 #| type Octet String, followed by #x14-length degest |#)))
 
-(define id-sha256 : PKCS#1-Hash
+(define pkcs#1-id-sha256 : PKCS#1-Hash
   (make-pkcs#1-hash sha256-bytes
                     #:DER (list #x30 #x31 #| type SEQUENCE, length #x21 |#
                                 #x30 #x0d #| type SEQUENCE, length #x0d |#

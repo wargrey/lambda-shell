@@ -91,7 +91,7 @@
         (define y : Integer (dh-random 0)) ; y <- (0, q)
         (define f : Integer (modular-expt g y p))
         (define K : Integer (modular-expt e y p))
-        (define K-S : Bytes (send hostkey make-key/certificates))
+        (define K-S : Bytes (send hostkey make-pubkey/certificates))
         (define H : Bytes (dh-hash K-S e f K))
         (define s : Bytes (send hostkey make-signature H))
 

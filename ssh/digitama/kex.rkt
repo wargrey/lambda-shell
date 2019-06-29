@@ -10,7 +10,7 @@
 (define-type SSH-Host-Key<%>
   (Class (init-field [hash-algorithm PKCS#1-Hash])
          [tell-key-name (-> Symbol)]
-         [make-key/certificates (-> Bytes)]
+         [make-pubkey/certificates (-> Bytes)]
          [make-signature (-> Bytes Bytes)]))
 
 (define-type SSH-Key-Exchange<%>
