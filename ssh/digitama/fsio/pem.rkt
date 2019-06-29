@@ -57,7 +57,7 @@
                     [(regexp-match? #px"^[-]+\\s*END " maybe-base64-line) (values (reverse s46esab) (string=? maybe-base64-line END))]
                     [(regexp-match? #px"^\\s*$" maybe-base64-line) (read-key-line s46esab)]
                     [else (read-key-line (cons (string-trim maybe-base64-line #:left? #false) s46esab))])))
-          
+
           (values (base64-decode (apply string-append base64s))
                   (and pre-match? post-match?))))))
 

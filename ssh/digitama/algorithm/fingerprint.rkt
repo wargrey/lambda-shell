@@ -8,4 +8,4 @@
     (define TYPE : String (string-upcase (symbol->string keytype)))
     (define HASH : String (string-upcase (format "~a" (object-name sha256-bytes))))
 
-    (string-append TYPE " " HASH ":" (bytes->string/utf-8 (digest (hash (digest key-raw)))))))
+    (string-append TYPE " " HASH ":" (bytes->string/utf-8 (digest (hash key-raw))))))

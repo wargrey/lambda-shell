@@ -2,7 +2,7 @@
 
 (require "../assignment.rkt")
 (require "../algorithm/hostkey.rkt")
-(require "../algorithm/pkcs/hash.rkt")
+(require "../algorithm/pkcs1/hash.rkt")
 
 ; datum definition: #(hostkey-object hash-object)
 

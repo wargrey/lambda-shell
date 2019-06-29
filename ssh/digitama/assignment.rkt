@@ -8,7 +8,8 @@
 (require "kex.rkt")
 (require "message.rkt")
 (require "userauth.rkt")
-(require "algorithm/pkcs/hash.rkt")
+
+(require "algorithm/pkcs1/hash.rkt")
 
 (require "../datatype.rkt")
 

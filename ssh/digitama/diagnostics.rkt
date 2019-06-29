@@ -111,6 +111,6 @@
   (lambda [func msgfmt argl]
     (define peername (current-peer-name))
     
-    (string-append (cond [(not peername) (format "a: " (object-name func))]
+    (string-append (cond [(not peername) (format "~a: " (object-name func))]
                          [else (format "~a: ~a: " peername (object-name func))])
                    (if (null? argl) msgfmt (apply format msgfmt argl)))))

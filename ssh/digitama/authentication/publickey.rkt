@@ -6,7 +6,10 @@
 
 (require "../userauth.rkt")
 (require "../fsio/authorized-keys.rkt")
-(require "../algorithm/pkcs/key.rkt")
+
+(require "../algorithm/pkcs1/key.rkt")
+(require "../algorithm/pkcs1/hash.rkt")
+(require "../algorithm/pkcs1/emsa-v1_5.rkt")
 
 (require "../message.rkt")
 (require "../../message.rkt")
@@ -45,26 +48,39 @@
           (let ([.authorized-keys (build-path (expand-user-path (format "~~~a/.ssh/authorized_keys" username)))])
             (and (file-exists? .authorized-keys)
                  (read-authorized-keys* .authorized-keys))))
+
         (and authorized-keys
-             (cond [(ssh:msg:userauth:request:publickey$? request)
-                    (let* ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
-                           [rawkey (ssh:msg:userauth:request:publickey-key request)]
-                           [key (authorized-key-ref authorized-keys keytype rawkey)])
-                      (and (authorized-key? key)
-                           (case keytype
-                             [(ssh-rsa)
-                              (let-values ([(pubkey _) (unsafe-bytes->rsa-public-key (authorized-key-raw key) 7)])
-                                (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-MAC-ERROR))]
-                             [else #false])
-                           (or (authorized-key-options key) #true)))]
-                   [(ssh:msg:userauth:request:publickey? request)
-                    (let* ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
-                           [rawkey (ssh:msg:userauth:request:publickey-key request)]
-                           [key (authorized-key-ref authorized-keys keytype rawkey)])
-                      (and (authorized-key? key)
-                           (ssh-log-message 'debug "partially accepted ~a, continue" (authorized-key-fingerprint key))
-                           (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey)))]
-                   [else #false]))))
+             (ssh:msg:userauth:request:publickey? request)
+             (let* ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]
+                    [rawkey (ssh:msg:userauth:request:publickey-key request)]
+                    [key (authorized-key-ref authorized-keys keytype rawkey)])
+               (and (authorized-key? key)
+                    (if (not (ssh:msg:userauth:request:publickey$? request))
+                        (and (ssh-log-message 'debug "accepted ~a, continue for verifying" (authorized-key-fingerprint key))
+                             (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey))
+                        (let ([message (bytes-append (ssh-bstring->bytes session-id) (ssh:msg:userauth:request:publickey->bytes request))])
+                          (and (case keytype
+                                 [(ssh-rsa)
+                                  (let ([pubkey (ssh-bytes->rsa-public-key (authorized-key-raw key))]
+                                        [sigraw (ssh-bytes->rsa-signature (ssh:msg:userauth:request:publickey$-signature request))])
+                                    (and (rsa-verify pubkey message sigraw id-sha1)
+                                         (ssh-log-message 'debug "verified ~a" (authorized-key-fingerprint key))))]
+                                 [else #false])
+                               (or (authorized-key-options key) #true)))))))))
 
     (define/public (abort)
       (void))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-bytes->rsa-public-key : (-> Bytes RSA-Public-Key)
+  (lambda [key]
+    (let*-values ([(_ offset) (ssh-bytes->string key)]
+                  [(e offset) (ssh-bytes->mpint key offset)]
+                  [(n offset) (ssh-bytes->mpint key offset)])
+      (make-rsa-public-key #:e e #:n n))))
+
+(define ssh-bytes->rsa-signature : (-> Bytes Bytes)
+  (lambda [sig]
+    (define-values (_ offset) (ssh-bytes->string sig))
+
+    (subbytes sig offset)))

@@ -5,7 +5,7 @@
 (require typed/racket/class)
 
 (require "message.rkt")
-(require "algorithm/pkcs/hash.rkt")
+(require "algorithm/pkcs1/hash.rkt")
 
 (define-type SSH-Host-Key<%>
   (Class (init-field [hash-algorithm PKCS#1-Hash])

@@ -9,7 +9,7 @@
 
 (require "random.rkt")
 
-(require "pkcs/key.rkt")
+(require "pkcs1/key.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define rsa-keygen : (->* () ((List* Integer Integer (Listof Integer)) #:e Integer) RSA-Private-Key)

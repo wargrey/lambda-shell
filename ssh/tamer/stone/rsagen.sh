@@ -17,6 +17,7 @@ chmod g-rwx ${RSA_PEM}
 openssl rsa -in ${RSA_PEM} -noout -check -text | tee ${RSA_HEX}
 
 # NOTE: the public key format is not the one used by OpenSSH
+# NOTE: the public key format is PKCS#8 'Public Key' rather than PKCS#1 'RSA Public Key'
 openssl rsa -in ${RSA_PEM} -pubout > ${RSA_PUB}
 
 # sign with SHA1 and EMSA-v1.5 padding schema using the public key as content
