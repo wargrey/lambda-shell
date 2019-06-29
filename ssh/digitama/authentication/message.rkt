@@ -41,11 +41,13 @@
        (ssh-write-authentication-message self (make-ssh:msg:userauth:failure #:methods methods #:partial-success? okay?))
        okay?)]))
 
-(define ssh-write-auth-success : (-> SSH-Port (Option String) (U SSH-MSG-USERAUTH-SUCCESS True) True)
-  (lambda [self banner maybe-msg:success]
+(define ssh-write-auth-success : (-> SSH-Port Symbol (Option String) (U SSH-MSG-USERAUTH-SUCCESS True) True)
+  (lambda [self username banner maybe-msg:success]
     #;(when (and (string? banner) (> (string-length banner) 0))
         (ssh-write-authentication-message sshc (make-ssh:msg:userauth:banner #:message banner)))
-
+    
+    (ssh-log-message 'debug #:with-peer-name? #false "accept client[~a@~a]" username (current-peer-name))
+    
     (ssh-write-authentication-message self
                                       (cond [(ssh-message? maybe-msg:success) maybe-msg:success]
                                             [else (make-ssh:msg:userauth:success)]))
@@ -69,13 +71,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
-    (cond [(ssh:msg:userauth:banner? msg)
-           (ssh-log-message level #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
-          [(ssh:msg:userauth:failure? msg)
+    (cond [(ssh:msg:userauth:failure? msg)
            (if (ssh:msg:userauth:failure-partial-success? msg)
                (ssh-log-message level "partially accepted, continue")
                (ssh-log-message level "denied, methods that can continue: ~a"
-                                (ssh-algorithms->names (ssh:msg:userauth:failure-methods msg))))])))
+                                (ssh-algorithms->names (ssh:msg:userauth:failure-methods msg))))]
+          [(ssh:msg:userauth:banner? msg)
+           (ssh-log-message level #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]

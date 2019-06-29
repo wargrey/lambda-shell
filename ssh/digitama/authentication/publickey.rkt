@@ -63,10 +63,7 @@
                                   (let-values ([(pubkey) (rsa-bytes->public-key (authorized-key-raw key))]
                                                [(algname sigraw) (rsa-bytes->signature (ssh:msg:userauth:request:publickey$-signature request))])
                                     (and (eq? keytype algname)
-                                         (case keytype
-                                           [(ssh-rsa) (ssh-rsa-verify pubkey message sigraw)]
-                                           [(rsa-sha2-256) (ssh-rsa-256-verify pubkey message sigraw)]
-                                           [else #false])
+                                         (ssh-rsa-verify pubkey message sigraw keytype)
                                          (ssh-log-message 'debug "verified ~a" (authorized-key-fingerprint key))))]
                                  [else #false])
                                (or (authorized-key-options key) #true)))))))))

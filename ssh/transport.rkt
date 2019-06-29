@@ -47,10 +47,10 @@
         (define sshc : Thread (sshc-ghostcat /dev/sshout identification hostname port kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
-          (define server-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
+          (define server-id : SSH-Identification (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
           (ssh-log-message 'debug "server[~a:~a] identification string: ~a" hostname port (ssh-identification-raw server-id))
 
-          (define session-id : Bytes (ssh-read-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
+          (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
           (ssh-port root sshc-custodian rfc logger server-name session-id sshc /dev/sshin))))))
 
 (define ssh-listen : (->* (Natural)
@@ -92,7 +92,7 @@
                                              /dev/tcpin /dev/tcpout kexinit (ssh-daemon-services listener) rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
-          (define client-id : SSH-Identification (ssh-read-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
+          (define client-id : SSH-Identification (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
           (ssh-log-message 'debug "client[~a:~a] identification string: ~a" remote-name remote-port (ssh-identification-raw client-id))
           
           (unless (= (ssh-identification-protoversion client-id) ($ssh-protoversion rfc))
@@ -101,7 +101,7 @@
                                             "incompatible protoversion: ~a"
                                             (ssh-identification-protoversion client-id)))
 
-          (define session-id : Bytes (ssh-read-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
+          (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
           (ssh-port root sshd-custodian rfc (current-logger) client-name session-id sshd /dev/sshin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

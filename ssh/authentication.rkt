@@ -70,9 +70,9 @@
                                            [response (with-handlers ([exn? (λ [[e : exn]] e)]) (send auth% response datum username service))])
                                       (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
                                             [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth%]
-                                            [(eq? response #true) (ssh-write-auth-success sshc #false #true) (make-ssh-userauth-option)]
-                                            [(ssh:msg:userauth:success? response) (ssh-write-auth-success sshc #false response) (make-ssh-userauth-option)]
-                                            [(ssh-userauth-option? response) (ssh-write-auth-success sshc #false #true) response]
+                                            [(eq? response #true) (ssh-write-auth-success sshc username #false #true) (make-ssh-userauth-option)]
+                                            [(ssh:msg:userauth:success? response) (ssh-write-auth-success sshc username #false response) (make-ssh-userauth-option)]
+                                            [(ssh-userauth-option? response) (ssh-write-auth-success sshc username #false #true) response]
                                             [(ssh-message? response) (ssh-write-authentication-message sshc response) auth%]
                                             [else (ssh-shutdown sshc 'SSH-DISCONNECT-RESERVED (exn-message response))]))]))
                       (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))

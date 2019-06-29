@@ -70,10 +70,11 @@
     (values algorithm (subbytes sig (+ offset 4)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-rsa-verify : (-> RSA-Public-Key Bytes Bytes Boolean)
-  (lambda [pubkey message signature]
-    (rsa-verify pubkey message signature pkcs#1-id-sha1)))
-
-(define ssh-rsa-256-verify : (-> RSA-Public-Key Bytes Bytes Boolean)
-  (lambda [pubkey message signature]
-    (rsa-verify pubkey message signature pkcs#1-id-sha256)))
+(define ssh-rsa-verify : (-> RSA-Public-Key Bytes Bytes Symbol Boolean)
+  (lambda [pubkey message signature keytype]
+    (define hash : PKCS#1-Hash
+      (case keytype
+        [(rsa-sha2-256) pkcs#1-id-sha256]
+        [else pkcs#1-id-sha1]))
+    
+    (rsa-verify pubkey message signature hash)))
