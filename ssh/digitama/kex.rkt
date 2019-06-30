@@ -2,24 +2,36 @@
 
 (provide (all-defined-out))
 
-(require typed/racket/class)
-
 (require "message.rkt")
 (require "algorithm/pkcs1/hash.rkt")
 
-(define-type SSH-Host-Key<%>
-  (Class (init-field [hash-algorithm PKCS#1-Hash])
-         [tell-key-name (-> Symbol)]
-         [make-pubkey/certificates (-> Bytes)]
-         [make-signature (-> Bytes Bytes)]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type SSH-Hostkey-Constructor (-> PKCS#1-Hash SSH-Hostkey))
 
-(define-type SSH-Key-Exchange<%>
-  (Class (init [Vc String] [Vs String]
-               [Ic Bytes] [Is Bytes]
-               [hostkey (Instance SSH-Host-Key<%>)]
-               [hash (-> Bytes Bytes)])
-         [tell-message-group (-> Symbol)]
-         [tell-secret (-> (Values Integer Bytes))]
-         [request (-> SSH-Message)]
-         [response (-> SSH-Message (Option SSH-Message))]
-         [done? (-> Boolean)]))
+(define-type SSH-Hostkey-Make-Public-Key (-> SSH-Hostkey Bytes))
+(define-type SSH-Hostkey-Sign (-> SSH-Hostkey Bytes Bytes))
+
+(struct ssh-hostkey
+  ([name : Symbol]
+   [hash : PKCS#1-Hash]
+   [make-public-key : SSH-Hostkey-Make-Public-Key]
+   [sign : SSH-Hostkey-Sign])
+  #:type-name SSH-Hostkey)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type SSH-Kex-Constructor (-> String String Bytes Bytes SSH-Hostkey (-> Bytes Bytes) SSH-Kex))
+
+(define-type SSH-Kex-Request (-> SSH-Kex SSH-Message))
+(define-type SSH-Kex-Response (-> SSH-Kex SSH-Message (Option SSH-Message)))
+(define-type SSH-Kex-Done? (-> SSH-Kex Boolean))
+
+(struct ssh-kex
+  ([name : Symbol]
+   [hostkey : SSH-Hostkey]
+   [hash : (-> Bytes Bytes)]
+   [K : (Boxof Integer)]
+   [H : (Boxof Bytes)]
+   [request : SSH-Kex-Request]
+   [response : SSH-Kex-Response]
+   [done? : SSH-Kex-Done?])
+  #:type-name SSH-Kex)

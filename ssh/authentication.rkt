@@ -3,14 +3,12 @@
 ;;; https://tools.ietf.org/html/rfc4252
 
 (provide (all-defined-out))
-(provide SSH-User-Authentication<%>)
 (provide (all-from-out "digitama/authentication/option.rkt"))
 
 (require racket/port)
 
-(require typed/racket/class)
-
 (require "digitama/userauth.rkt")
+(require "digitama/authentication.rkt")
 (require "digitama/diagnostics.rkt")
 
 (require "digitama/authentication/option.rkt")
@@ -30,8 +28,9 @@
   ([name : Symbol]
    [service : Symbol]
    [options : SSH-Userauth-Option])
-  #:transparent
-  #:type-name SSH-User)
+  #:type-name SSH-User
+  #:constructor-name make-ssh-user
+  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-request : (->* (SSH-Port Symbol) (Symbol) (U SSH-EOF True))
@@ -42,7 +41,7 @@
       (cond [(ssh-eof? datum) datum]
             [else (authenticate (ssh-authentication-datum-evt sshd #false))]))))
 
-(define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) [#:methods (SSH-Algorithm-Listof* SSH-Authentication)] (U SSH-EOF SSH-User Void))
+(define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) [#:methods (SSH-Algorithm-Listof* SSH-Authentication#)] (U SSH-EOF SSH-User Void))
   (lambda [sshc services #:methods [all-methods (ssh-authentication-methods)]]
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
     (define timeout : Index ($ssh-userauth-timeout rfc))
@@ -50,8 +49,8 @@
     
     (define (authenticate) : (U SSH-EOF SSH-User Void)
       (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)]
-                         [methods : (SSH-Algorithm-Listof* SSH-Authentication) all-methods]
-                         [auth% : (Option (Instance SSH-User-Authentication<%>)) #false]
+                         [methods : (SSH-Algorithm-Listof* SSH-Authentication#) all-methods]
+                         [auth-self : (Option SSH-Userauth) #false]
                          [retry : Fixnum limit])
         (define datum : SSH-Datum (sync/enable-break datum-evt))
         
@@ -63,20 +62,20 @@
                            [service (ssh:msg:userauth:request-service datum)]
                            [method (ssh:msg:userauth:request-method datum)]
                            [maybe-method (assq method methods)])
-                      (define result : (U False Void SSH-Userauth-Option (Instance SSH-User-Authentication<%>))
+                      (define result : (U False Void SSH-Userauth-Option SSH-Userauth)
                         (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
                               [(not maybe-method) (ssh-write-auth-failure sshc methods)]
-                              [else (let* ([auth% (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth%)]
-                                           [response (with-handlers ([exn? (λ [[e : exn]] e)]) (send auth% response datum username service))])
+                              [else (let* ([auth (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth-self)]
+                                           [response (with-handlers ([exn? (λ [[e : exn]] e)]) ((ssh-userauth-response auth) auth datum username service))])
                                       (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
-                                            [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth%]
+                                            [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth]
                                             [(eq? response #true) (ssh-write-auth-success sshc username #false #true) (make-ssh-userauth-option)]
                                             [(ssh:msg:userauth:success? response) (ssh-write-auth-success sshc username #false response) (make-ssh-userauth-option)]
                                             [(ssh-userauth-option? response) (ssh-write-auth-success sshc username #false #true) response]
-                                            [(ssh-message? response) (ssh-write-authentication-message sshc response) auth%]
+                                            [(ssh-message? response) (ssh-write-authentication-message sshc response) auth]
                                             [else (ssh-shutdown sshc 'SSH-DISCONNECT-RESERVED (exn-message response))]))]))
                       (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
-                      (cond [(ssh-userauth-option? result) (ssh-user username service result)]
+                      (cond [(ssh-userauth-option? result) (make-ssh-user username service result)]
                             [(not (void? result))(authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
 
     (cond [(= timeout 0) (authenticate)]

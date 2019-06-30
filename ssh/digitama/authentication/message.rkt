@@ -2,8 +2,6 @@
 
 (provide (all-defined-out))
 
-(require typed/racket/class)
-
 (require "../userauth.rkt")
 (require "../diagnostics.rkt")
 
@@ -13,11 +11,11 @@
 (require "../../transport.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-authentication-datum-evt : (-> SSH-Port (Option (Instance SSH-User-Authentication<%>)) (Evtof SSH-Datum))
-  (lambda [self auth-process%]
+(define ssh-authentication-datum-evt : (-> SSH-Port (Option SSH-Userauth) (Evtof SSH-Datum))
+  (lambda [self auth-self]
     (define groups : (Listof Symbol)
-      (cond [(not auth-process%) null]
-            [else (list (send auth-process% tell-method-name))]))
+      (cond [(not auth-self) null]
+            [else (list (ssh-userauth-name auth-self))]))
     
     (wrap-evt (ssh-port-read-evt self)
               (λ _ (let ([datum (ssh-port-read self)])
@@ -30,8 +28,8 @@
 
     (ssh-port-send self message)))
 
-(define ssh-write-auth-failure : (case-> [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication) -> False]
-                                         [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication) SSH-MSG-USERAUTH-FAILURE -> Boolean])
+(define ssh-write-auth-failure : (case-> [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication#) -> False]
+                                         [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication#) SSH-MSG-USERAUTH-FAILURE -> Boolean])
   (case-lambda
     [(self methods)
      (ssh-write-authentication-message self (make-ssh:msg:userauth:failure #:methods methods #:partial-success? #false))

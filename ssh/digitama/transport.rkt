@@ -43,7 +43,7 @@
 (define sshc-ghostcat : (-> Output-Port String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification hostname port kexinit rfc]
     (thread
-     (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-push-error e /dev/sshout))])
+     (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
              (define peer : SSH-Identification (ssh-read-server-identification /dev/tcpin rfc))
 
@@ -57,7 +57,7 @@
 (define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT (Listof Symbol) SSH-Configuration Thread)
   (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit service rfc]
     (thread
-     (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-push-error e /dev/sshout))])
+     (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define peer : SSH-Identification (ssh-read-client-identification /dev/tcpin rfc))
 
              (ssh-write-text /dev/tcpout identification)
@@ -87,7 +87,7 @@
         (cond [(tcp-port? evt)
                (define-values (msg payload itraffic++) (ssh-read-transport-message /dev/tcpin rfc newkeys null))
                (define maybe-task : Any
-                 (cond [(not msg) (ssh-push-message payload /dev/sshout authenticated)]
+                 (cond [(not msg) (ssh-deliver-message payload /dev/sshout authenticated)]
                        [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]
                        [(ssh-message-undefined? msg) (thread-send self (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
                        [(ssh-ignored-incoming-message? msg) (void)]
@@ -156,7 +156,7 @@
     (cond [(exn? exn-or-datum) (raise exn-or-datum)]
           [else (assert exn-or-datum ?)])))
 
-(define ssh-push-message : (-> Bytes Output-Port Boolean Void)
+(define ssh-deliver-message : (-> Bytes Output-Port Boolean Void)
   (lambda [payload /dev/sshout authenticated]
     (define userauth? : Boolean (ssh-authentication-payload? payload))
     
@@ -164,7 +164,7 @@
       (write-special payload /dev/sshout)
       (void))))
 
-(define ssh-push-error : (-> exn Output-Port Boolean)
+(define ssh-deliver-error : (-> exn Output-Port Boolean)
   (lambda [e /dev/sshout]
     (cond [(not (exn:ssh:eof? e)) (write-special e /dev/sshout)]
           [else (let ([reason (assert (exn:ssh:eof-reason e) SSH-Disconnection-Reason?)])

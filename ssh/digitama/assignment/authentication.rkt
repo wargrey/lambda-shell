@@ -5,13 +5,13 @@
 (require "../assignment.rkt")
 (require "../authentication/publickey.rkt")
 
-; datum definition: userauth%
+; datum definition: userauth-constructor
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-ssh-algorithms #:authentication
   ; https://tools.ietf.org/html/rfc4252#section-5
-  ([publickey    REQUIRED        #:=> ssh-userauth-publickey%]
+  ([publickey    REQUIRED        #:=> make-ssh-publickey-userauth]
    [password     OPTIONAL]
    [hostbased    OPTIONAL]
    [none         NOT RECOMMANDED]))

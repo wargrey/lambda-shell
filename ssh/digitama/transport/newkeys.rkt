@@ -26,8 +26,8 @@
    [decrypt-block-size : Byte]
    [mac-generate : (->* (Bytes) (Natural Natural) Bytes)]
    [mac-verify : (->* (Bytes) (Natural Natural) Bytes)])
-  #:transparent
-  #:type-name SSH-Newkeys)
+  #:type-name SSH-Newkeys
+  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-parcel-assess-size : (-> Natural Natural)

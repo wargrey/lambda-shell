@@ -2,24 +2,22 @@
 
 (provide (all-defined-out))
 
-(require typed/racket/class)
-
 (require "message.rkt")
 
 (require "authentication/option.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-User-Authentication<%>
-  (Class (init-field [session-id Bytes])
-         [tell-method-name (-> Symbol)]
-         [request (-> Symbol Symbol (Option SSH-Message) SSH-Message)]
-         [response (-> SSH-Message Symbol Symbol (U SSH-Message SSH-Userauth-Option Boolean))]
-         [abort (-> Void)]))
+(define-type SSH-Userauth-Constructor (-> Bytes SSH-Userauth))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define userauth-choose-process : (-> Symbol Bytes SSH-User-Authentication<%> (Option (Instance SSH-User-Authentication<%>)) (Instance SSH-User-Authentication<%>))
-  (lambda [method-name session-id requested% previous]
-    (cond [(not previous) (new requested% [session-id session-id])]
-          [(eq? method-name (send previous tell-method-name)) previous]
-          [else (send previous abort)
-                (new requested% [session-id session-id])])))
+(define-type SSH-Userauth-Request (-> SSH-Userauth Symbol Symbol (Option SSH-Message) SSH-Message))
+(define-type SSH-Userauth-Response (-> SSH-Userauth SSH-Message Symbol Symbol (U SSH-Message SSH-Userauth-Option Boolean)))
+(define-type SSH-Userauth-Abort (-> SSH-Userauth Void))
+
+(struct ssh-userauth
+  ([session-id : Bytes]
+   [name : Symbol]
+   [request : SSH-Userauth-Request]
+   [response : SSH-Userauth-Response]
+   [abort : (Option SSH-Userauth-Abort)])
+  #:constructor-name make-ssh-userauth
+  #:type-name SSH-Userauth)

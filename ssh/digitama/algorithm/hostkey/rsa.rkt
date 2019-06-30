@@ -4,8 +4,6 @@
 
 (provide (all-defined-out))
 
-(require typed/racket/class)
-
 (require digimon/system)
 
 (require "../rsa.rkt")
@@ -19,26 +17,32 @@
 
 (define ssh-rsa-keyname : Symbol 'ssh-rsa)
 
-(define ssh-rsa% : SSH-Host-Key<%>
-  (class object% (super-new)
-    (init-field hash-algorithm)
-    
+(struct ssh-rsa-hostkey ssh-hostkey
+  ([private-key : RSA-Private-Key])
+  #:type-name SSH-RSA-Hostkey)
+
+(define make-ssh-rsa-hostkey : SSH-Hostkey-Constructor
+  (lambda [hash-algorithm]
     (define key : RSA-Private-Key
       (let ([id-rsa (digimon-path 'stone "hostkey" "id_rsa")])
         (unless (file-exists? id-rsa)
           (write-rsa (rsa-keygen (rsa-distinct-primes #:modulus-bits 2048) #:e 65537)
                      id-rsa))
         (assert (read-rsa id-rsa) rsa-private-key?)))
-    
-    (define/public (tell-key-name)
-      ssh-rsa-keyname)
 
-    (define/public (make-pubkey/certificates)
-      (rsa-make-public-key key))
+    (ssh-rsa-hostkey ssh-rsa-keyname hash-algorithm
+                     ssh-rsa-public-key ssh-rsa-sign
+                     key)))
 
-    ;; https://tools.ietf.org/html/rfc3447#section-8.2.1
-    (define/public (make-signature message)
-      (rsa-make-signature key message hash-algorithm))))
+(define ssh-rsa-public-key : SSH-Hostkey-Make-Public-Key
+  (lambda [self]
+    (rsa-make-public-key (ssh-rsa-hostkey-private-key (assert self ssh-rsa-hostkey?)))))
+
+;; https://tools.ietf.org/html/rfc3447#section-8.2.1
+(define ssh-rsa-sign : SSH-Hostkey-Sign
+  (lambda [self message]
+    (rsa-make-signature (ssh-rsa-hostkey-private-key (assert self ssh-rsa-hostkey?))
+                        message (ssh-hostkey-hash self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define rsa-make-public-key : (-> RSA-Private-Key Bytes)
