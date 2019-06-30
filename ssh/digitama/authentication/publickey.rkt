@@ -57,13 +57,14 @@
                     (if (not (ssh:msg:userauth:request:publickey$? request))
                         (and (ssh-log-message 'debug "accepted ~a, continue for verifying" (authorized-key-fingerprint key))
                              (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey))
-                        (let ([message (bytes-append (ssh-bstring->bytes session-id) (ssh:msg:userauth:request:publickey->bytes request))])
+                        (let ([message (bytes-append (ssh-bstring->bytes session-id) (ssh:msg:userauth:request:publickey->bytes request))]
+                              [signature (ssh:msg:userauth:request:publickey$-signature request)])
                           (and (case keytype
                                  [(ssh-rsa rsa-sha2-256)
                                   (let-values ([(pubkey) (rsa-bytes->public-key (authorized-key-raw key))]
-                                               [(algname sigraw) (rsa-bytes->signature (ssh:msg:userauth:request:publickey$-signature request))])
+                                               [(algname sigoff) (rsa-bytes->signature-offset signature)])
                                     (and (eq? keytype algname)
-                                         (ssh-rsa-verify pubkey message sigraw keytype)
+                                         (ssh-rsa-verify pubkey message signature sigoff keytype)
                                          (ssh-log-message 'debug "verified ~a" (authorized-key-fingerprint key))))]
                                  [else #false])
                                (or (authorized-key-options key) #true)))))))))

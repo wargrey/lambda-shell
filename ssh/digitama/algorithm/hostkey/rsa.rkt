@@ -63,18 +63,18 @@
     (bytes-append (ssh-name->bytes keytype)
                   (ssh-bstring->bytes (rsa-sign key message hash)))))
 
-(define rsa-bytes->signature : (-> Bytes (Values Symbol Bytes))
+(define rsa-bytes->signature-offset : (-> Bytes (Values Symbol Natural))
   (lambda [sig]
     (define-values (algorithm offset) (ssh-bytes->name sig))
-
-    (values algorithm (subbytes sig (+ offset 4)))))
+    
+    (values algorithm (+ offset 4))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-rsa-verify : (-> RSA-Public-Key Bytes Bytes Symbol Boolean)
-  (lambda [pubkey message signature keytype]
+(define ssh-rsa-verify : (-> RSA-Public-Key Bytes Bytes Natural Symbol Boolean)
+  (lambda [pubkey message signature sigoff keytype]
     (define hash : PKCS#1-Hash
       (case keytype
         [(rsa-sha2-256) pkcs#1-id-sha256]
         [else pkcs#1-id-sha1]))
     
-    (rsa-verify pubkey message signature hash)))
+    (rsa-verify pubkey message signature hash sigoff)))

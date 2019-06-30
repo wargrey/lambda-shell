@@ -103,7 +103,6 @@
                    (cond [(ssh:msg:kexinit? evt) (values (ssh-kex/starts-with-self evt /dev/tcpin /dev/tcpout rfc newkeys server?) newkeys 0 0 authenticated)]
                          [else (values maybe-rekex newkeys 0 (ssh-write-message /dev/tcpout evt rfc newkeys) (or authenticated (ssh:msg:userauth:success? evt)))])
                    (cond [(ssh-kex-transparent-message? evt) (values maybe-rekex newkeys 0 (ssh-write-message /dev/tcpout evt rfc newkeys) authenticated)]
-                         [(ssh:msg:userauth:success? evt) (values maybe-rekex newkeys 0 0 authenticated)]
                          [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys 0 0 authenticated)]))]
               
               [(and (pair? evt) (ssh-newkeys? (car evt)) (exact-nonnegative-integer? (cdr evt)))
@@ -159,7 +158,9 @@
 
 (define ssh-push-message : (-> Bytes Output-Port Boolean Void)
   (lambda [payload /dev/sshout authenticated]
-    (unless (and authenticated (ssh-authentication-payload? payload))
+    (define userauth? : Boolean (ssh-authentication-payload? payload))
+    
+    (when (if (not authenticated) userauth? (not userauth?))
       (write-special payload /dev/sshout)
       (void))))
 

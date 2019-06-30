@@ -22,18 +22,19 @@
     
     (pkcs#1-integer->octets s k)))
 
-(define rsa-verify : (-> (U RSA-Public-Key RSA-Private-Key) Bytes Bytes PKCS#1-Hash Boolean)
+(define rsa-verify : (->* ((U RSA-Public-Key RSA-Private-Key) Bytes Bytes PKCS#1-Hash) (Natural Natural) Boolean)
   ;; https://tools.ietf.org/html/rfc8017#section-8.2.2
-  (lambda [key message signature id-hash]
+  (lambda [key message signature id-hash [sig-off 0] [sigend 0]]
     (define-values (modulus public-exponent)
       (cond [(rsa-public-key? key) (values (rsa-public-key-n key) (rsa-public-key-e key))]
             [else (values (rsa-private-key-n key) (rsa-private-key-e key))]))
     
     (define mbits : Nonnegative-Fixnum (integer-length modulus))
     (define k : Index (bits-bytes-length mbits))
+    (define sig-end : Natural (if (<= sigend sig-off) (bytes-length signature) sigend))
 
-    (and (= k (bytes-length signature))
-         (let* ([s (pkcs#1-octets->integer signature)]
+    (and (= k (- sig-end sig-off))
+         (let* ([s (pkcs#1-octets->integer signature sig-off sig-end)]
                 [m (pkcs#1-rsa-verify modulus public-exponent s)]
                 [embits (assert (- mbits 1) index?)])
            (bytes=? (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-verify)
