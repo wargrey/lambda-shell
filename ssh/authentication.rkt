@@ -3,34 +3,21 @@
 ;;; https://tools.ietf.org/html/rfc4252
 
 (provide (all-defined-out))
-(provide (all-from-out "digitama/authentication/option.rkt"))
+(provide (all-from-out "digitama/authentication/datatype.rkt"))
 
 (require racket/port)
 
-(require "digitama/userauth.rkt")
 (require "digitama/authentication.rkt")
-(require "digitama/diagnostics.rkt")
-
-(require "digitama/authentication/option.rkt")
 (require "digitama/authentication/message.rkt")
+(require "digitama/authentication/datatype.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")
-(require "message.rkt")
 (require "assignment.rkt")
 (require "configuration.rkt")
 
 ;; register builtin assignments for authentication methods
 (require "digitama/assignment/authentication.rkt")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct ssh-user
-  ([name : Symbol]
-   [service : Symbol]
-   [options : SSH-Userauth-Option])
-  #:type-name SSH-User
-  #:constructor-name make-ssh-user
-  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-request : (->* (SSH-Port Symbol) (Symbol) (U SSH-EOF True))
@@ -46,42 +33,11 @@
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
     (define timeout : Index ($ssh-userauth-timeout rfc))
     (define limit : Index ($ssh-userauth-retry rfc))
-    
-    (define (authenticate) : (U SSH-EOF SSH-User Void)
-      (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)]
-                         [methods : (SSH-Algorithm-Listof* SSH-Authentication#) all-methods]
-                         [auth-self : (Option SSH-Userauth) #false]
-                         [retry : Fixnum limit])
-        (define datum : SSH-Datum (sync/enable-break datum-evt))
-        
-        (cond [(ssh-eof? datum) datum]
-              [(null? methods) (ssh-shutdown sshc 'SSH-DISCONNECT-NO-MORE-AUTH-METHODS-AVAILABLE)]
-              [(< retry 0) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "too many authentication failures")]
-              [(not (ssh:msg:userauth:request? datum)) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT)]
-              [else (let* ([username (ssh:msg:userauth:request-username datum)]
-                           [service (ssh:msg:userauth:request-service datum)]
-                           [method (ssh:msg:userauth:request-method datum)]
-                           [maybe-method (assq method methods)])
-                      (define result : (U False Void SSH-Userauth-Option SSH-Userauth)
-                        (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
-                              [(not maybe-method) (ssh-write-auth-failure sshc methods)]
-                              [else (let* ([auth (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth-self)]
-                                           [response (with-handlers ([exn? (λ [[e : exn]] e)]) ((ssh-userauth-response auth) auth datum username service))])
-                                      (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
-                                            [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth]
-                                            [(eq? response #true) (ssh-write-auth-success sshc username #false #true) (make-ssh-userauth-option)]
-                                            [(ssh:msg:userauth:success? response) (ssh-write-auth-success sshc username #false response) (make-ssh-userauth-option)]
-                                            [(ssh-userauth-option? response) (ssh-write-auth-success sshc username #false #true) response]
-                                            [(ssh-message? response) (ssh-write-authentication-message sshc response) auth]
-                                            [else (ssh-shutdown sshc 'SSH-DISCONNECT-RESERVED (exn-message response))]))]))
-                      (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
-                      (cond [(ssh-userauth-option? result) (make-ssh-user username service result)]
-                            [(not (void? result))(authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))])))
 
-    (cond [(= timeout 0) (authenticate)]
+    (cond [(= timeout 0) (userauth-authenticate sshc services all-methods limit)]
           [else (parameterize ([current-custodian (make-custodian)])
                   (let-values ([(/dev/stdin /dev/stdout) (make-pipe-with-specials)])
-                  (define ghostcat : Thread (thread (λ [] (write-special (authenticate) /dev/stdout))))
+                  (define ghostcat : Thread (thread (λ [] (write-special (userauth-authenticate sshc services all-methods limit) /dev/stdout))))
                   
                   (let ([datum (sync/timeout/enable-break timeout (wrap-evt /dev/stdin (λ _ (read-byte-or-special /dev/stdin))))])
                     (custodian-shutdown-all (current-custodian))

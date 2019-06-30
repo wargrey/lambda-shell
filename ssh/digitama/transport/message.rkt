@@ -113,7 +113,15 @@
           [(ssh:msg:unimplemented? msg)
            (ssh-log-message #:with-peer-name? #false
                             level "cannot not deal with message ~a from ~a"
-                            (ssh:msg:unimplemented-number msg) (current-peer-name))])))
+                            (ssh:msg:unimplemented-number msg) (current-peer-name))]
+          [(ssh:msg:service:request? msg)
+           (ssh-log-message #:with-peer-name? #false
+                            level "request service '~a' from ~a"
+                            (ssh:msg:service:request-name msg) (current-peer-name))]
+          [(ssh:msg:service:accept? msg)
+           (ssh-log-message #:with-peer-name? #false
+                            level "service '~a' is available to ~a"
+                            (ssh:msg:service:accept-name msg) (current-peer-name))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
@@ -127,7 +135,15 @@
           [(ssh:msg:unimplemented? msg)
            (ssh-log-message #:with-peer-name? #false
                             level "~a cannot deal with message ~a"
-                            (current-peer-name) (ssh:msg:unimplemented-number msg))])))
+                            (current-peer-name) (ssh:msg:unimplemented-number msg))]
+          [(ssh:msg:service:request? msg)
+           (ssh-log-message #:with-peer-name? #false
+                            level "~a requests the service '~a'"
+                            (current-peer-name) (ssh:msg:service:request-name msg))]
+          [(ssh:msg:service:accept? msg)
+           (ssh-log-message #:with-peer-name? #false
+                            level "~a accepts the request for service '~a'"
+                            (current-peer-name) (ssh:msg:service:accept-name msg))])))
 
 (define ssh-suicide : (-> Procedure SSH-MSG-DISCONNECT Nothing)
   (lambda [func msg]

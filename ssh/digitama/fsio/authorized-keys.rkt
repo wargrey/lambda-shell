@@ -5,12 +5,14 @@
 (require digimon/binscii)
 (require digimon/filesystem)
 
-(require "../authentication/option.rkt")
+(require "../authentication/datatype.rkt")
 (require "../algorithm/fingerprint.rkt")
 
 (require "../diagnostics.rkt")
 (require "../assignment.rkt")
 (require "../../datatype.rkt")
+
+(define ssh-multiple-options : (Listof Symbol) (list 'environment 'permitlisten 'permitopen))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct authorized-key

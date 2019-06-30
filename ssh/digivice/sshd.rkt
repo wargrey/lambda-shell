@@ -1,7 +1,6 @@
 #lang racket/base
 
 (require ssh/base)
-(require ssh/authentication)
 
 (require racket/string)
 (require racket/cmdline)
@@ -12,6 +11,9 @@
 
 (require digimon/collection)
 
+(require "sshd/main.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-target-port (make-parameter 2222))
 
 (define-values (flag-table --help --unknown)
@@ -23,20 +25,6 @@
               (,(format "connect to <port> on the remote host [default: ~a]" (ssh-target-port)) "port")]))
           (λ [-h] (string-replace -h #px"  -- : .+?-h --'." ""))
           (curry eprintf "make: I don't know what does `~a` mean!~n")))
-
-(define sshd-serve
-  (lambda [sshc services]
-    (parameterize ([current-peer-name (ssh-port-peer-name sshc)])
-      (with-handlers ([exn:fail? (λ [e] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
-        (define maybe-user (ssh-user-authenticate sshc services))
-        
-        (when (ssh-user? maybe-user)
-          (let sync-read-display-loop ()
-            (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
-            (unless (ssh-eof? datum)
-              (sync-read-display-loop)))))
-      
-      (ssh-port-wait sshc))))
 
 (define main
   (lambda [argument-list]
