@@ -30,43 +30,43 @@
  I_S is S's SSH_MSG_KEXINIT message
 |#
 
-(struct ssh-diffie-hellman-kex ssh-kex
+(struct ssh-dh-kex ssh-kex
   ([VIcs : Bytes]
-   [dh-group : DH-MODP-Group]
+   [group : DH-MODP-Group]
    [x : (Boxof Integer)]
    [e : (Boxof Integer)])
   #:type-name SSH-Diffie-Hellman-Kex)
 
 (define make-ssh-diffie-hellman-exchange : SSH-Kex-Constructor
-  (lambda [Vc Vs Ic Is hostkey hash]
+  (lambda [Vc Vs Ic Is hostkey hash minbits]
     (define VIcs : Bytes
       (bytes-append (ssh-string->bytes Vc) (ssh-string->bytes Vs)
                     (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is))
 
-    (ssh-diffie-hellman-kex 'diffie-hellman-exchange hostkey hash
-                            ssh-diffie-hellman-exchange-request ssh-diffie-hellman-exchange-reply ssh-diffie-hellman-exchange-verify
-                            VIcs dh2048 (box 0) (box 0))))
+    (ssh-dh-kex 'diffie-hellman-exchange hostkey hash
+                ssh-diffie-hellman-exchange-request ssh-diffie-hellman-exchange-reply ssh-diffie-hellman-exchange-verify
+                VIcs dh2048 (box 0) (box 0))))
 
 (define ssh-diffie-hellman-exchange-request : SSH-Kex-Request
   (lambda [self]
-    (with-asserts ([self ssh-diffie-hellman-kex?])
-      (define dh-group : DH-MODP-Group (ssh-diffie-hellman-kex-dh-group self))
+    (with-asserts ([self ssh-dh-kex?])
+      (define dh-group : DH-MODP-Group (ssh-dh-kex-group self))
     
       (define g : Byte (dh-modp-group-g dh-group))
       (define p : Integer (dh-modp-group-p dh-group))
       (define x : Integer (dh-random dh-group 1)) ; x <- (1, q)
       (define e : Integer (modular-expt g x p))
       
-      (set-box! (ssh-diffie-hellman-kex-x self) x)
-      (set-box! (ssh-diffie-hellman-kex-e self) e)
+      (set-box! (ssh-dh-kex-x self) x)
+      (set-box! (ssh-dh-kex-e self) e)
       
       (make-ssh:msg:kexdh:init #:e e))))
 
 (define ssh-diffie-hellman-exchange-reply : SSH-Kex-Reply
   (lambda [self req]
-    (with-asserts ([self ssh-diffie-hellman-kex?])
+    (with-asserts ([self ssh-dh-kex?])
       (and (ssh:msg:kexdh:init? req)
-           (let ([dh-group (ssh-diffie-hellman-kex-dh-group self)]
+           (let ([dh-group (ssh-dh-kex-group self)]
                  [hostkey (ssh-kex-hostkey self)])    
              (define g : Byte (dh-modp-group-g dh-group))
              (define p : Integer (dh-modp-group-p dh-group))
@@ -86,13 +86,13 @@
 
 (define ssh-diffie-hellman-exchange-verify : SSH-Kex-Verify
   (lambda [self reply]
-    (with-asserts ([self ssh-diffie-hellman-kex?])
+    (with-asserts ([self ssh-dh-kex?])
       (and (ssh:msg:kexdh:reply? reply)
-           (let ([dh-group (ssh-diffie-hellman-kex-dh-group self)]
+           (let ([dh-group (ssh-dh-kex-group self)]
                  [hostkey (ssh-kex-hostkey self)])
              (define p : Integer (dh-modp-group-p dh-group))
-             (define x : Integer (unbox (ssh-diffie-hellman-kex-x self)))
-             (define e : Integer (unbox (ssh-diffie-hellman-kex-e self)))
+             (define x : Integer (unbox (ssh-dh-kex-x self)))
+             (define e : Integer (unbox (ssh-dh-kex-e self)))
              (define f : Integer (ssh:msg:kexdh:reply-f reply))
              (define K : Integer (modular-expt f x p))
              (define K-S : Bytes (ssh:msg:kexdh:reply-K-S reply))
@@ -117,6 +117,6 @@
 (define dh-hash : (-> SSH-Diffie-Hellman-Kex Bytes Integer Integer Integer Bytes)
   (lambda [self K-S e f K]
     ((ssh-kex-hash self)
-     (bytes-append (ssh-diffie-hellman-kex-VIcs self)
+     (bytes-append (ssh-dh-kex-VIcs self)
                    (ssh-uint32->bytes (bytes-length K-S)) K-S
                    (ssh-mpint->bytes e) (ssh-mpint->bytes f) (ssh-mpint->bytes K)))))

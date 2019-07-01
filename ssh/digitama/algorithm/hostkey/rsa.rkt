@@ -22,11 +22,11 @@
   #:type-name SSH-RSA-Hostkey)
 
 (define make-ssh-rsa-hostkey : SSH-Hostkey-Constructor
-  (lambda [hash-algorithm]
+  (lambda [hash-algorithm minbits]
     (define key : RSA-Private-Key
       (let ([id-rsa (digimon-path 'stone "hostkey" "id_rsa")])
         (unless (file-exists? id-rsa)
-          (write-rsa (rsa-keygen (rsa-distinct-primes #:modulus-bits 2048) #:e 65537)
+          (write-rsa (rsa-keygen (rsa-distinct-primes #:modulus-bits minbits) #:e 65537)
                      id-rsa))
         (assert (read-rsa id-rsa) rsa-private-key?)))
 

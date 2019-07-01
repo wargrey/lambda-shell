@@ -6,7 +6,7 @@
 (require "algorithm/pkcs1/hash.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-Hostkey-Constructor (-> PKCS#1-Hash SSH-Hostkey))
+(define-type SSH-Hostkey-Constructor (-> PKCS#1-Hash Positive-Index SSH-Hostkey))
 
 (define-type SSH-Hostkey-Make-Public-Key (-> SSH-Hostkey Bytes))
 (define-type SSH-Hostkey-Sign (-> SSH-Hostkey Bytes Bytes))
@@ -19,7 +19,7 @@
   #:type-name SSH-Hostkey)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-Kex-Constructor (-> String String Bytes Bytes SSH-Hostkey (-> Bytes Bytes) SSH-Kex))
+(define-type SSH-Kex-Constructor (-> String String Bytes Bytes SSH-Hostkey (-> Bytes Bytes) Positive-Index SSH-Kex))
 
 (define-type SSH-Kex-Request (-> SSH-Kex SSH-Message))
 (define-type SSH-Kex-Reply (-> SSH-Kex SSH-Message (U SSH-Message (Pairof SSH-Message (Pairof Integer Bytes)) False)))

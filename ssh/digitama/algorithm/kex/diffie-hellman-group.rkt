@@ -35,9 +35,10 @@
  I_S is S's SSH_MSG_KEXINIT message
 |#
 
-(struct ssh-diffie-hellman-group-kex ssh-kex
+(struct ssh-dhg-kex ssh-kex
   ([VIcs : Bytes]
-   [bits-range : (Boxof (Listof Index))]
+   [minbits : Positive-Index]
+   [reqbits : (Boxof (Listof Index))]
    [p : (Boxof Integer)]
    [g : (Boxof Integer)]
    [x : (Boxof Integer)]
@@ -45,30 +46,30 @@
   #:type-name SSH-Diffie-Hellman-Group-Kex)
 
 (define make-ssh-diffie-hellman-group-exchange : SSH-Kex-Constructor
-  (lambda [Vc Vs Ic Is hostkey hash]
+  (lambda [Vc Vs Ic Is hostkey hash minbits]
     (define VIcs : Bytes
       (bytes-append (ssh-string->bytes Vc) (ssh-string->bytes Vs)
                     (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is))
 
-    (ssh-diffie-hellman-group-kex 'diffie-hellman-group-exchange hostkey hash
-                                  ssh-diffie-hellman-group-exchange-request ssh-diffie-hellman-group-exchange-reply ssh-diffie-hellman-group-exchange-verify
-                                  VIcs (box null) (box 0) (box 0) (box 0) (box 0))))
+    (ssh-dhg-kex 'diffie-hellman-group-exchange hostkey hash
+                 ssh-diffie-hellman-group-exchange-request ssh-diffie-hellman-group-exchange-reply ssh-diffie-hellman-group-exchange-verify
+                 VIcs minbits (box null) (box 0) (box 0) (box 0) (box 0))))
 
 (define ssh-diffie-hellman-group-exchange-request : SSH-Kex-Request
   (lambda [self]
-    (with-asserts ([self ssh-diffie-hellman-group-kex?])
+    (with-asserts ([self ssh-dhg-kex?])
       (define all-prime-sizes : (Listof Index) (sort (hash-keys dh-modp-groups) <))
-      (define minbits : Index (car all-prime-sizes))
+      (define minbits : Index (max (car all-prime-sizes) (ssh-dhg-kex-minbits self)))
       (define maxbits : Index (car (reverse all-prime-sizes)))
-      (define nbits : Index (max minbits 3702))
+      (define nbits : Index maxbits)
 
-      (set-box! (ssh-diffie-hellman-group-kex-bits-range self) (list minbits nbits maxbits))
+      (set-box! (ssh-dhg-kex-reqbits self) (list minbits nbits maxbits))
       
       (make-ssh:msg:kex:dh:gex:request #:min minbits #:n nbits #:max maxbits))))
 
 (define ssh-diffie-hellman-group-exchange-reply : SSH-Kex-Reply
   (lambda [self req]
-    (with-asserts ([self ssh-diffie-hellman-group-kex?])
+    (with-asserts ([self ssh-dhg-kex?])
       (cond [(ssh:msg:kex:dh:gex:request:old? req) (dhg-request self req)]
             [(ssh:msg:kex:dh:gex:request? req) (dhg-request self req)]
             [(ssh:msg:kex:dh:gex:init? req) (dhg-reply self req)]
@@ -76,7 +77,7 @@
 
 (define ssh-diffie-hellman-group-exchange-verify : SSH-Kex-Verify
   (lambda [self reply]
-    (with-asserts ([self ssh-diffie-hellman-group-kex?])
+    (with-asserts ([self ssh-dhg-kex?])
       (cond [(ssh:msg:kex:dh:gex:group? reply) (dhg-init self reply)]
             [(ssh:msg:kex:dh:gex:reply? reply) (dhg-verify self reply)]
             [else #false]))))
@@ -85,12 +86,12 @@
 (define dhg-request : (-> SSH-Diffie-Hellman-Group-Kex (U SSH-MSG-KEX-DH-GEX-REQUEST-OLD SSH-MSG-KEX-DH-GEX-REQUEST) SSH-Message)
   (lambda [self req]
     (define-values (dh-group bits-range)
-      (cond [(ssh:msg:kex:dh:gex:request:old? req) (dhg-seek (ssh:msg:kex:dh:gex:request:old-n req))]
-            [else (dhg-seek (ssh:msg:kex:dh:gex:request-min req) (ssh:msg:kex:dh:gex:request-n req) (ssh:msg:kex:dh:gex:request-max req))]))
+      (cond [(ssh:msg:kex:dh:gex:request:old? req) (dhg-seek self (ssh:msg:kex:dh:gex:request:old-n req))]
+            [else (dhg-seek self (ssh:msg:kex:dh:gex:request-min req) (ssh:msg:kex:dh:gex:request-n req) (ssh:msg:kex:dh:gex:request-max req))]))
 
-    (set-box! (ssh-diffie-hellman-group-kex-bits-range self) bits-range)
-    (set-box! (ssh-diffie-hellman-group-kex-p self) (dh-modp-group-p dh-group))
-    (set-box! (ssh-diffie-hellman-group-kex-g self) (dh-modp-group-g dh-group))
+    (set-box! (ssh-dhg-kex-reqbits self) bits-range)
+    (set-box! (ssh-dhg-kex-p self) (dh-modp-group-p dh-group))
+    (set-box! (ssh-dhg-kex-g self) (dh-modp-group-g dh-group))
     
     (make-ssh:msg:kex:dh:gex:group #:p (dh-modp-group-p dh-group) #:g (dh-modp-group-g dh-group))))
 
@@ -101,10 +102,10 @@
     (define x : Integer (dhg-random p 1)) ; x <- (1, q)
     (define e : Integer (modular-expt g x p))
 
-    (set-box! (ssh-diffie-hellman-group-kex-p self) p)
-    (set-box! (ssh-diffie-hellman-group-kex-g self) g)
-    (set-box! (ssh-diffie-hellman-group-kex-x self) x)
-    (set-box! (ssh-diffie-hellman-group-kex-e self) e)
+    (set-box! (ssh-dhg-kex-p self) p)
+    (set-box! (ssh-dhg-kex-g self) g)
+    (set-box! (ssh-dhg-kex-x self) x)
+    (set-box! (ssh-dhg-kex-e self) e)
     
     (make-ssh:msg:kex:dh:gex:init #:e e)))
 
@@ -112,8 +113,8 @@
   (lambda [self req]
     (define hostkey : SSH-Hostkey (ssh-kex-hostkey self))
 
-    (define g : Integer (unbox (ssh-diffie-hellman-group-kex-g self)))
-    (define p : Integer (unbox (ssh-diffie-hellman-group-kex-p self)))
+    (define g : Integer (unbox (ssh-dhg-kex-g self)))
+    (define p : Integer (unbox (ssh-dhg-kex-p self)))
     (define e : Integer (ssh:msg:kex:dh:gex:init-e req))
     (define y : Integer (dhg-random p 0)) ; y <- (0, q)
     (define f : Integer (modular-expt g y p))
@@ -132,9 +133,9 @@
   (lambda [self reply]
     (define hostkey : SSH-Hostkey (ssh-kex-hostkey self))
 
-    (define p : Integer (unbox (ssh-diffie-hellman-group-kex-p self)))
-    (define x : Integer (unbox (ssh-diffie-hellman-group-kex-x self)))
-    (define e : Integer (unbox (ssh-diffie-hellman-group-kex-e self)))
+    (define p : Integer (unbox (ssh-dhg-kex-p self)))
+    (define x : Integer (unbox (ssh-dhg-kex-x self)))
+    (define e : Integer (unbox (ssh-dhg-kex-e self)))
     (define f : Integer (ssh:msg:kex:dh:gex:reply-f reply))
     (define K : Integer (modular-expt f x p))
     (define K-S : Bytes (ssh:msg:kex:dh:gex:reply-K-S reply))
@@ -151,20 +152,26 @@
     (cons K H)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define dhg-seek : (case-> [Index -> (Values DH-MODP-Group (Listof Index))]
-                           [Index Index Index -> (Values DH-MODP-Group (Listof Index))])
+(define dhg-seek : (case-> [SSH-Diffie-Hellman-Group-Kex Index -> (Values DH-MODP-Group (Listof Index))]
+                           [SSH-Diffie-Hellman-Group-Kex Index Index Index -> (Values DH-MODP-Group (Listof Index))])
   (case-lambda
-    [(n)
-     (values (hash-ref dh-modp-groups n (λ [] (ssh-raise-kex-error dhg-request "unable to find the ~a-bits-sized prime" n)))
-             (list n))]
-    [(min n max)
-     (cond [(not (<= min n max)) (ssh-raise-kex-error dhg-request "invalid prime size range: ~a <= ~a <= ~a" min n max)]
-           [else (values (hash-ref dh-modp-groups min
-                                   (λ [] (let seek : DH-MODP-Group ([nbits : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
-                                           (cond [(null? nbits) (ssh-raise-kex-error dhg-request "unable to find a prime whose size in range [~a, ~a]" min max)]
-                                                 [(<= min (car nbits) max) (hash-ref dh-modp-groups (car nbits))]
-                                                 [else (seek (cdr nbits))]))))
-                         (list min n max))])]))
+    [(self n)
+     (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
+
+     (cond [(< n minbits) (ssh-raise-kex-error dhg-request "the requested prime is too small: (~a < ~a)" n minbits)]
+           [else (values (hash-ref dh-modp-groups n (λ [] (ssh-raise-kex-error dhg-request "unable to find the ~a-bits-sized prime" n)))
+                         (list n))])]
+    [(self smallest preferred biggest)
+     (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
+     (cond [(not (<= smallest preferred biggest)) (ssh-raise-kex-error dhg-request "invalid prime size range: (~a <= ~a <= ~a)" smallest preferred biggest)]
+           [(< biggest minbits) (ssh-raise-kex-error dhg-request "the requested prime is too small: (~a < ~a)" biggest minbits)]
+           [else (let ([n (max smallest minbits)])
+                   (values (hash-ref dh-modp-groups n
+                                     (λ [] (let seek : DH-MODP-Group ([ns : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
+                                             (cond [(null? ns) (ssh-raise-kex-error dhg-request "unable to find a prime in range [~a, ~a]" n biggest)]
+                                                   [(<= n (car ns) biggest) (hash-ref dh-modp-groups (car ns))]
+                                                   [else (seek (cdr ns))]))))
+                           (list smallest preferred biggest)))])]))
 
 (define dhg-random : (-> Integer Byte Integer)
   (lambda [p open-min]
@@ -173,13 +180,13 @@
 
 (define dhg-hash : (-> SSH-Diffie-Hellman-Group-Kex Bytes Integer Integer Integer Bytes)
   (lambda [self K-S e f K]
-    (define bits-range : (Listof Index) (unbox (ssh-diffie-hellman-group-kex-bits-range self)))
-    (define p : Integer (unbox (ssh-diffie-hellman-group-kex-p self)))
-    (define g : Integer (unbox (ssh-diffie-hellman-group-kex-g self)))
+    (define reqbits : (Listof Index) (unbox (ssh-dhg-kex-reqbits self)))
+    (define p : Integer (unbox (ssh-dhg-kex-p self)))
+    (define g : Integer (unbox (ssh-dhg-kex-g self)))
     
     ((ssh-kex-hash self)
-     (bytes-append (ssh-diffie-hellman-group-kex-VIcs self)
+     (bytes-append (ssh-dhg-kex-VIcs self)
                    (ssh-uint32->bytes (bytes-length K-S)) K-S
-                   (apply bytes-append (map ssh-uint32->bytes bits-range))
+                   (apply bytes-append (map ssh-uint32->bytes reqbits))
                    (ssh-mpint->bytes p) (ssh-mpint->bytes g)
                    (ssh-mpint->bytes e) (ssh-mpint->bytes f) (ssh-mpint->bytes K)))))

@@ -53,11 +53,11 @@
     
     (define-values (kex hostkey c2s s2c) (ssh-negotiate peer-kexinit self-kexinit))
     (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
+    (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
     
     (define kex-self : SSH-Kex
-      ((vector-ref kex 0) (current-client-identification) (current-server-identification)
-                          Ic (ssh:msg:kexinit->bytes self-kexinit)
-                          ((vector-ref hostkey 0) (vector-ref hostkey 1)) HASH))
+      ((vector-ref kex 0) (current-client-identification) (current-server-identification) Ic (ssh:msg:kexinit->bytes self-kexinit)
+                          ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
 
     (let ([kex-msg-group (list (ssh-kex-name kex-self))]
           [kex-reply (ssh-kex-reply kex-self)])
@@ -80,11 +80,11 @@
 
     (define-values (kex hostkey c2s s2c) (ssh-negotiate self-kexinit peer-kexinit))
     (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
+    (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
     
     (define kex-self : SSH-Kex
-      ((vector-ref kex 0) (current-client-identification) (current-server-identification)
-                          (ssh:msg:kexinit->bytes self-kexinit) Is
-                          ((vector-ref hostkey 0) (vector-ref hostkey 1)) HASH))
+      ((vector-ref kex 0) (current-client-identification) (current-server-identification) (ssh:msg:kexinit->bytes self-kexinit) Is
+                          ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
 
     (let ([kex-msg-group (list (ssh-kex-name kex-self))]
           [kex-verify (ssh-kex-verify kex-self)]

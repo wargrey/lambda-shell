@@ -39,6 +39,7 @@
    
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    [payload-capacity : Index 32768]
+   [minimum-key-bits : Positive-Index 3072]
 
    [timeout : (Option Nonnegative-Real) #false]
    [rekex-traffic : Positive-Integer (* 1024 1024 1024)]
