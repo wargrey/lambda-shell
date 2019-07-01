@@ -43,7 +43,7 @@
                     (let rekex : Void ()
                       (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys null))
                       (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout rfc oldkeys payload)]
-                            [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)])))))))
+                            [else (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/starts-with-self)])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-kex/server : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes Void)
@@ -71,7 +71,7 @@
               [(and (pair? secrets) (ssh:msg:newkeys? msg))
                (ssh-write-message /dev/tcpout msg rfc oldkeys)
                (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #true)]
-              [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys (λ [] (rekex secrets)))])))))
+              [else (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/server)])))))
 
 (define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes Void)
   (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc oldkeys Is]
@@ -98,7 +98,7 @@
                       (ssh-write-message /dev/tcpout response rfc oldkeys)
                       (cond [(not secrets) (rekex)]
                             [else (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #false)])))]
-              [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)])))))
+              [else (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/client)])))))
   
 (define ssh-kex-done : (-> Thread Maybe-Newkeys Integer Bytes (-> Bytes Bytes)
                            SSH-Transport-Algorithms SSH-Transport-Algorithms Output-Port SSH-Configuration Boolean Void)
@@ -187,6 +187,7 @@
   (lambda [cs-dirty ss-dirty type]
     (define cs : (SSH-Algorithm-Listof* a) (ssh-algorithms-clean cs-dirty))
     (define ss : (Listof Symbol) (ssh-algorithms->names ss-dirty))
+    
     (findf (λ [[c : (Pairof Symbol a)]] (and (memv (car c) ss) #true)) cs)))
 
 (define ssh-derive-key : (-> Bytes Bytes Char Bytes Index (-> Bytes Bytes) Bytes)
@@ -200,11 +201,6 @@
             [else (subbytes ΣK 0 key-size)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-deal-with-unexpected-message : (-> (U SSH-Message Bytes) Output-Port SSH-Configuration Maybe-Newkeys (-> Void) Void)
-  (lambda [msg /dev/tcpout rfc oldkeys continue]
-    (when (or (bytes? msg) (not (ssh-kex-transparent-message? msg)))
-      ;; TODO: Should we just terminate the key-exchange?
-      (define rejected-id : Byte (if (bytes? msg) (bytes-ref msg 0) (ssh-message-number msg)))
-
-      (ssh-write-message /dev/tcpout (make-ssh:msg:unimplemented #:number rejected-id) rfc oldkeys)
-      (continue))))
+(define ssh-deal-with-unexpected-message : (-> (U SSH-Message Bytes) Any Void)
+  (lambda [msg func]
+    (ssh-raise-kex-error func "kex: unexpected message: ~a" (if (bytes? msg) (bytes-ref msg 0) (ssh-message-name msg)))))

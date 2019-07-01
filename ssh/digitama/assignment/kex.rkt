@@ -16,4 +16,8 @@
    [diffie-hellman-group15-sha512  OPTIONAL]
    [diffie-hellman-group16-sha512  OPTIONAL]
    [diffie-hellman-group17-sha512  OPTIONAL]
-   [diffie-hellman-group18-sha512  OPTIONAL]))
+   [diffie-hellman-group18-sha512  OPTIONAL]
+
+   ; https://tools.ietf.org/html/rfc4419#section-4
+   [diffie-hellman-group-exchange-sha1          #:=> [make-ssh-diffie-hellman-group-exchange sha1-bytes]]
+   [diffie-hellman-group-exchange-sha256        #:=> [make-ssh-diffie-hellman-group-exchange sha256-bytes]]))

@@ -91,11 +91,13 @@
            (let ([dh-group (ssh-diffie-hellman-kex-dh-group self)]
                  [hostkey (ssh-kex-hostkey self)])
              (define p : Integer (dh-modp-group-p dh-group))
+             (define x : Integer (unbox (ssh-diffie-hellman-kex-x self)))
+             (define e : Integer (unbox (ssh-diffie-hellman-kex-e self)))
              (define f : Integer (ssh:msg:kexdh:reply-f reply))
-             (define K : Integer (modular-expt f (unbox (ssh-diffie-hellman-kex-x self)) p))
+             (define K : Integer (modular-expt f x p))
              (define K-S : Bytes (ssh:msg:kexdh:reply-K-S reply))
              (define s : Bytes (ssh:msg:kexdh:reply-s reply))
-             (define H : Bytes (dh-hash self K-S (unbox (ssh-diffie-hellman-kex-e self)) f K))
+             (define H : Bytes (dh-hash self K-S e f K))
              
              (when (or (< f 1) (> f (sub1 p)))
                (ssh-raise-kex-error self "'f' is out of range, expected in [1, p-1]"))

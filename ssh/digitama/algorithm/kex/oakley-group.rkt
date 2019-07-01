@@ -37,9 +37,11 @@
 (define-syntax (define-modp-dh-group stx)
   (syntax-case stx []
     [(_ v #:group id #:magic i #:generator g [#:prime hex ...])
-     #'(define v : DH-MODP-Group
-         (let ([p : Positive-Integer (make-prime hex ...)])
-           (dh-modp-group id p g (max (quotient (- p 1) 2) 1) i)))]))
+     #'(begin (define v : DH-MODP-Group
+                (let ([p : Positive-Integer (make-prime hex ...)])
+                  (dh-modp-group id p g (max (quotient (- p 1) 2) 1) i)))
+
+              (hash-set! dh-modp-groups (assert (integer-length (dh-modp-group-p v)) index?) v))]))
 
 (struct dh-modp-group
   ([id : Byte]            #;[group id]
@@ -47,9 +49,12 @@
    [g : Byte]             #;[generator]
    [q : Positive-Integer] #;[(p - 1) / 2]
    [i : Positive-Integer] #;[the smallest natural that make both q and q are primes])
-  #:transparent
-  #:type-name DH-MODP-Group)
+  #:type-name DH-MODP-Group
+  #:transparent)
 
+(define dh-modp-groups : (HashTable Index DH-MODP-Group) (make-hasheq))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; RFC2409
 (define-modp-dh-group dh768
   #:group 1 #:magic 149686
