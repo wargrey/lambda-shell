@@ -28,7 +28,7 @@
       (cond [(ssh-eof? datum) datum]
             [else (authenticate (ssh-authentication-datum-evt sshd #false))]))))
 
-(define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) [#:methods (SSH-Algorithm-Listof* SSH-Authentication#)] (U SSH-EOF SSH-User Void))
+(define ssh-user-authenticate : (-> SSH-Port (Listof Symbol) [#:methods (SSH-Name-Listof* SSH-Authentication#)] (U SSH-EOF SSH-User Void))
   (lambda [sshc services #:methods [all-methods (ssh-authentication-methods)]]
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
     (define timeout : Index ($ssh-userauth-timeout rfc))
@@ -45,4 +45,3 @@
                     
                     (cond [(or (ssh-user? datum) (ssh-eof? datum) (void? datum)) datum]
                           [else (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "authentication timeout")]))))])))
-  

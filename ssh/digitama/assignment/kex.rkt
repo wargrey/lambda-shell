@@ -8,7 +8,7 @@
 ; datum definition: #(kex-constructor hash-function)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-algorithms #:kex
+(define-ssh-names #:kex
   ; http://tools.ietf.org/html/rfc4253#section-8
   ([diffie-hellman-group14-sha1    REQUIRED     #:=> [make-ssh-diffie-hellman-exchange sha1-bytes]]
    

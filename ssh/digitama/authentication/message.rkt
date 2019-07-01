@@ -5,8 +5,8 @@
 (require "../userauth.rkt")
 (require "../diagnostics.rkt")
 
-(require "../../assignment.rkt")
 (require "../../message.rkt")
+(require "../../assignment.rkt")
 (require "../../datatype.rkt")
 (require "../../transport.rkt")
 
@@ -28,8 +28,8 @@
 
     (ssh-port-send self message)))
 
-(define ssh-write-auth-failure : (case-> [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication#) -> False]
-                                         [SSH-Port (SSH-Algorithm-Listof* SSH-Authentication#) SSH-MSG-USERAUTH-FAILURE -> Boolean])
+(define ssh-write-auth-failure : (case-> [SSH-Port (SSH-Name-Listof* SSH-Authentication#) -> False]
+                                         [SSH-Port (SSH-Name-Listof* SSH-Authentication#) SSH-MSG-USERAUTH-FAILURE -> Boolean])
   (case-lambda
     [(self methods)
      (ssh-write-authentication-message self (make-ssh:msg:userauth:failure #:methods methods #:partial-success? #false))
@@ -73,7 +73,7 @@
            (if (ssh:msg:userauth:failure-partial-success? msg)
                (ssh-log-message level "partially accepted, continue")
                (ssh-log-message level "denied, methods that can continue: ~a"
-                                (ssh-algorithms->names (ssh:msg:userauth:failure-methods msg))))]
+                                (ssh-names->namelist (ssh:msg:userauth:failure-methods msg))))]
           [(ssh:msg:userauth:banner? msg)
            (ssh-log-message level #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
 

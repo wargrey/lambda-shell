@@ -7,7 +7,7 @@
 ; datum definition: #(hostkey-constructor hash-object)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-algorithms #:hostkey
+(define-ssh-names #:hostkey
   (; https://tools.ietf.org/html/rfc4251#section-4.1
    ; http://tools.ietf.org/html/rfc4253#section-6.6
    [ssh-dss          REQUIRED        sign   Raw DSS Key]

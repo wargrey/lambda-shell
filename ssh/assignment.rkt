@@ -5,9 +5,8 @@
 
 (provide (all-defined-out))
 (provide SSH-Kex# SSH-Cipher# SSH-Hostkey# SSH-Compression# SSH-MAC# SSH-Authentication#)
-(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-mac-algorithms ssh-compression-algorithms)
-(provide ssh-authentication-methods ssh-channel-constructors)
-(provide define-ssh-symbols define-ssh-algorithms)
+(provide ssh-cipher-algorithms ssh-kex-algorithms ssh-hostkey-algorithms ssh-mac-algorithms ssh-compression-algorithms ssh-authentication-methods)
+(provide define-ssh-symbols define-ssh-names define-ssh-namebase)
 
 (require "digitama/assignment.rkt")
 

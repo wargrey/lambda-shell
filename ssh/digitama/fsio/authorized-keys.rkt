@@ -49,7 +49,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-read-key-line : (-> Input-Port (U Authorized-Key EOF exn))
   (lambda [/dev/keyin]
-    (define public-keytypes : (Listof Symbol) (ssh-algorithms->names (ssh-hostkey-algorithms)))
+    (define public-keytypes : (Listof Symbol) (ssh-names->namelist (ssh-hostkey-algorithms)))
     (with-handlers ([exn:ssh:fsio? (λ [[e : exn:ssh:fsio]] (read-line /dev/keyin) e)])
       (let readline ([type : Symbol '||]
                      [key : (Option Bytes) #false]

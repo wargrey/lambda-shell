@@ -8,7 +8,6 @@
 (require "../fsio/authorized-keys.rkt")
 (require "../algorithm/hostkey/rsa.rkt")
 
-(require "../message.rkt")
 (require "../../message.rkt")
 (require "../../datatype.rkt")
 
@@ -38,7 +37,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-publickey-request : SSH-Userauth-Request
   (lambda [self username service response]
-    (or response (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey))))
+    response
+    (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey)))
 
 (define ssh-publickey-response : SSH-Userauth-Response
   (lambda [self request username service]

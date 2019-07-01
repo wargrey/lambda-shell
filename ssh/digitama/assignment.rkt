@@ -8,8 +8,6 @@
 (require "kex.rkt")
 (require "message.rkt")
 (require "userauth.rkt")
-(require "service.rkt")
-(require "channel.rkt")
 
 (require "algorithm/pkcs1/hash.rkt")
 
@@ -35,7 +33,7 @@
                   (λ [v] (cond [(or (eq? v 'name) (eq? v 'enum)) #true] ...
                                [else #false])))))]))
 
-(define-syntax (define-ssh-algorithm stx)
+(define-syntax (define-ssh-name stx)
   (syntax-case stx [:]
     [(_ &database [name comments ... #:=> [data ...]])
      #'(set-box! &database (cons (cons 'name (vector-immutable data ...)) (unbox &database)))]
@@ -44,7 +42,7 @@
     [(_ &database [name comments ...])
     #'(void)]))
 
-(define-syntax (define-ssh-algorithm-database stx)
+(define-syntax (define-ssh-namebase stx)
   (syntax-case stx [:]
     [(_ id : SSH-Type #:as Type)
     (with-syntax ([&id (format-id #'id "&~a" (syntax-e #'id))]
@@ -64,54 +62,46 @@
                                             (ssh-filter-algorithms (map (inst car Symbol SSH-Type) base)
                                                                    base branch))])]))
 
-                (define $SSH-Type : (-> (Listof Symbol) (SSH-Algorithm-Listof SSH-Type))
+                (define $SSH-Type : (-> (Listof Symbol) (SSH-Name-Listof SSH-Type))
                   (lambda [name-list]
                     (define base : (Listof (Pairof Symbol SSH-Type)) (id))
-                    (for/list : (SSH-Algorithm-Listof SSH-Type) ([name (in-list name-list)])
+                    (for/list : (SSH-Name-Listof SSH-Type) ([name (in-list name-list)])
                       (or (assq name base)
                           (cons name #false)))))))]))
 
-(define-syntax (define-ssh-algorithms stx)
+(define-syntax (define-ssh-names stx)
   (syntax-case stx [:]
     [(_ #:kex (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-kex-algorithms definition) ...)]
+     #'(begin (define-ssh-name &ssh-kex-algorithms definition) ...)]
     [(_ #:hostkey (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-hostkey-algorithms definition) ...)]
+     #'(begin (define-ssh-name &ssh-hostkey-algorithms definition) ...)]
     [(_ #:cipher (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-cipher-algorithms definition) ...)]
+     #'(begin (define-ssh-name &ssh-cipher-algorithms definition) ...)]
     [(_ #:mac (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-mac-algorithms definition) ...)]
+     #'(begin (define-ssh-name &ssh-mac-algorithms definition) ...)]
     [(_ #:compression (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-compression-algorithms definition) ...)]
-    
+     #'(begin (define-ssh-name &ssh-compression-algorithms definition) ...)]
     [(_ #:authentication (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-authentication-methods definition) ...)]
-    [(_ #:service (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-services definition) ...)]
-    [(_ #:channel (definition ...))
-     #'(begin (define-ssh-algorithm &ssh-channels definition) ...)]
-
+     #'(begin (define-ssh-name &ssh-authentication-methods definition) ...)]
+    
     [(_ keyword (definitions ...))
      (with-syntax* ([&id (let ([kw (syntax-e #'keyword)])
                            (unless (keyword? kw) (raise-syntax-error 'define-ssh-algorithms "expected a keyword" #'keyword))
                            (let ([&id (format-id #'keyword "&~a" (keyword->string kw))])
                              (unless (identifier-binding &id) (raise-syntax-error 'define-ssh-algorithms "unknown algorithm type" #'keyword))
                              &id))])
-       #'(begin (define-ssh-algorithm &id definitions) ...))]))
+       #'(begin (define-ssh-name &id definitions) ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type SSH-λCipher! (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index))
 (define-type SSH-λCompression (->* (Bytes) (Natural Natural) Bytes))
 
-(define-ssh-algorithm-database ssh-kex-algorithms : SSH-Kex# #:as (Immutable-Vector SSH-Kex-Constructor (-> Bytes Bytes)))
-(define-ssh-algorithm-database ssh-hostkey-algorithms : SSH-Hostkey# #:as (Immutable-Vector SSH-Hostkey-Constructor PKCS#1-Hash))
-(define-ssh-algorithm-database ssh-compression-algorithms : SSH-Compression# #:as (Immutable-Vector (Option SSH-λCompression) (Option SSH-λCompression)))
-(define-ssh-algorithm-database ssh-cipher-algorithms : SSH-Cipher# #:as (Immutable-Vector (-> Bytes Bytes (Values SSH-λCipher! SSH-λCipher!)) Byte Byte))
-(define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC# #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
-
-(define-ssh-algorithm-database ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
-(define-ssh-algorithm-database ssh-services : SSH-Service# #:as SSH-Service-Constructor)
-(define-ssh-algorithm-database ssh-channels : SSH-Channel# #:as SSH-Channel-Constructor)
+(define-ssh-namebase ssh-kex-algorithms : SSH-Kex# #:as (Immutable-Vector SSH-Kex-Constructor (-> Bytes Bytes)))
+(define-ssh-namebase ssh-hostkey-algorithms : SSH-Hostkey# #:as (Immutable-Vector SSH-Hostkey-Constructor PKCS#1-Hash))
+(define-ssh-namebase ssh-compression-algorithms : SSH-Compression# #:as (Immutable-Vector (Option SSH-λCompression) (Option SSH-λCompression)))
+(define-ssh-namebase ssh-cipher-algorithms : SSH-Cipher# #:as (Immutable-Vector (-> Bytes Bytes (Values SSH-λCipher! SSH-λCipher!)) Byte Byte))
+(define-ssh-namebase ssh-mac-algorithms : SSH-MAC# #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
+(define-ssh-namebase ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

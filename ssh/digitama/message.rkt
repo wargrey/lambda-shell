@@ -81,9 +81,9 @@
     [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
                          [$type (format-id #'T "$~a" (syntax-e #'T))])
             (case (syntax-e #'TypeOf)
-              [(SSH-Bytes)            (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T) #'values #'bytes-length)]
-              [(SSH-Symbol)           (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type  #'ssh-uint32-length)]
-              [(SSH-Algorithm-Listof) (list #'ssh-algorithms->names #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type  #'ssh-namelist-length)]
+              [(SSH-Bytes)       (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T) #'values #'bytes-length)]
+              [(SSH-Symbol)      (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type  #'ssh-uint32-length)]
+              [(SSH-Name-Listof) (list #'ssh-names->namelist   #'ssh-namelist->bytes #'ssh-bytes->namelist        #'$type  #'ssh-namelist-length)]
               [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
                         (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values #'ssh-namelist-length)
                         (raise-syntax-error func "invalid SSH data type" <FType>))]))]))

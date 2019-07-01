@@ -1,9 +1,11 @@
 #lang racket/base
 
+(provide (all-defined-out))
+(provide (all-from-out "../message.rkt"))
+
 (require "../message.rkt")
 
-(provide (all-defined-out))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-message
   (lambda [self]
     (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])

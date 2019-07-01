@@ -9,8 +9,11 @@
 
 (require "oakley-group.rkt")
 
+(require "../../kex.rkt")
+(require "../../message.rkt")
 (require "../../diagnostics.rkt")
-(require "../../../kex.rkt")
+
+(require "../../../datatype.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-shared-messages diffie-hellman-group-exchange

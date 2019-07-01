@@ -8,7 +8,7 @@
 
 ; datum definition:  #(make-mac-with-key key-length-in-bytes)
 
-(define-ssh-algorithms #:mac
+(define-ssh-names #:mac
   (; http://tools.ietf.org/html/rfc4253#section-6.4
    [hmac-sha1         REQUIRED        HMAC-SHA1 (digest length = key length = 20)                      #:=> [hmac-sha1 20]]
    [hmac-sha1-96      RECOMMENDED     first 96 bits of HMAC-SHA1 (digest length = 12, key length = 20) #:=> [hmac-sha1-96 20]]

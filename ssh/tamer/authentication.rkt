@@ -52,8 +52,7 @@ The format of @deftech{authorized_keys} is defined in @exec{man sshd}.
        (require racket/logging)
        
        (require "message.rkt")
-
-       (require "../message.rkt")
+       
        (require "../digitama/authentication/publickey.rkt")
        (require "../digitama/fsio/authorized-keys.rkt")
 

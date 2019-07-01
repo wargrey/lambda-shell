@@ -7,7 +7,7 @@
 
 ; datum definition: #(make-encrypt/decrypt-with-IV-key block-size-in-bytes key-size-in-bytes)
 
-(define-ssh-algorithms #:cipher
+(define-ssh-names #:cipher
   (; http://tools.ietf.org/html/rfc4253#section-6.3
    [3des-cbc                       REQUIRED        three-key 3DES in CBC mode]
    [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode]

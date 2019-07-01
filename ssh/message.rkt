@@ -6,7 +6,7 @@
 (provide (all-defined-out))
 (provide SSH-Message Unsafe-SSH-Bytes->Message)
 (provide ssh-message? ssh-message-undefined?)
-(provide define-ssh-messages define-ssh-shared-messages)
+(provide define-ssh-messages define-ssh-case-messages define-ssh-shared-messages)
 
 (provide ssh-message-number ssh-message-name)
 
@@ -69,14 +69,14 @@
   [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
   [SSH_MSG_SERVICE_ACCEPT             6 ([name : Symbol])]
   [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16) (ssh-cookie)]
-                                         [kexes : (SSH-Algorithm-Listof SSH-Kex#) (ssh-kex-algorithms)]
-                                         [hostkeys : (SSH-Algorithm-Listof SSH-Hostkey#) (ssh-hostkey-algorithms)]
-                                         [c2s-ciphers : (SSH-Algorithm-Listof SSH-Cipher#) (ssh-cipher-algorithms)]
-                                         [s2c-ciphers : (SSH-Algorithm-Listof SSH-Cipher#) (ssh-cipher-algorithms)]
-                                         [c2s-macs : (SSH-Algorithm-Listof SSH-MAC#) (ssh-mac-algorithms)]
-                                         [s2c-macs : (SSH-Algorithm-Listof SSH-MAC#) (ssh-mac-algorithms)]
-                                         [c2s-compressions : (SSH-Algorithm-Listof SSH-Compression#) (ssh-compression-algorithms)]
-                                         [s2c-compressions : (SSH-Algorithm-Listof SSH-Compression#) (ssh-compression-algorithms)]
+                                         [kexes : (SSH-Name-Listof SSH-Kex#) (ssh-kex-algorithms)]
+                                         [hostkeys : (SSH-Name-Listof SSH-Hostkey#) (ssh-hostkey-algorithms)]
+                                         [c2s-ciphers : (SSH-Name-Listof SSH-Cipher#) (ssh-cipher-algorithms)]
+                                         [s2c-ciphers : (SSH-Name-Listof SSH-Cipher#) (ssh-cipher-algorithms)]
+                                         [c2s-macs : (SSH-Name-Listof SSH-MAC#) (ssh-mac-algorithms)]
+                                         [s2c-macs : (SSH-Name-Listof SSH-MAC#) (ssh-mac-algorithms)]
+                                         [c2s-compressions : (SSH-Name-Listof SSH-Compression#) (ssh-compression-algorithms)]
+                                         [s2c-compressions : (SSH-Name-Listof SSH-Compression#) (ssh-compression-algorithms)]
                                          [c2s-languages : (Listof Symbol) null]
                                          [s2c-languages : (Listof Symbol) null]
                                          [guessing-follows? : Boolean #false]
@@ -87,12 +87,12 @@
   [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
   [SSH_MSG_NEWCOMPRESS                8 ()])
   
-(void #| [30, 49] can be reused for different key exchange authentication methods |# 'see "digitama/algorithm/diffie-hellman.rkt")
+(void '([30, 49] can be reused for different key exchange authentication methods) 'see "digitama/algorithm/diffie-hellman.rkt")
 
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
   [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol 'ssh-connection] [method : Symbol 'none]) #:case method]
-  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (SSH-Algorithm-Listof SSH-Authentication#) (ssh-authentication-methods)] [partial-success? : Boolean #false])]
+  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (SSH-Name-Listof SSH-Authentication#) (ssh-authentication-methods)] [partial-success? : Boolean #false])]
   [SSH_MSG_USERAUTH_SUCCESS          52 ()]
   [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
 

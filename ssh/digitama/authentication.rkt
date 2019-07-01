@@ -9,14 +9,14 @@
 
 (require "../datatype.rkt")
 (require "../message.rkt")
-(require "../transport.rkt")
 (require "../assignment.rkt")
+(require "../transport.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define userauth-authenticate : (-> SSH-Port (Listof Symbol) (SSH-Algorithm-Listof* SSH-Authentication#) Index (U SSH-EOF SSH-User Void))
+(define userauth-authenticate : (-> SSH-Port (Listof Symbol) (SSH-Name-Listof* SSH-Authentication#) Index (U SSH-EOF SSH-User Void))
   (lambda [sshc services all-methods limit]
     (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)]
-                       [methods : (SSH-Algorithm-Listof* SSH-Authentication#) all-methods]
+                       [methods : (SSH-Name-Listof* SSH-Authentication#) all-methods]
                        [auth-self : (Option SSH-Userauth) #false]
                        [retry : Fixnum limit])
       (define datum : SSH-Datum (sync/enable-break datum-evt))

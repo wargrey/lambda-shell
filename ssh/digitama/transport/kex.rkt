@@ -183,10 +183,10 @@
           [(not hostkey) (ssh-raise-kex-error ssh-negotiate "kex: no matching public key format")]
           [else (ssh-raise-kex-error ssh-negotiate "kex: no matching algorihtm")])))
 
-(define ssh-choose-algorithm : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof a) String (Option (Pairof Symbol a))))
+(define ssh-choose-algorithm : (All (a) (-> (SSH-Name-Listof a) (SSH-Name-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]
-    (define cs : (SSH-Algorithm-Listof* a) (ssh-algorithms-clean cs-dirty))
-    (define ss : (Listof Symbol) (ssh-algorithms->names ss-dirty))
+    (define cs : (SSH-Name-Listof* a) (ssh-names-clean cs-dirty))
+    (define ss : (Listof Symbol) (ssh-names->namelist ss-dirty))
     
     (findf (λ [[c : (Pairof Symbol a)]] (and (memv (car c) ss) #true)) cs)))
 

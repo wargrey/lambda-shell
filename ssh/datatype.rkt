@@ -15,8 +15,8 @@
 (define-type SSH-BString Bytes)
 (define-type (SSH-Bytes n) Bytes)
 (define-type (SSH-Symbol ns) ns)
-(define-type (SSH-Algorithm-Listof t) (Listof (Pairof Symbol (Option t))))
-(define-type (SSH-Algorithm-Listof* t) (Listof (Pairof Symbol t)))
+(define-type (SSH-Name-Listof t) (Listof (Pairof Symbol (Option t))))
+(define-type (SSH-Name-Listof* t) (Listof (Pairof Symbol t)))
 
 (unsafe-require/typed racket/base
                       [integer-length (-> Integer Index)]
@@ -180,30 +180,30 @@
             end)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-algorithms->names : (All (a) (-> (SSH-Algorithm-Listof a) (Listof Symbol)))
+(define ssh-names->namelist : (All (a) (-> (SSH-Name-Listof a) (Listof Symbol)))
   (lambda [algorithms]
     (let filter ([names : (Listof Symbol) null]
-                 [smhtirogla : (SSH-Algorithm-Listof a) (reverse algorithms)])
+                 [smhtirogla : (SSH-Name-Listof a) (reverse algorithms)])
       (cond [(null? smhtirogla) names]
             [else (let ([algorithm (car smhtirogla)]
                         [rest (cdr smhtirogla)])
                     (cond [(cdr algorithm) (filter (cons (car algorithm) names) rest)]
                           [else (filter names rest)]))]))))
 
-(define ssh-algorithms-clean : (All (a) (-> (SSH-Algorithm-Listof a) (SSH-Algorithm-Listof* a)))
+(define ssh-names-clean : (All (a) (-> (SSH-Name-Listof a) (SSH-Name-Listof* a)))
   (lambda [dirty-list]
-    (let filter ([algorithms : (SSH-Algorithm-Listof* a) null]
-                 [smhtirogla : (SSH-Algorithm-Listof a) (reverse dirty-list)])
+    (let filter ([algorithms : (SSH-Name-Listof* a) null]
+                 [smhtirogla : (SSH-Name-Listof a) (reverse dirty-list)])
       (cond [(null? smhtirogla) algorithms]
             [else (let ([algorithm (car smhtirogla)]
                         [rest (cdr smhtirogla)])
                     (cond [(cdr algorithm) (filter (cons algorithm algorithms) rest)]
                           [else (filter algorithms rest)]))]))))
 
-(define ssh-algorithms-remove : (All (a) (-> Symbol (SSH-Algorithm-Listof* a) (SSH-Algorithm-Listof* a)))
+(define ssh-names-remove : (All (a) (-> Symbol (SSH-Name-Listof* a) (SSH-Name-Listof* a)))
   (lambda [name algbase]
-    (let filter ([algorithms : (SSH-Algorithm-Listof* a) null]
-                 [smhtirogla : (SSH-Algorithm-Listof* a) (reverse algbase)])
+    (let filter ([algorithms : (SSH-Name-Listof* a) null]
+                 [smhtirogla : (SSH-Name-Listof* a) (reverse algbase)])
       (cond [(null? smhtirogla) algorithms]
             [else (let ([algorithm (car smhtirogla)]
                         [rest (cdr smhtirogla)])
