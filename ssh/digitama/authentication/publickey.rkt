@@ -23,7 +23,7 @@
   [PUBLICKEY #:method 'publickey ([signed? : Boolean #false] [algorithm : Symbol] [key : SSH-BString]) #:case signed?])
 
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST-PUBLICKEY
-  [($)       #:adequate? '#true ([signature : SSH-BString])])
+  [($)       #:signed? '#true ([signature : SSH-BString])])
 
 (define-ssh-shared-messages publickey
   [SSH_MSG_USERAUTH_PK_OK 60 ([algorithm : Symbol] [key : SSH-BString])])

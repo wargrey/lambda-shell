@@ -245,7 +245,7 @@
                     [ssh:msg (ssh-typeid #'SSH-MSG)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
                     [(n [pield-field PieldType smart_defval ...] ...)
-                     (ssh-case-message-shared-fields ssh-case-message-field-database #'PSSH-MSG #'case-value)])
+                     (ssh-case-message-shared-fields ssh-case-message-field-database #'PSSH-MSG #'datum #'case-value)])
        #'(begin (define-message SSH-MSG n #:parent PSSH-MSG
                   ([pield-field : PieldType smart_defval ...] ...)
                   ([field : FieldType defval ...] ...)

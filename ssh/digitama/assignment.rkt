@@ -8,6 +8,7 @@
 (require "kex.rkt")
 (require "message.rkt")
 (require "userauth.rkt")
+(require "service.rkt")
 (require "channel.rkt")
 
 (require "algorithm/pkcs1/hash.rkt")
@@ -82,11 +83,21 @@
      #'(begin (define-ssh-algorithm &ssh-mac-algorithms definition) ...)]
     [(_ #:compression (definition ...))
      #'(begin (define-ssh-algorithm &ssh-compression-algorithms definition) ...)]
+    
     [(_ #:authentication (definition ...))
      #'(begin (define-ssh-algorithm &ssh-authentication-methods definition) ...)]
-    [(_ keyword (definitions ...)) (raise-syntax-error 'define-ssh-algorithm
-                                                       "unexpected algorithm type, expected #:mac, #:cipher, #:compression, or #:authentication"
-                                                       #'keyword)]))
+    [(_ #:service (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-services definition) ...)]
+    [(_ #:channel (definition ...))
+     #'(begin (define-ssh-algorithm &ssh-channels definition) ...)]
+
+    [(_ keyword (definitions ...))
+     (with-syntax* ([&id (let ([kw (syntax-e #'keyword)])
+                           (unless (keyword? kw) (raise-syntax-error 'define-ssh-algorithms "expected a keyword" #'keyword))
+                           (let ([&id (format-id #'keyword "&~a" (keyword->string kw))])
+                             (unless (identifier-binding &id) (raise-syntax-error 'define-ssh-algorithms "unknown algorithm type" #'keyword))
+                             &id))])
+       #'(begin (define-ssh-algorithm &id definitions) ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type SSH-λCipher! (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index))
@@ -99,7 +110,8 @@
 (define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC# #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
 
 (define-ssh-algorithm-database ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
-(define-ssh-algorithm-database ssh-channel-constructors : SSH-Channel# #:as SSH-Channel-Constructor)
+(define-ssh-algorithm-database ssh-services : SSH-Service# #:as SSH-Service-Constructor)
+(define-ssh-algorithm-database ssh-channels : SSH-Channel# #:as SSH-Channel-Constructor)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

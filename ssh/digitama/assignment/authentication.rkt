@@ -8,7 +8,6 @@
 ; datum definition: userauth-constructor
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (define-ssh-algorithms #:authentication
   ; https://tools.ietf.org/html/rfc4252#section-5
   ([publickey    REQUIRED        #:=> make-ssh-publickey-userauth]

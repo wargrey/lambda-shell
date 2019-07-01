@@ -29,23 +29,27 @@
                  (cond [(= idx index) (list (void))]
                        [else defval])))))
 
-(define-for-syntax (ssh-case-message-shared-fields db <id> <case-val>)
+(define-for-syntax (ssh-case-message-shared-fields db <id> <case-name> <case-val>)
   (define name (syntax-e <id>))
   (define field-infos (hash-ref db name (λ [] null)))
+  (define case-name (string->symbol (keyword->string (syntax->datum <case-name>))))
   
   (when (null? field-infos)
-    (raise-syntax-error 'ssh-restore-case-message-fields
+    (raise-syntax-error 'ssh-case-message-shared-fields
                         (format "not a case message: ~a" name)
                         <id>))
     
   (cons (car field-infos)
-          (for/list ([field-info (in-list (cdr field-infos))])
-            (list* (datum->syntax <id> (car field-info))
-                   (datum->syntax <id> (cadr field-info))
-                   (let ([defvals (cddr field-info)])
-                     (cond [(null? defvals) null]
-                           [(void? (car defvals)) (list <case-val>)]
-                           [else (datum->syntax <case-val> defvals)]))))))
+        (for/list ([field-info (in-list (cdr field-infos))])
+          (list* (datum->syntax <id> (car field-info))
+                 (datum->syntax <id> (cadr field-info))
+                 (let ([defvals (cddr field-info)])
+                   (cond [(null? defvals) null]
+                         [(not (void? (car defvals))) (datum->syntax <case-val> defvals)]
+                         [(eq? (car field-info) case-name) (list <case-val>)]
+                         [else (raise-syntax-error 'ssh-case-message-shared-fields
+                                                   (format "not a case field: ~a" case-name)
+                                                   <case-name>)]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-case-message-field-database (make-hasheq))
