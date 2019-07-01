@@ -57,6 +57,7 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
        (require "message.rkt")
        
        (require "../configuration.rkt")
+       (require "../digitama/message/transport.rkt")
        (require "../digitama/transport/identification.rkt")
        
        (define rfc (make-ssh-configuration))

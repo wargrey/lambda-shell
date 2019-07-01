@@ -18,6 +18,8 @@
 (require "../../message.rkt")
 (require "../../configuration.rkt")
 
+(require "../message/transport.rkt")
+
 (define-type SSH-Transport-Algorithms (Immutable-Vector SSH-Compression# SSH-Cipher# SSH-MAC#))
 
 (define current-client-identification : (Parameterof String) (make-parameter ""))
@@ -87,14 +89,13 @@
                           ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
 
     (let ([kex-msg-group (list (ssh-kex-name kex-self))]
-          [kex-verify (ssh-kex-verify kex-self)]
-          [newkeys (make-ssh:msg:newkeys)])
+          [kex-verify (ssh-kex-verify kex-self)])
       (ssh-write-message /dev/tcpout ((ssh-kex-request kex-self) kex-self) rfc oldkeys)
       (let rekex : Void ()
         (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
         (cond [(and (ssh-key-exchange-message? msg) (kex-verify kex-self msg))
                => (λ [[result : (U SSH-Message (Pairof Integer Bytes))]]
-                    (let-values ([(response secrets) (if (pair? result) (values newkeys result) (values result #false))])
+                    (let-values ([(response secrets) (if (pair? result) (values SSH:NEWKEYS result) (values result #false))])
                       (ssh-write-message /dev/tcpout response rfc oldkeys)
                       (cond [(not secrets) (rekex)]
                             [else (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #false)])))]

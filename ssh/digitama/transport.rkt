@@ -10,6 +10,9 @@
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
 
+(require "message/transport.rkt")
+(require "message/authentication.rkt")
+
 (require "diagnostics.rkt")
 
 (require "../message.rkt")

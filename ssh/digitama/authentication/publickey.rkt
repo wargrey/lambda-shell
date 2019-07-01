@@ -8,13 +8,16 @@
 (require "../fsio/authorized-keys.rkt")
 (require "../algorithm/hostkey/rsa.rkt")
 
+(require "../message/transport.rkt")
+(require "../message/authentication.rkt")
+
 (require "../../message.rkt")
 (require "../../datatype.rkt")
 
 (require "../diagnostics.rkt")
 
 ; `define-ssh-case-messages` requires this because of Racket's phase isolated compilation model
-(require (for-syntax "../../message.rkt"))
+(require (for-syntax "../message/authentication.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; https://tools.ietf.org/html/rfc4252#section-8

@@ -12,13 +12,15 @@
 (unsafe-require/typed racket/base
                       [read-byte-or-special (-> Input-Port SSH-Datum)])
 
+(require "message.rkt")
+(require "assignment.rkt")
+(require "configuration.rkt")
+
 (require "digitama/transport/identification.rkt")
 (require "digitama/transport.rkt")
 (require "digitama/diagnostics.rkt")
 
-(require "message.rkt")
-(require "assignment.rkt")
-(require "configuration.rkt")
+(require "digitama/message/transport.rkt")
 
 ;; register builtin assignments for algorithms
 (require "digitama/assignment/kex.rkt")
@@ -118,14 +120,18 @@
   (lambda [self]
     (read-byte-or-special (ssh-port-sshin self))))
 
-(define ssh-port-send : (-> SSH-Port Any Void)
+(define ssh-port-write : (-> SSH-Port Any Void)
   (lambda [self payload]
     (cond [(ssh-message? payload) (thread-send (ssh-port-ghostcat self) payload)]
-          [else (ssh-port-send self (make-ssh:msg:ignore #:data (format "~s" payload)))])))
+          [else (ssh-port-write self (make-ssh:msg:ignore #:data (format "~s" payload)))])))
 
 (define ssh-port-debug : (->* (SSH-Port Any) (Boolean) Void)
   (lambda [self payload [display? #false]]
-    (ssh-port-send self (make-ssh:msg:debug #:display? display? #:message (format "~a" payload)))))
+    (ssh-port-write self (make-ssh:msg:debug #:display? display? #:message (format "~a" payload)))))
+
+(define ssh-port-request-service : (-> SSH-Port Symbol Void)
+  (lambda [self service]
+    (ssh-port-write self (make-ssh:msg:service:request #:name service))))
 
 (define ssh-port-reject-service : (-> SSH-Port Symbol Void)
   (lambda [self service]

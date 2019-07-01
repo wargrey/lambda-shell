@@ -12,6 +12,8 @@
 (require "../../message.rkt")
 (require "../../configuration.rkt")
 
+(require "../message/transport.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration Maybe-Newkeys Natural)
   (lambda [/dev/tcpout msg rfc newkeys]

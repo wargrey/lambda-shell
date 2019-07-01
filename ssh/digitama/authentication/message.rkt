@@ -4,6 +4,7 @@
 
 (require "../userauth.rkt")
 (require "../diagnostics.rkt")
+(require "../message/authentication.rkt")
 
 (require "../../message.rkt")
 (require "../../assignment.rkt")
@@ -26,7 +27,7 @@
   (lambda [self message]
     (ssh-log-outgoing-message message 'debug)
 
-    (ssh-port-send self message)))
+    (ssh-port-write self message)))
 
 (define ssh-write-auth-failure : (case-> [SSH-Port (SSH-Name-Listof* SSH-Authentication#) -> False]
                                          [SSH-Port (SSH-Name-Listof* SSH-Authentication#) SSH-MSG-USERAUTH-FAILURE -> Boolean])
@@ -48,7 +49,7 @@
     
     (ssh-write-authentication-message self
                                       (cond [(ssh-message? maybe-msg:success) maybe-msg:success]
-                                            [else (make-ssh:msg:userauth:success)]))
+                                            [else SSH:USERAUTH:SUCCESS]))
 
     #true))
 

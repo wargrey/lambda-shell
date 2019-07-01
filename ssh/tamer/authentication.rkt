@@ -50,9 +50,10 @@ The format of @deftech{authorized_keys} is defined in @exec{man sshd}.
 
 @chunk[<request>
        (require racket/logging)
-       
+
        (require "message.rkt")
        
+       (require "../digitama/message/authentication.rkt")
        (require "../digitama/authentication/publickey.rkt")
        (require "../digitama/fsio/authorized-keys.rkt")
 

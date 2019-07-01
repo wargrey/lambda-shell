@@ -56,10 +56,10 @@
                                      [(Listof Symbol) Boolean -> (Listof (Pairof Symbol SSH-Type))])
                   (case-lambda
                     [() (id #true)]
-                    [(name-list none-last?) (ssh-filter-algorithms name-list (unbox &id) none-last?)]
+                    [(name-list none-last?) (ssh-filter-names name-list (unbox &id) none-last?)]
                     [(branch) (cond [(list? branch) (id branch #true)]
                                     [else (let ([base (unbox &id)])
-                                            (ssh-filter-algorithms (map (inst car Symbol SSH-Type) base)
+                                            (ssh-filter-names (map (inst car Symbol SSH-Type) base)
                                                                    base branch))])]))
 
                 (define $SSH-Type : (-> (Listof Symbol) (SSH-Name-Listof SSH-Type))
@@ -104,7 +104,7 @@
 (define-ssh-namebase ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))
+(define ssh-filter-names : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))
   (lambda [name-list algbase none-last?]
     (define seman : (Listof Symbol)
       (cond [(not (and none-last? (memq 'none name-list))) (reverse name-list)]

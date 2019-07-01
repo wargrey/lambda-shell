@@ -45,3 +45,21 @@
                     
                     (cond [(or (ssh-user? datum) (ssh-eof? datum) (void? datum)) datum]
                           [else (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "authentication timeout")]))))])))
+
+(define ssh-user-authenticate/none : (-> SSH-Port (Listof Symbol) (U SSH-EOF SSH-User Void))
+  (lambda [sshc services]
+    (define rfc : SSH-Configuration (ssh-transport-preference sshc))
+    (define timeout : Index ($ssh-userauth-timeout rfc))
+    (define limit : Index ($ssh-userauth-retry rfc))
+
+    (cond [(= timeout 0) (userauth-none sshc services limit)]
+          [else (parameterize ([current-custodian (make-custodian)])
+                  (let-values ([(/dev/stdin /dev/stdout) (make-pipe-with-specials)])
+                  (define ghostcat : Thread (thread (λ [] (write-special (userauth-none sshc services limit) /dev/stdout))))
+                  
+                  (let ([datum (sync/timeout/enable-break timeout (wrap-evt /dev/stdin (λ _ (read-byte-or-special /dev/stdin))))])
+                    (custodian-shutdown-all (current-custodian))
+                    (thread-wait ghostcat)
+                    
+                    (cond [(or (ssh-user? datum) (ssh-eof? datum) (void? datum)) datum]
+                          [else (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "authentication timeout")]))))])))

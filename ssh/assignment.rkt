@@ -1,7 +1,6 @@
 #lang typed/racket/base
 
 ;;; https://tools.ietf.org/html/rfc4250
-;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
 (provide SSH-Kex# SSH-Cipher# SSH-Hostkey# SSH-Compression# SSH-MAC# SSH-Authentication#)

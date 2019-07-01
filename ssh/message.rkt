@@ -11,11 +11,8 @@
 (provide ssh-message-number ssh-message-name)
 
 (require "datatype.rkt")
-(require "assignment.rkt")
 
-(require "digitama/assignment.rkt")
 (require "digitama/message.rkt")
-(require "digitama/algorithm/random.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -55,69 +52,6 @@
 
 (define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
 (define-ssh-message-range key-exchange    30  49   Key exchange method specific (numbers can be reused for different authentication methods))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; http://tools.ietf.org/html/rfc4250#section-4.1
-(define-ssh-messages
-  ; for http://tools.ietf.org/html/rfc4253
-  [SSH_MSG_DISCONNECT                 1 ([reason : (SSH-Symbol SSH-Disconnection-Reason)]
-                                         [description : String (symbol->string reason)]
-                                         [language : Symbol '||])]
-  [SSH_MSG_IGNORE                     2 ([data : String ""])]
-  [SSH_MSG_UNIMPLEMENTED              3 ([number : Index])]
-  [SSH_MSG_DEBUG                      4 ([display? : Boolean #false] [message : String] [language : Symbol '||])]
-  [SSH_MSG_SERVICE_REQUEST            5 ([name : Symbol])]
-  [SSH_MSG_SERVICE_ACCEPT             6 ([name : Symbol])]
-  [SSH_MSG_KEXINIT                   20 ([cookie : (SSH-Bytes 16) (ssh-cookie)]
-                                         [kexes : (SSH-Name-Listof SSH-Kex#) (ssh-kex-algorithms)]
-                                         [hostkeys : (SSH-Name-Listof SSH-Hostkey#) (ssh-hostkey-algorithms)]
-                                         [c2s-ciphers : (SSH-Name-Listof SSH-Cipher#) (ssh-cipher-algorithms)]
-                                         [s2c-ciphers : (SSH-Name-Listof SSH-Cipher#) (ssh-cipher-algorithms)]
-                                         [c2s-macs : (SSH-Name-Listof SSH-MAC#) (ssh-mac-algorithms)]
-                                         [s2c-macs : (SSH-Name-Listof SSH-MAC#) (ssh-mac-algorithms)]
-                                         [c2s-compressions : (SSH-Name-Listof SSH-Compression#) (ssh-compression-algorithms)]
-                                         [s2c-compressions : (SSH-Name-Listof SSH-Compression#) (ssh-compression-algorithms)]
-                                         [c2s-languages : (Listof Symbol) null]
-                                         [s2c-languages : (Listof Symbol) null]
-                                         [guessing-follows? : Boolean #false]
-                                         [reserved : Index 0])]
-  [SSH_MSG_NEWKEYS                   21 ()]
-
-  ; https://tools.ietf.org/html/rfc8308 
-  [SSH_MSG_EXT_INFO                   7 ([nr-extension : Index] [name-value-pair-repetition : Bytes #;[TODO: new feature of parser is required]])]
-  [SSH_MSG_NEWCOMPRESS                8 ()])
-  
-(void '([30, 49] can be reused for different key exchange authentication methods) 'see "digitama/algorithm/diffie-hellman.rkt")
-
-(define-ssh-messages
-  ; for http://tools.ietf.org/html/rfc4252
-  [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol 'ssh-connection] [method : Symbol 'none]) #:case method]
-  [SSH_MSG_USERAUTH_FAILURE          51 ([methods : (SSH-Name-Listof SSH-Authentication#) (ssh-authentication-methods)] [partial-success? : Boolean #false])]
-  [SSH_MSG_USERAUTH_SUCCESS          52 ()]
-  [SSH_MSG_USERAUTH_BANNER           53 ([message : String] [language : Symbol '||])]
-
-  ;; [60, 79] can be reused for different user authentication methods
-  )
-
-(define-ssh-messages
-  ; for http://tools.ietf.org/html/rfc4254
-  [SSH_MSG_GLOBAL_REQUEST            80 ([name : Symbol] [replay? : Boolean #true]) #:case name]
-  [SSH_MSG_REQUEST_SUCCESS           81 ([details : Bytes #""])]
-  [SSH_MSG_REQUEST_FAILURE           82 ()]
-  [SSH_MSG_CHANNEL_OPEN              90 ([type : Symbol] [sender : Index] [window-size : Index] [packet-upsize : Index]) #:case type]
-  [SSH_MSG_CHANNEL_OPEN_CONFIRMATION 91 ([recipient : Index] [sender : Index] [window-size : Index] [packet-upsize : Index] [details : Bytes #""])]
-  [SSH_MSG_CHANNEL_OPEN_FAILURE      92 ([recipient : Index]
-                                         [reason : (SSH-Symbol SSH-Channel-Failure-Reason)]
-                                         [descripion : String (symbol->string reason)]
-                                         [language : Symbol '||])]
-  [SSH_MSG_CHANNEL_WINDOW_ADJUST     93 ([recipient : Index] [addsize : Index])]
-  [SSH_MSG_CHANNEL_DATA              94 ([recipient : Index] [body : SSH-BString])]
-  [SSH_MSG_CHANNEL_EXTENDED_DATA     95 ([recipient : Index] [type : (SSH-Symbol SSH-Channel-Data-Type) 'SSH-EXTENDED-DATA-STDERR] [body : SSH-BString])]
-  [SSH_MSG_CHANNEL_EOF               96 ([recipient : Index])]
-  [SSH_MSG_CHANNEL_CLOSE             97 ([recipient : Index])]
-  [SSH_MSG_CHANNEL_REQUEST           98 ([recipient : Index] [type : Symbol] [reply? : Boolean #true]) #:case type]
-  [SSH_MSG_CHANNEL_SUCCESS           99 ([recipient : Index])]
-  [SSH_MSG_CHANNEL_FAILURE          100 ([recipient : Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-message-length : (-> SSH-Message Natural)

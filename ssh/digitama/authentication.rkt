@@ -4,6 +4,7 @@
 
 (require "userauth.rkt")
 
+(require "message/authentication.rkt")
 (require "authentication/datatype.rkt")
 (require "authentication/message.rkt")
 
@@ -44,6 +45,25 @@
                     (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
                     (cond [(ssh-userauth-option? result) (make-ssh-user username service result)]
                           [(not (void? result))(authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))]))))
+
+(define userauth-none : (-> SSH-Port (Listof Symbol) Index (U SSH-EOF SSH-User Void))
+  (lambda [sshc services limit]
+    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)]
+                       [retry : Fixnum limit])
+      (define datum : SSH-Datum (sync/enable-break datum-evt))
+      
+      (cond [(ssh-eof? datum) datum]
+            [(< retry 0) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "too many authentication failures")]
+            [(not (ssh:msg:userauth:request? datum)) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT)]
+            [else (let* ([username (ssh:msg:userauth:request-username datum)]
+                         [service (ssh:msg:userauth:request-service datum)]
+                         [method (ssh:msg:userauth:request-method datum)])
+                    (define result : (U False Void SSH-Userauth-Option)
+                      (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
+                            [else (ssh-write-auth-success sshc username #false #true) (make-ssh-userauth-option)]))
+                    (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
+                    (cond [(ssh-userauth-option? result) (make-ssh-user username service result)]
+                          [(not (void? result)) (authenticate (ssh-authentication-datum-evt sshc result) retry--)]))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define userauth-choose-process : (-> Symbol Bytes SSH-Userauth-Constructor (Option SSH-Userauth) SSH-Userauth)
