@@ -54,7 +54,8 @@
     
       (define g : Byte (dh-modp-group-g dh-group))
       (define p : Integer (dh-modp-group-p dh-group))
-      (define x : Integer (dh-random dh-group 1)) ; x <- (1, q)
+      (define q : Integer (dh-modp-group-q dh-group))
+      (define x : Integer (dh-random 1 q))
       (define e : Integer (modular-expt g x p))
       
       (set-box! (ssh-dh-kex-x self) x)
@@ -70,8 +71,9 @@
                  [hostkey (ssh-kex-hostkey self)])    
              (define g : Byte (dh-modp-group-g dh-group))
              (define p : Integer (dh-modp-group-p dh-group))
+             (define q : Integer (dh-modp-group-q dh-group))
              (define e : Integer (ssh:msg:kexdh:init-e req))
-             (define y : Integer (dh-random dh-group 0)) ; y <- (0, q)
+             (define y : Integer (dh-random 0 q))
              (define f : Integer (modular-expt g y p))
              (define K : Integer (modular-expt e y p))
              (define K-S : Bytes ((ssh-hostkey-make-public-key hostkey) hostkey))
@@ -109,10 +111,9 @@
              (cons K H))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define dh-random : (-> DH-MODP-Group Byte Integer)
-  (lambda [dh-group open-min]
-    (random-integer (add1 open-min)
-                    (dh-modp-group-q dh-group))))
+(define dh-random : (-> Byte Integer Integer)
+  (lambda [open-min q]
+    (random-integer (add1 open-min) q)))
 
 (define dh-hash : (-> SSH-Diffie-Hellman-Kex Bytes Integer Integer Integer Bytes)
   (lambda [self K-S e f K]

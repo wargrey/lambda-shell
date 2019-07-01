@@ -59,7 +59,7 @@
   (lambda [self]
     (with-asserts ([self ssh-dhg-kex?])
       (define all-prime-sizes : (Listof Index) (sort (hash-keys dh-modp-groups) <))
-      (define minbits : Index (max (car all-prime-sizes) (ssh-dhg-kex-minbits self)))
+      (define minbits : Index (car all-prime-sizes))
       (define maxbits : Index (car (reverse all-prime-sizes)))
       (define nbits : Index maxbits)
 
@@ -99,7 +99,7 @@
   (lambda [self req]
     (define p : Integer (ssh:msg:kex:dh:gex:group-p req))
     (define g : Integer (ssh:msg:kex:dh:gex:group-g req))
-    (define x : Integer (dhg-random p 1)) ; x <- (1, q)
+    (define x : Integer (dhg-random 1 p)) ; x <- (1, q)
     (define e : Integer (modular-expt g x p))
 
     (set-box! (ssh-dhg-kex-p self) p)
@@ -116,7 +116,7 @@
     (define g : Integer (unbox (ssh-dhg-kex-g self)))
     (define p : Integer (unbox (ssh-dhg-kex-p self)))
     (define e : Integer (ssh:msg:kex:dh:gex:init-e req))
-    (define y : Integer (dhg-random p 0)) ; y <- (0, q)
+    (define y : Integer (dhg-random 0 p)) ; y <- (0, q)
     (define f : Integer (modular-expt g y p))
     (define K : Integer (modular-expt e y p))
     (define K-S : Bytes ((ssh-hostkey-make-public-key hostkey) hostkey))
@@ -173,8 +173,8 @@
                                                    [else (seek (cdr ns))]))))
                            (list smallest preferred biggest)))])]))
 
-(define dhg-random : (-> Integer Byte Integer)
-  (lambda [p open-min]
+(define dhg-random : (-> Byte Integer Integer)
+  (lambda [open-min p]
     (random-integer (add1 open-min)
                     (quotient (- p 1) 2))))
 

@@ -154,7 +154,10 @@
 
     (define exn-or-datum (read-byte-or-special /dev/sshin))
     (cond [(exn? exn-or-datum) (raise exn-or-datum)]
-          [else (assert exn-or-datum ?)])))
+          [(not (ssh:msg:disconnect? exn-or-datum)) (assert exn-or-datum ?)]
+          [else (ssh-raise-eof-error func #:logging? #false
+                                     (ssh:msg:disconnect-reason exn-or-datum)
+                                     (ssh:msg:disconnect-description exn-or-datum))])))
 
 (define ssh-deliver-message : (-> Bytes Output-Port Boolean Void)
   (lambda [payload /dev/sshout authenticated]

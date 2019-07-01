@@ -109,8 +109,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-exn-message : (-> Any String (Listof Any) String)
   (lambda [func msgfmt argl]
-    (define peername (current-peer-name))
+    (define message : String (if (null? argl) msgfmt (apply format msgfmt argl)))
     
-    (string-append (cond [(not peername) (format "~a: " (object-name func))]
-                         [else (format "~a: ~a: " peername (object-name func))])
-                   (if (null? argl) msgfmt (apply format msgfmt argl)))))
+    (let ([peername (current-peer-name)]
+          [srcname (object-name func)])
+      (cond [(and peername srcname) (string-append (format "~a: ~a: " peername srcname) message)]
+            [(or peername srcname) => (λ [name] (string-append (format "~a: " name) message))]
+            [else message]))))
