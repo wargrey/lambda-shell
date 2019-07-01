@@ -60,16 +60,18 @@
                           ((vector-ref hostkey 0) (vector-ref hostkey 1)) HASH))
 
     (let ([kex-msg-group (list (ssh-kex-name kex-self))]
-          [kex-response (ssh-kex-response kex-self)]
-          [kex-done? (ssh-kex-done? kex-self)])
-      (let rekex : Void ()
+          [kex-reply (ssh-kex-reply kex-self)])
+      (let rekex : Void ([secrets : (Option (Pairof Integer Bytes)) #false])
         (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
-        (cond [(and (ssh-key-exchange-message? msg) (kex-response kex-self msg))
-               => (λ [[response : SSH-Message]] (ssh-write-message /dev/tcpout response rfc oldkeys) (rekex))]
-              [(and (kex-done? kex-self) (ssh:msg:newkeys? msg))
+        (cond [(and (ssh-key-exchange-message? msg) (kex-reply kex-self msg))
+               => (λ [[reply : (U SSH-Message (Pairof SSH-Message (Pairof Integer Bytes)))]]
+                    (let-values ([(response K+H) (if (pair? reply) (values (car reply) (cdr reply)) (values reply secrets))])
+                      (ssh-write-message /dev/tcpout response rfc oldkeys)
+                      (rekex K+H)))]
+              [(and (pair? secrets) (ssh:msg:newkeys? msg))
                (ssh-write-message /dev/tcpout msg rfc oldkeys)
-               (ssh-kex-done parent oldkeys kex-self HASH c2s s2c /dev/tcpout rfc #true)]
-              [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)])))))
+               (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #true)]
+              [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys (λ [] (rekex secrets)))])))))
 
 (define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes Void)
   (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc oldkeys Is]
@@ -85,24 +87,23 @@
                           ((vector-ref hostkey 0) (vector-ref hostkey 1)) HASH))
 
     (let ([kex-msg-group (list (ssh-kex-name kex-self))]
-          [kex-request (ssh-kex-request kex-self)]
-          [kex-response (ssh-kex-response kex-self)])
-      (ssh-write-message /dev/tcpout (kex-request kex-self) rfc oldkeys)
+          [kex-verify (ssh-kex-verify kex-self)]
+          [newkeys (make-ssh:msg:newkeys)])
+      (ssh-write-message /dev/tcpout ((ssh-kex-request kex-self) kex-self) rfc oldkeys)
       (let rekex : Void ()
         (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
-        (cond [(and (ssh-key-exchange-message? msg) (kex-response kex-self msg))
-               => (λ [[response : SSH-Message]]
-                    (ssh-write-message /dev/tcpout response rfc oldkeys)
-                    (cond [(not (ssh:msg:newkeys? response)) (rekex)]
-                          [else (ssh-kex-done parent oldkeys kex-self HASH c2s s2c /dev/tcpout rfc #false)]))]
+        (cond [(and (ssh-key-exchange-message? msg) (kex-verify kex-self msg))
+               => (λ [[result : (U SSH-Message (Pairof Integer Bytes))]]
+                    (let-values ([(response secrets) (if (pair? result) (values newkeys result) (values result #false))])
+                      (ssh-write-message /dev/tcpout response rfc oldkeys)
+                      (cond [(not secrets) (rekex)]
+                            [else (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #false)])))]
               [else (ssh-deal-with-unexpected-message (or msg payload) /dev/tcpout rfc oldkeys rekex)])))))
   
-(define ssh-kex-done : (-> Thread Maybe-Newkeys SSH-Kex (-> Bytes Bytes) SSH-Transport-Algorithms SSH-Transport-Algorithms Output-Port SSH-Configuration Boolean Void)
-  (lambda [parent maybe-oldkeys kex-self HASH c2s s2c /dev/tcpout rfc server?]
-    (define shared-secret : Integer (unbox (ssh-kex-K kex-self)))
-    (define H : Bytes (unbox (ssh-kex-H kex-self)))
+(define ssh-kex-done : (-> Thread Maybe-Newkeys Integer Bytes (-> Bytes Bytes)
+                           SSH-Transport-Algorithms SSH-Transport-Algorithms Output-Port SSH-Configuration Boolean Void)
+  (lambda [parent maybe-oldkeys shared-secret H HASH c2s s2c /dev/tcpout rfc server?]
     (define K : Bytes (ssh-mpint->bytes shared-secret))
-
     (define-values (session-id parcel)
       (cond [(ssh-parcel? maybe-oldkeys) (values H maybe-oldkeys)]
             [else (values (ssh-newkeys-identity maybe-oldkeys)

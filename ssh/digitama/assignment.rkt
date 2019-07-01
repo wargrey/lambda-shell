@@ -8,6 +8,7 @@
 (require "kex.rkt")
 (require "message.rkt")
 (require "userauth.rkt")
+(require "channel.rkt")
 
 (require "algorithm/pkcs1/hash.rkt")
 
@@ -98,6 +99,7 @@
 (define-ssh-algorithm-database ssh-mac-algorithms : SSH-MAC# #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
 
 (define-ssh-algorithm-database ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
+(define-ssh-algorithm-database ssh-channel-constructors : SSH-Channel# #:as SSH-Channel-Constructor)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-algorithms : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

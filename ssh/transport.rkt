@@ -21,7 +21,7 @@
 (require "configuration.rkt")
 
 ;; register builtin assignments for algorithms
-(require "digitama/assignment/diffie-hellman.rkt")
+(require "digitama/assignment/kex.rkt")
 (require "digitama/assignment/hostkey.rkt")
 (require "digitama/assignment/mac.rkt")
 (require "digitama/assignment/cipher.rkt")

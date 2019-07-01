@@ -22,16 +22,14 @@
 (define-type SSH-Kex-Constructor (-> String String Bytes Bytes SSH-Hostkey (-> Bytes Bytes) SSH-Kex))
 
 (define-type SSH-Kex-Request (-> SSH-Kex SSH-Message))
-(define-type SSH-Kex-Response (-> SSH-Kex SSH-Message (Option SSH-Message)))
-(define-type SSH-Kex-Done? (-> SSH-Kex Boolean))
+(define-type SSH-Kex-Reply (-> SSH-Kex SSH-Message (U SSH-Message (Pairof SSH-Message (Pairof Integer Bytes)) False)))
+(define-type SSH-Kex-Verify (-> SSH-Kex SSH-Message (U SSH-Message (Pairof Integer Bytes) False)))
 
 (struct ssh-kex
   ([name : Symbol]
    [hostkey : SSH-Hostkey]
    [hash : (-> Bytes Bytes)]
-   [K : (Boxof Integer)]
-   [H : (Boxof Bytes)]
    [request : SSH-Kex-Request]
-   [response : SSH-Kex-Response]
-   [done? : SSH-Kex-Done?])
+   [reply : SSH-Kex-Reply]
+   [verify : SSH-Kex-Verify])
   #:type-name SSH-Kex)

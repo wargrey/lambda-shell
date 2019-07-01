@@ -4,6 +4,7 @@
 
 (require ssh/base)
 (require ssh/authentication)
+(require ssh/connection)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define sshd-serve : (-> SSH-Port (Listof Symbol) Void)
@@ -13,6 +14,8 @@
         (define maybe-user (ssh-user-authenticate sshc services))
         
         (when (ssh-user? maybe-user)
+          (ssh-channel-listen sshc)
+          
           (let sync-read-display-loop ()
             (define datum (sync/enable-break (ssh-port-datum-evt sshc)))
             (unless (ssh-eof? datum)

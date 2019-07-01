@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
 (require "../assignment.rkt")
-(require "../algorithm/diffie-hellman.rkt")
+(require "../algorithm/kex/diffie-hellman.rkt")
+(require "../algorithm/kex/diffie-hellman-group.rkt")
 
 ; datum definition: #(kex-constructor hash-function)
 
