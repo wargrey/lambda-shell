@@ -41,12 +41,12 @@
 (struct ssh-dhg-kex ssh-kex
   ([VIcs : Bytes]
    [minbits : Positive-Index]
-   [reqbits : (Boxof (Listof Index))]
-   [p : (Boxof Integer)]
-   [g : (Boxof Integer)]
-   [x : (Boxof Integer)]
-   [e : (Boxof Integer)])
-  #:type-name SSH-Diffie-Hellman-Group-Kex)
+   [reqbits : (Listof Index)]
+   [p : Integer]
+   [g : Integer]
+   [x : Integer]
+   [e : Integer])
+  #:type-name SSH-DHG-Kex)
 
 (define make-ssh-diffie-hellman-group-exchange : SSH-Kex-Constructor
   (lambda [Vc Vs Ic Is hostkey hash minbits]
@@ -54,9 +54,11 @@
       (bytes-append (ssh-string->bytes Vc) (ssh-string->bytes Vs)
                     (ssh-uint32->bytes (bytes-length Ic)) Ic (ssh-uint32->bytes (bytes-length Is)) Is))
 
-    (ssh-dhg-kex 'diffie-hellman-group-exchange hostkey hash
-                 ssh-diffie-hellman-group-exchange-request ssh-diffie-hellman-group-exchange-reply ssh-diffie-hellman-group-exchange-verify
-                 VIcs minbits (box null) (box 0) (box 0) (box 0) (box 0))))
+    (ssh-dhg-kex (super-ssh-kex #:name 'diffie-hellman-group-exchange #:hostkey hostkey #:hash hash
+                                #:request ssh-diffie-hellman-group-exchange-request
+                                #:reply ssh-diffie-hellman-group-exchange-reply
+                                #:verify ssh-diffie-hellman-group-exchange-verify)
+                 VIcs minbits null 0 0 0 0)))
 
 (define ssh-diffie-hellman-group-exchange-request : SSH-Kex-Request
   (lambda [self]
@@ -66,9 +68,8 @@
       (define maxbits : Index (car (reverse all-prime-sizes)))
       (define nbits : Index maxbits)
 
-      (set-box! (ssh-dhg-kex-reqbits self) (list minbits nbits maxbits))
-      
-      (make-ssh:msg:kex:dh:gex:request #:min minbits #:n nbits #:max maxbits))))
+      (values (struct-copy ssh-dhg-kex self [reqbits (list minbits nbits maxbits)])
+              (make-ssh:msg:kex:dh:gex:request #:min minbits #:n nbits #:max maxbits)))))
 
 (define ssh-diffie-hellman-group-exchange-reply : SSH-Kex-Reply
   (lambda [self req]
@@ -76,69 +77,63 @@
       (cond [(ssh:msg:kex:dh:gex:request:old? req) (dhg-request self req)]
             [(ssh:msg:kex:dh:gex:request? req) (dhg-request self req)]
             [(ssh:msg:kex:dh:gex:init? req) (dhg-reply self req)]
-            [else #false]))))
+            [else (values self #false)]))))
 
 (define ssh-diffie-hellman-group-exchange-verify : SSH-Kex-Verify
   (lambda [self reply]
     (with-asserts ([self ssh-dhg-kex?])
       (cond [(ssh:msg:kex:dh:gex:group? reply) (dhg-init self reply)]
             [(ssh:msg:kex:dh:gex:reply? reply) (dhg-verify self reply)]
-            [else #false]))))
+            [else (values self #false)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define dhg-request : (-> SSH-Diffie-Hellman-Group-Kex (U SSH-MSG-KEX-DH-GEX-REQUEST-OLD SSH-MSG-KEX-DH-GEX-REQUEST) SSH-Message)
+(define dhg-request : (-> SSH-DHG-Kex (U SSH-MSG-KEX-DH-GEX-REQUEST-OLD SSH-MSG-KEX-DH-GEX-REQUEST) (Values SSH-Kex SSH-Message))
   (lambda [self req]
     (define-values (dh-group bits-range)
       (cond [(ssh:msg:kex:dh:gex:request:old? req) (dhg-seek self (ssh:msg:kex:dh:gex:request:old-n req))]
             [else (dhg-seek self (ssh:msg:kex:dh:gex:request-min req) (ssh:msg:kex:dh:gex:request-n req) (ssh:msg:kex:dh:gex:request-max req))]))
 
-    (set-box! (ssh-dhg-kex-reqbits self) bits-range)
-    (set-box! (ssh-dhg-kex-p self) (dh-modp-group-p dh-group))
-    (set-box! (ssh-dhg-kex-g self) (dh-modp-group-g dh-group))
-    
-    (make-ssh:msg:kex:dh:gex:group #:p (dh-modp-group-p dh-group) #:g (dh-modp-group-g dh-group))))
+    (values (struct-copy ssh-dhg-kex self [reqbits bits-range] [p (dh-modp-group-p dh-group)] [g (dh-modp-group-g dh-group)])
+            (make-ssh:msg:kex:dh:gex:group #:p (dh-modp-group-p dh-group) #:g (dh-modp-group-g dh-group)))))
 
-(define dhg-init : (-> SSH-Diffie-Hellman-Group-Kex SSH-MSG-KEX-DH-GEX-GROUP SSH-Message)
+(define dhg-init : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-GROUP (Values SSH-Kex SSH-Message))
   (lambda [self req]
     (define p : Integer (ssh:msg:kex:dh:gex:group-p req))
     (define g : Integer (ssh:msg:kex:dh:gex:group-g req))
     (define x : Integer (dhg-random 1 p)) ; x <- (1, q)
     (define e : Integer (modular-expt g x p))
 
-    (set-box! (ssh-dhg-kex-p self) p)
-    (set-box! (ssh-dhg-kex-g self) g)
-    (set-box! (ssh-dhg-kex-x self) x)
-    (set-box! (ssh-dhg-kex-e self) e)
-    
-    (make-ssh:msg:kex:dh:gex:init #:e e)))
+    (values (struct-copy ssh-dhg-kex self [p p] [g g] [x x] [e e])
+            (make-ssh:msg:kex:dh:gex:init #:e e))))
 
-(define dhg-reply : (-> SSH-Diffie-Hellman-Group-Kex SSH-MSG-KEX-DH-GEX-INIT (Pairof SSH-Message (Pairof Integer Bytes)))
+(define dhg-reply : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-INIT (Values SSH-Kex (Pairof SSH-Message (Pairof Integer Bytes))))
   (lambda [self req]
     (define hostkey : SSH-Hostkey (ssh-kex-hostkey self))
 
-    (define g : Integer (unbox (ssh-dhg-kex-g self)))
-    (define p : Integer (unbox (ssh-dhg-kex-p self)))
+    (define g : Integer (ssh-dhg-kex-g self))
+    (define p : Integer (ssh-dhg-kex-p self))
     (define e : Integer (ssh:msg:kex:dh:gex:init-e req))
     (define y : Integer (dhg-random 0 p)) ; y <- (0, q)
     (define f : Integer (modular-expt g y p))
     (define K : Integer (modular-expt e y p))
-    (define K-S : Bytes ((ssh-hostkey-make-public-key hostkey) hostkey))
+    (define K-S : Bytes (ssh-hostkey.make-public-key hostkey))
     (define H : Bytes (dhg-hash self K-S e f K))
-    (define s : Bytes ((ssh-hostkey-sign hostkey) hostkey H))
+    (define s : Bytes (ssh-hostkey.sign hostkey H))
     
     (when (or (< e 1) (> e (sub1 p)))
       (ssh-raise-kex-error self "'e' is out of range, expected in [1, p-1]"))
-    
-    (cons (make-ssh:msg:kex:dh:gex:reply #:K-S K-S #:f f #:s s)
-          (cons K H))))
 
-(define dhg-verify : (-> SSH-Diffie-Hellman-Group-Kex SSH-MSG-KEX-DH-GEX-REPLY (Pairof Integer Bytes))
+    (values self
+            (cons (make-ssh:msg:kex:dh:gex:reply #:K-S K-S #:f f #:s s)
+                  (cons K H)))))
+
+(define dhg-verify : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-REPLY (Values SSH-Kex (Pairof Integer Bytes)))
   (lambda [self reply]
     (define hostkey : SSH-Hostkey (ssh-kex-hostkey self))
 
-    (define p : Integer (unbox (ssh-dhg-kex-p self)))
-    (define x : Integer (unbox (ssh-dhg-kex-x self)))
-    (define e : Integer (unbox (ssh-dhg-kex-e self)))
+    (define p : Integer (ssh-dhg-kex-p self))
+    (define x : Integer (ssh-dhg-kex-x self))
+    (define e : Integer (ssh-dhg-kex-e self))
     (define f : Integer (ssh:msg:kex:dh:gex:reply-f reply))
     (define K : Integer (modular-expt f x p))
     (define K-S : Bytes (ssh:msg:kex:dh:gex:reply-K-S reply))
@@ -152,11 +147,11 @@
       (ssh-raise-kex-error #:hostkey? #true
                            self "Hostkey signature is mismatch"))
     
-    (cons K H)))
+    (values self (cons K H))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define dhg-seek : (case-> [SSH-Diffie-Hellman-Group-Kex Index -> (Values DH-MODP-Group (Listof Index))]
-                           [SSH-Diffie-Hellman-Group-Kex Index Index Index -> (Values DH-MODP-Group (Listof Index))])
+(define dhg-seek : (case-> [SSH-DHG-Kex Index -> (Values DH-MODP-Group (Listof Index))]
+                           [SSH-DHG-Kex Index Index Index -> (Values DH-MODP-Group (Listof Index))])
   (case-lambda
     [(self n)
      (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
@@ -181,11 +176,11 @@
     (random-integer (add1 open-min)
                     (quotient (- p 1) 2))))
 
-(define dhg-hash : (-> SSH-Diffie-Hellman-Group-Kex Bytes Integer Integer Integer Bytes)
+(define dhg-hash : (-> SSH-DHG-Kex Bytes Integer Integer Integer Bytes)
   (lambda [self K-S e f K]
-    (define reqbits : (Listof Index) (unbox (ssh-dhg-kex-reqbits self)))
-    (define p : Integer (unbox (ssh-dhg-kex-p self)))
-    (define g : Integer (unbox (ssh-dhg-kex-g self)))
+    (define reqbits : (Listof Index) (ssh-dhg-kex-reqbits self))
+    (define p : Integer (ssh-dhg-kex-p self))
+    (define g : Integer (ssh-dhg-kex-g self))
     
     ((ssh-kex-hash self)
      (bytes-append (ssh-dhg-kex-VIcs self)

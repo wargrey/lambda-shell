@@ -34,7 +34,7 @@
                       (cond [(not (memq service services)) (ssh-port-reject-service sshc service)]
                             [(not maybe-method) (ssh-write-auth-failure sshc methods)]
                             [else (let* ([auth (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth-self)]
-                                         [response (with-handlers ([exn? (λ [[e : exn]] e)]) ((ssh-userauth-response auth) auth datum username service))])
+                                         [response (with-handlers ([exn? (λ [[e : exn]] e)]) (ssh-userauth.response auth datum username service))])
                                     (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
                                           [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth]
                                           [(eq? response #true) (ssh-write-auth-success sshc username #false #true) (make-ssh-userauth-option)]
@@ -70,6 +70,5 @@
   (lambda [method-name session-id make-userauth previous]
     (cond [(not previous) (make-userauth session-id)]
           [(eq? method-name (ssh-userauth-name previous)) previous]
-          [else (let ([abort (ssh-userauth-abort previous)])
-                  (and abort (abort previous))
-                  (make-userauth session-id))])))
+          [else (ssh-userauth.abort previous)
+                (make-userauth session-id)])))

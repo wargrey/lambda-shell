@@ -30,19 +30,22 @@
                      id-rsa))
         (assert (read-rsa id-rsa) rsa-private-key?)))
 
-    (ssh-rsa-hostkey ssh-rsa-keyname hash-algorithm
-                     ssh-rsa-public-key ssh-rsa-sign
+    (ssh-rsa-hostkey (super-ssh-hostkey #:name ssh-rsa-keyname #:hash hash-algorithm
+                                        #:make-public-key ssh-rsa-public-key
+                                        #:sign ssh-rsa-sign)
                      key)))
 
 (define ssh-rsa-public-key : SSH-Hostkey-Make-Public-Key
   (lambda [self]
-    (rsa-make-public-key (ssh-rsa-hostkey-private-key (assert self ssh-rsa-hostkey?)))))
+    (with-asserts ([self ssh-rsa-hostkey?])
+      (rsa-make-public-key (ssh-rsa-hostkey-private-key self)))))
 
 ;; https://tools.ietf.org/html/rfc3447#section-8.2.1
 (define ssh-rsa-sign : SSH-Hostkey-Sign
   (lambda [self message]
-    (rsa-make-signature (ssh-rsa-hostkey-private-key (assert self ssh-rsa-hostkey?))
-                        message (ssh-hostkey-hash self))))
+    (with-asserts ([self ssh-rsa-hostkey?])
+      (rsa-make-signature (ssh-rsa-hostkey-private-key self)
+                          message (ssh-hostkey-hash self)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define rsa-make-public-key : (-> RSA-Private-Key Bytes)

@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require digimon/struct)
+
 (require "message.rkt")
 
 (require "authentication/datatype.rkt")
@@ -13,11 +15,9 @@
 (define-type SSH-Userauth-Response (-> SSH-Userauth SSH-Message Symbol Symbol (U SSH-Message SSH-Userauth-Option Boolean)))
 (define-type SSH-Userauth-Abort (-> SSH-Userauth Void))
 
-(struct ssh-userauth
+(define-object ssh-userauth : SSH-Userauth
   ([session-id : Bytes]
-   [name : Symbol]
-   [request : SSH-Userauth-Request]
+   [name : Symbol])
+  ([request : SSH-Userauth-Request]
    [response : SSH-Userauth-Response]
-   [abort : (Option SSH-Userauth-Abort)])
-  #:constructor-name make-ssh-userauth
-  #:type-name SSH-Userauth)
+   [abort : SSH-Userauth-Abort void]))

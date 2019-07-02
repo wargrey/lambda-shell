@@ -33,9 +33,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-publickey-userauth : SSH-Userauth-Constructor
   (lambda [session-id]
-    (make-ssh-userauth session-id 'publickey
-                       ssh-publickey-request ssh-publickey-response
-                       #false)))
+    (make-ssh-userauth #:session-id session-id #:name 'publickey
+                       #:request ssh-publickey-request
+                       #:response ssh-publickey-response)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-publickey-request : SSH-Userauth-Request
