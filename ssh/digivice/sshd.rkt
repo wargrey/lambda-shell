@@ -42,7 +42,7 @@
                      (let accept-server-loop ()
                        (with-handlers ([exn:fail? (λ [e] (eprintf "~a~n" (exn-message e)))])
                          (let ([sshc (ssh-accept sshd)])
-                           (thread-wait (thread (λ [] (sshd-serve sshc (ssh-daemon-services sshd)))))))
+                           (thread-wait (thread (λ [] (sshd-serve sshc '(ssh-connection)))))))
                        #;(accept-server-loop))))))
          'debug))
      '()

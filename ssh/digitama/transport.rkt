@@ -30,7 +30,6 @@
   ([watchdog : TCP-Listener]
    [identification : String]
    [kexinit : SSH-MSG-KEXINIT]
-   [services : (Listof Symbol)]
    [local-name : Symbol]
    [port-number : Index])
   #:type-name SSH-Daemon)
@@ -55,10 +54,10 @@
 
              (parameterize ([current-client-identification identification]
                             [current-server-identification (ssh-identification-raw peer)])
-               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit null rfc #false)))))))
+               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #false)))))))
 
-(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT (Listof Symbol) SSH-Configuration Thread)
-  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit service rfc]
+(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
+  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define peer : SSH-Identification (ssh-read-client-identification /dev/tcpin rfc))
@@ -68,10 +67,10 @@
 
              (parameterize ([current-client-identification (ssh-identification-raw peer)]
                             [current-server-identification identification])
-               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit service rfc #true)))))))
+               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #true)))))))
 
-(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT (Listof Symbol) SSH-Configuration Boolean Void)
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit services rfc server?]
+(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (define self : Thread (current-thread))
@@ -96,9 +95,10 @@
                        [(ssh-ignored-incoming-message? msg) (void)]
                        [(not (ssh:msg:service:request? msg)) (write-special msg /dev/sshout)]
                        [else (let ([service (ssh:msg:service:request-name msg)])
-                               (thread-send self (cond [(memq service services) (ssh-service-accept-message service)]
-                                                       [else (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
-                                                                                      #:description (ssh-service-reject-description service))])))]))
+                               (cond [(and authenticated) (write-special msg /dev/sshout)]
+                                     [else (thread-send self (cond [(and server? (eq? service 'ssh-userauth)) (ssh-service-accept-message service)]
+                                                                   [else (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
+                                                                                                  #:description (ssh-service-reject-description service))]))]))]))
                (values (and (thread? maybe-task) maybe-task) newkeys itraffic++ 0 authenticated)]
 
               [(ssh-message? evt)

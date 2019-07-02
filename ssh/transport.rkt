@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide SSH-Port SSH-Daemon)
-(provide ssh-daemon-services ssh-port-peer-name ssh-transport-preference)
+(provide ssh-port-peer-name ssh-transport-preference)
 
 (require racket/tcp)
 (require racket/port)
@@ -56,13 +56,11 @@
           (ssh-port root sshc-custodian rfc logger server-name session-id sshc /dev/sshin))))))
 
 (define ssh-listen : (->* (Natural)
-                          (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration
-                                 #:services (Listof Symbol) #:disable-reserved-services? Boolean)
+                          (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
                           SSH-Daemon)
   (lambda [port [max-allow-wait 4]
                 #:custodian [root (make-custodian)] #:logger [logger (make-logger 'λsh:sshd (current-logger))] #:hostname [hostname #false]
-                #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]
-                #:services [services null] #:disable-reserved-services? [disable-reserved-services? #false]]
+                #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]]
     (define listener-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian listener-custodian]
                    [current-logger logger])
@@ -73,7 +71,6 @@
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
       (ssh-daemon root listener-custodian rfc logger sshd identification kexinit
-                  (if (not disable-reserved-services?) (list* 'ssh-userauth 'ssh-connection services) services)
                   (string->symbol (format "~a:~a" local-name local-port)) local-port))))
 
 (define ssh-accept : (-> SSH-Daemon [#:custodian Custodian] SSH-Port)
@@ -90,8 +87,7 @@
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
         (define kexinit : SSH-MSG-KEXINIT  (ssh-daemon-kexinit listener))
-        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-daemon-identification listener)
-                                             /dev/tcpin /dev/tcpout kexinit (ssh-daemon-services listener) rfc))
+        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-daemon-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : SSH-Identification (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
