@@ -46,8 +46,8 @@
 
     traffic))
 
-(define ssh-read-transport-message : (-> Input-Port SSH-Configuration Maybe-Newkeys (Listof Symbol) (Values (Option SSH-Message) Bytes Natural))
-  (lambda [/dev/tcpin rfc newkeys groups]
+(define ssh-read-transport-message : (-> Input-Port SSH-Configuration Maybe-Newkeys (Option Symbol) (Values (Option SSH-Message) Bytes Natural))
+  (lambda [/dev/tcpin rfc newkeys group]
     (define incoming-parcel : Bytes (ssh-parcel-incoming (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys))))
     (define-values (payload-end traffic)
       (cond [(ssh-parcel? newkeys) (ssh-read-plain-packet /dev/tcpin incoming-parcel ($ssh-payload-capacity rfc) ($ssh-pretty-log-packet-level rfc))]
@@ -57,7 +57,7 @@
                                           ($ssh-pretty-log-packet-level rfc))]))
     
     (define message-id : Byte (ssh-message-payload-number incoming-parcel ssh-packet-payload-index))
-    (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
+    (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:group group))
 
     (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a)" message-id (~size traffic))]
           [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"

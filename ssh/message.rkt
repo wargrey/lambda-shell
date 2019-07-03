@@ -6,9 +6,8 @@
 (provide (all-defined-out))
 (provide SSH-Message Unsafe-SSH-Bytes->Message)
 (provide ssh-message? ssh-message-undefined?)
+(provide ssh-message-number ssh-message-name ssh-message-payload-number)
 (provide define-ssh-messages define-ssh-case-messages define-ssh-shared-messages)
-
-(provide ssh-message-number ssh-message-name)
 
 (require "datatype.rkt")
 
@@ -33,14 +32,14 @@
                     (and (ssh-message? self)
                          (<= idmin (ssh-message-number self) idmax))))
                 
-                (define ssh-bytes->range-message : (->* (Bytes) (Index #:groups (Listof Symbol)) (values (Option SSH-Message) Natural))
-                  (lambda [bmsg [offset 0] #:groups [groups null]]
-                    (cond [(<= idmin (bytes-ref bmsg offset) idmax) (ssh-bytes->message bmsg offset #:groups groups)]
+                (define ssh-bytes->range-message : (->* (Bytes) (Index #:group (Option Symbol)) (values (Option SSH-Message) Natural))
+                  (lambda [bmsg [offset 0] #:group [group #false]]
+                    (cond [(<= idmin (bytes-ref bmsg offset) idmax) (ssh-bytes->message bmsg offset #:group group)]
                           [else (values #false offset)])))
 
-                (define ssh-bytes->range-message* : (->* (Bytes) (Index #:groups (Listof Symbol)) (Option SSH-Message))
-                  (lambda [bmsg [offset 0] #:groups [groups null]]
-                    (define-values (maybe-message end-index) (ssh-bytes->message bmsg offset #:groups groups))
+                (define ssh-bytes->range-message* : (->* (Bytes) (Index #:group (Option Symbol)) (Option SSH-Message))
+                  (lambda [bmsg [offset 0] #:group [group #false]]
+                    (define-values (maybe-message end-index) (ssh-bytes->message bmsg offset #:group group))
                     maybe-message))))]))
 
 ;; https://tools.ietf.org/html/rfc4251#section-7
@@ -58,27 +57,21 @@
   (lambda [self]
     ((hash-ref ssh-message-length-database (ssh-message-name self)) self)))
 
-(define ssh-message-payload-number : (->* (Bytes) (Index) Byte)
-  (lambda [bmsg [offset 0]]
-    (bytes-ref bmsg offset)))
-
 (define ssh-message->bytes : (SSH-Datum->Bytes SSH-Message)
   (case-lambda
     [(self) ((hash-ref ssh-message->bytes-database (ssh-message-name self)) self)]
     [(self pool) (ssh-message->bytes self pool 0)]
     [(self pool offset) ((hash-ref ssh-message->bytes-database (ssh-message-name self)) self pool offset)]))
 
-(define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Natural))
-  (lambda [bmsg [offset 0] #:groups [groups null]]
+(define ssh-bytes->message : (->* (Bytes) (Index #:group (Option Symbol)) (Values SSH-Message Natural))
+  (lambda [bmsg [offset 0] #:group [group #false]]
     (define id : Byte (ssh-message-payload-number bmsg offset))
     (define-values (msg end)
       (let ([unsafe-bytes->message (hash-ref ssh-bytes->message-database id (λ [] #false))])
         (cond [(and unsafe-bytes->message) (unsafe-bytes->message bmsg offset)]
-              [else (let query : (Values SSH-Message Natural) ([groups : (Listof Symbol) groups])
-                      (cond [(null? groups) (values (ssh-undefined-message id) offset)]
-                            [else (let ([bytes->message (ssh-bytes->shared-message (car groups) id)])
-                                    (cond [(not bytes->message) (query (cdr groups))]
-                                          [else (bytes->message bmsg offset)]))]))])))
+              [else (let ([bytes->message (ssh-bytes->shared-message group id)])
+                      (cond [(not bytes->message) (values (ssh-undefined-message id) offset)]
+                            [else (bytes->message bmsg offset)]))])))
     
     (let message->conditional-message ([msg : SSH-Message msg]
                                        [end : Natural end])
@@ -91,7 +84,7 @@
                      [else (values msg end)]))]
             [else (values msg end)]))))
 
-(define ssh-bytes->message* : (->* (Bytes) (Index #:groups (Listof Symbol)) SSH-Message)
-  (lambda [bmsg [offset 0] #:groups [groups null]]
-    (define-values (message end-index) (ssh-bytes->message bmsg offset #:groups groups))
+(define ssh-bytes->message* : (->* (Bytes) (Index #:group (Option Symbol)) SSH-Message)
+  (lambda [bmsg [offset 0] #:group [group #false]]
+    (define-values (message end-index) (ssh-bytes->message bmsg offset #:group group))
     message))

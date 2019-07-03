@@ -14,13 +14,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-authentication-datum-evt : (-> SSH-Port (Option SSH-Userauth) (Evtof SSH-Datum))
   (lambda [self auth-self]
-    (define groups : (Listof Symbol)
-      (cond [(not auth-self) null]
-            [else (list (ssh-userauth-name auth-self))]))
+    (define group : (Option Symbol) (and auth-self (ssh-userauth-name auth-self)))
     
     (wrap-evt (ssh-port-read-evt self)
               (λ _ (let ([datum (ssh-port-read self)])
-                     (or (and (bytes? datum) (ssh-filter-authentication-message datum groups))
+                     (or (and (bytes? datum) (ssh-filter-authentication-message datum group))
                          datum))))))
 
 (define ssh-write-authentication-message : (-> SSH-Port SSH-Message Void)
@@ -54,10 +52,10 @@
     #true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-filter-authentication-message : (-> Bytes (Listof Symbol) (Option SSH-Message))
-  (lambda [payload groups]
-    (define-values (maybe-userauth-msg _) (ssh-bytes->authentication-message payload 0 #:groups groups))
-                                   
+(define ssh-filter-authentication-message : (-> Bytes (Option Symbol) (Option SSH-Message))
+  (lambda [payload group]
+    (define-values (maybe-userauth-msg _) (ssh-bytes->authentication-message payload 0 #:group group))
+    
     (unless (not maybe-userauth-msg)
       (ssh-log-message 'debug "found authentication message ~a[~a]"
                        (ssh-message-name maybe-userauth-msg)

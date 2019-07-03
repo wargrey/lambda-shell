@@ -86,7 +86,7 @@
 
       (define-values (maybe-task maybe-newkeys incoming++ outgoing++ maybe-authenticated)
         (cond [(tcp-port? evt)
-               (define-values (msg payload itraffic++) (ssh-read-transport-message /dev/tcpin rfc newkeys null))
+               (define-values (msg payload itraffic++) (ssh-read-transport-message /dev/tcpin rfc newkeys #false))
                (define maybe-task : Any
                  (cond [(not msg) (ssh-deliver-message payload /dev/sshout authenticated)]
                        [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]

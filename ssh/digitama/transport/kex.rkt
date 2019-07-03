@@ -43,7 +43,7 @@
     (ssh-write-message /dev/tcpout self-kexinit rfc oldkeys)
     (thread (λ [] (with-handlers ([exn? (λ [[e : exn]] (thread-send parent e))])
                     (let rekex : Void ()
-                      (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys null))
+                      (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys #false))
                       (cond [(ssh:msg:kexinit? msg) (ssh-kex parent self-kexinit msg /dev/tcpin /dev/tcpout rfc oldkeys payload)]
                             [else (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/starts-with-self)])))))))
 
@@ -61,21 +61,20 @@
       ((vector-ref kex 0) (current-client-identification) (current-server-identification) Ic (ssh:msg:kexinit->bytes self-kexinit)
                           ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
 
-    (let ([kex-msg-group (list (ssh-kex-name kex-self))])
-      (let rekex : Void ([kex-self : SSH-Kex kex-self]
-                         [secrets : (Option (Pairof Integer Bytes)) #false])
-        (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
-        (or (and (ssh-key-exchange-message? msg)
-                 (let-values ([(kex-self reply) (ssh-kex.reply kex-self msg)])
-                   (and reply
-                        (let-values ([(response K+H) (if (pair? reply) (values (car reply) (cdr reply)) (values reply secrets))])
-                          (ssh-write-message /dev/tcpout response rfc oldkeys)
-                          (rekex kex-self K+H)))))
-            (and (pair? secrets)
-                 (ssh:msg:newkeys? msg)
-                 (void (ssh-write-message /dev/tcpout msg rfc oldkeys)
-                       (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #true)))
-            (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/server))))))
+    (let rekex : Void ([kex-self : SSH-Kex kex-self]
+                       [secrets : (Option (Pairof Integer Bytes)) #false])
+      (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys (ssh-kex-name kex-self)))
+      (or (and (ssh-key-exchange-message? msg)
+               (let-values ([(kex-self reply) (ssh-kex.reply kex-self msg)])
+                 (and reply
+                      (let-values ([(response K+H) (if (pair? reply) (values (car reply) (cdr reply)) (values reply secrets))])
+                        (ssh-write-message /dev/tcpout response rfc oldkeys)
+                        (rekex kex-self K+H)))))
+          (and (pair? secrets)
+               (ssh:msg:newkeys? msg)
+               (void (ssh-write-message /dev/tcpout msg rfc oldkeys)
+                     (ssh-kex-done parent oldkeys (car secrets) (cdr secrets) HASH c2s s2c /dev/tcpout rfc #true)))
+          (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/server)))))
 
 (define ssh-kex/client : (-> Thread SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes Void)
   (lambda [parent self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc oldkeys Is]
@@ -90,11 +89,10 @@
       ((vector-ref kex 0) (current-client-identification) (current-server-identification) (ssh:msg:kexinit->bytes self-kexinit) Is
                           ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
 
-    (let-values ([(kex-msg-group) (list (ssh-kex-name kex-self))]
-                 [(kex-self req) (ssh-kex.request kex-self)])
+    (let-values ([(kex-self req) (ssh-kex.request kex-self)])
       (ssh-write-message /dev/tcpout req rfc oldkeys)
       (let rekex : Void ([kex-self : SSH-Kex kex-self])
-        (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys kex-msg-group))
+        (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys (ssh-kex-name kex-self)))
         (or (and (ssh-key-exchange-message? msg)
                  (let-values ([(kex-self result) (ssh-kex.verify kex-self msg)])
                    (and result

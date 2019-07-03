@@ -285,12 +285,17 @@
 (define ssh-message-length-database : (HashTable Symbol (-> SSH-Message Natural)) (make-hasheq))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-message-payload-number : (->* (Bytes) (Index) Byte)
+  (lambda [bmsg [offset 0]]
+    (bytes-ref bmsg offset)))
+
 (define ssh-undefined-message : (-> Byte SSH-Message-Undefined)
   (lambda [id]
     (ssh-message-undefined id 'SSH-MSG-UNDEFINED)))
 
-(define ssh-bytes->shared-message : (-> Symbol Index (Option Unsafe-SSH-Bytes->Message))
+(define ssh-bytes->shared-message : (-> (Option Symbol) Index (Option Unsafe-SSH-Bytes->Message))
   (lambda [gid no]
-    (define maybe-db : (Option (HashTable Index Unsafe-SSH-Bytes->Message)) (hash-ref ssh-bytes->shared-message-database gid (λ [] #false)))
-    (and (hash? maybe-db)
-         (hash-ref maybe-db no (λ [] #false)))))
+    (and gid
+         (let ([maybe-db (hash-ref ssh-bytes->shared-message-database gid (λ [] #false))])
+           (and (hash? maybe-db)
+                (hash-ref maybe-db no (λ [] #false)))))))
