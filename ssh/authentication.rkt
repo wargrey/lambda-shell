@@ -15,9 +15,8 @@
 (require "assignment.rkt")
 (require "configuration.rkt")
 
-;; register builtin assignments for authentication methods and services
+;; register builtin assignments for authentication methods
 (require "digitama/assignment/authentication.rkt")
-(require "digitama/assignment/service.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-request : (->* (SSH-Port Symbol) (Symbol) (U SSH-EOF True))

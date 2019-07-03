@@ -2,6 +2,7 @@
 
 (require ssh/base)
 (require ssh/daemon)
+(require ssh/connection)
 
 (require racket/string)
 (require racket/cmdline)

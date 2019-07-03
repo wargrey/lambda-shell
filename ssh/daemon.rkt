@@ -48,4 +48,4 @@
         (define maybe-user : SSH-Maybe-User (authenticate services))
         
         (when (pair? maybe-user)
-          (ssh-daemon-dispatch sshd maybe-user services))))))
+          (ssh-daemon-dispatch sshd (car maybe-user) (cdr maybe-user) services))))))

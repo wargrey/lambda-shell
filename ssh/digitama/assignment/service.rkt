@@ -4,7 +4,7 @@
 
 (require "../assignment.rkt")
 
-(require "../service/connection.rkt")
+(require "../connection/service.rkt")
 
 ; datum definition: service-constructor
 

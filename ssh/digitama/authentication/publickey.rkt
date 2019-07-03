@@ -32,8 +32,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-publickey-userauth : SSH-Userauth-Constructor
-  (lambda [session-id]
-    (make-ssh-userauth #:session-id session-id #:name 'publickey
+  (lambda [session]
+    (make-ssh-userauth #:session session #:name 'publickey
                        #:request ssh-publickey-request
                        #:response ssh-publickey-response)))
 
@@ -60,7 +60,7 @@
                   (if (not (ssh:msg:userauth:request:publickey$? request))
                       (and (ssh-log-message 'debug "accepted ~a, continue for verifying" (authorized-key-fingerprint key))
                            (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey))
-                      (let ([message (bytes-append (ssh-bstring->bytes (ssh-userauth-session-id self)) (ssh:msg:userauth:request:publickey->bytes request))]
+                      (let ([message (bytes-append (ssh-bstring->bytes (ssh-userauth-session self)) (ssh:msg:userauth:request:publickey->bytes request))]
                             [signature (ssh:msg:userauth:request:publickey$-signature request)])
                         (and (case keytype
                                [(ssh-rsa rsa-sha2-256)

@@ -30,20 +30,26 @@
         (thread-safe-kill sshcs)
         (ssh-shutdown sshd)))))
 
-(define ssh-daemon-dispatch : (-> SSH-Port (Pairof SSH-User (SSH-Nameof SSH-Service#)) (SSH-Name-Listof* SSH-Service#) Void)
-  (lambda [sshd user+1st-service all-services]
-    (let read-dispatch-loop ([services : (Pairof SSH-Service (Listof SSH-Service)) (list ((cddr user+1st-service) (car user+1st-service)))]
-                             [candidates : (SSH-Name-Listof* SSH-Service#) (ssh-names-remove (cadr user+1st-service) all-services)])
-      (define datum : SSH-Datum (sync/enable-break (ssh-port-datum-evt sshd)))
+(define ssh-daemon-dispatch : (-> SSH-Port SSH-User (SSH-Nameof SSH-Service#) (SSH-Name-Listof* SSH-Service#) Void)
+  (lambda [sshd user 1st-service all-services]
+    (define session : Bytes (ssh-port-session-identity sshd))
+    (define alive-services : (HashTable Symbol SSH-Service)
+      (make-hasheq (list (cons (car 1st-service)
+                               ((cdr 1st-service) user session)))))
 
-      (define-values (services++ candidates--)
-        (cond [(bytes? datum) (values services candidates)]
+    (with-handlers ([exn? void])
+      (let read-dispatch-loop ()
+        (define datum : SSH-Datum (sync/enable-break (ssh-port-datum-evt sshd)))
 
-              [(ssh:msg:service:request? datum)
-               (values services candidates)]
-
-              [(ssh-eof? datum) datum (values null candidates)]
-              [else #| dead code |# (values services candidates)]))
-
-      (cond [(pair? services++) (read-dispatch-loop services++ candidates--)]
-            [else (void 'shutdown)]))))
+        (unless (ssh-eof? datum)
+          (cond [(bytes? datum) (void)]
+                
+                [(ssh:msg:service:request? datum)
+                 (define maybe-service (assq (ssh:msg:service:request-name datum) all-services))
+                 
+                 (when (pair? maybe-service)
+                   (void))
+                 
+                 (void)])
+        
+          (read-dispatch-loop))))))

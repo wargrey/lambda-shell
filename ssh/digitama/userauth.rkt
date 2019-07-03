@@ -16,7 +16,7 @@
 (define-type SSH-Userauth-Abort (-> SSH-Userauth Void))
 
 (define-object ssh-userauth : SSH-Userauth
-  ([session-id : Bytes]
+  ([session : Bytes]
    [name : Symbol])
   ([request : SSH-Userauth-Request]
    [response : SSH-Userauth-Response]
