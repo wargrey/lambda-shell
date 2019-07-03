@@ -53,7 +53,7 @@
           (ssh-log-message 'debug "server[~a:~a] identification string: ~a" hostname port (ssh-identification-raw server-id))
 
           (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port root sshc-custodian rfc logger server-name session-id sshc /dev/sshin))))))
+          (ssh-port sshc-custodian rfc logger server-name session-id sshc /dev/sshin))))))
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
@@ -70,7 +70,7 @@
 
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
-      (ssh-daemon root listener-custodian rfc logger sshd identification kexinit
+      (ssh-daemon listener-custodian rfc logger sshd identification kexinit
                   (string->symbol (format "~a:~a" local-name local-port)) local-port))))
 
 (define ssh-accept : (-> SSH-Daemon [#:custodian Custodian] SSH-Port)
@@ -100,7 +100,7 @@
                                             (ssh-identification-protoversion client-id)))
 
           (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port root sshd-custodian rfc (current-logger) client-name session-id sshd /dev/sshin))))))
+          (ssh-port sshd-custodian rfc (current-logger) client-name session-id sshd /dev/sshin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
@@ -169,11 +169,3 @@
 (define ssh-logger : (-> (U SSH-Daemon SSH-Port) Logger)
   (lambda [self]
     (ssh-transport-logger self)))
-
-(define ssh-managed-list : (-> (U SSH-Daemon SSH-Port) (Listof Any))
-  (lambda [self]
-    (define root : Custodian (ssh-transport-root self))
-    (define (unbox [child : Any]) : Any
-      (cond [(not (custodian? child)) child]
-            [else (unbox (custodian-managed-list child root))]))
-    (map unbox (custodian-managed-list (ssh-transport-custodian self) root))))

@@ -8,6 +8,7 @@
 (require "kex.rkt")
 (require "message.rkt")
 (require "userauth.rkt")
+(require "service.rkt")
 
 (require "algorithm/pkcs1/hash.rkt")
 
@@ -81,8 +82,11 @@
      #'(begin (define-ssh-name &ssh-mac-algorithms definition) ...)]
     [(_ #:compression (definition ...))
      #'(begin (define-ssh-name &ssh-compression-algorithms definition) ...)]
+    
     [(_ #:authentication (definition ...))
      #'(begin (define-ssh-name &ssh-authentication-methods definition) ...)]
+    [(_ #:service (definition ...))
+     #'(begin (define-ssh-name &ssh-registered-services definition) ...)]
     
     [(_ keyword (definitions ...))
      (with-syntax* ([&id (let ([kw (syntax-e #'keyword)])
@@ -101,7 +105,9 @@
 (define-ssh-namebase ssh-compression-algorithms : SSH-Compression# #:as (Immutable-Vector (Option SSH-λCompression) (Option SSH-λCompression)))
 (define-ssh-namebase ssh-cipher-algorithms : SSH-Cipher# #:as (Immutable-Vector (-> Bytes Bytes (Values SSH-λCipher! SSH-λCipher!)) Byte Byte))
 (define-ssh-namebase ssh-mac-algorithms : SSH-MAC# #:as (Immutable-Vector (-> Bytes (->* (Bytes) (Natural Natural) Bytes)) Index))
+
 (define-ssh-namebase ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
+(define-ssh-namebase ssh-registered-services : SSH-Service# #:as SSH-Service-Constructor)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-names : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

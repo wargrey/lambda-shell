@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require ssh/base)
+(require ssh/daemon)
 
 (require racket/string)
 (require racket/cmdline)
@@ -10,8 +11,6 @@
 (require raco/command-name)
 
 (require digimon/collection)
-
-(require "sshd/main.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-target-port (make-parameter 2222))
@@ -35,15 +34,7 @@
      flag-table
      (λ [!voids]
        (with-logging-to-port (current-output-port)
-         (λ [] (let ([sshd (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level 'info))])
-                 (parameterize ([current-custodian (ssh-custodian sshd)])
-                   (with-handlers ([exn:break? (λ [e] (ssh-shutdown sshd))]
-                                   [exn? (λ [e] (eprintf "~a~n" (exn-message e)))])
-                     (let accept-server-loop ()
-                       (with-handlers ([exn:fail? (λ [e] (eprintf "~a~n" (exn-message e)))])
-                         (let ([sshc (ssh-accept sshd)])
-                           (thread-wait (thread (λ [] (sshd-serve sshc '(ssh-connection)))))))
-                       #;(accept-server-loop))))))
+         (λ [] (ssh-daemon (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level 'info))))
          'debug))
      '()
      (compose1 exit display --help)

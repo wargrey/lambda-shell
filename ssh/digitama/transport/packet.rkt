@@ -202,4 +202,4 @@
 (define ssh-read-bytes! : (-> Input-Port Bytes Nonnegative-Fixnum Nonnegative-Fixnum Procedure Void)
   (lambda [/dev/sshin parcel start end func]
     (when (eof-object? (read-bytes! parcel /dev/sshin start end))
-      (ssh-raise-eof-error func 'SSH-DISCONNECT-CONNECTION-LOST "connection lost"))))
+      (ssh-raise-eof-error func 'SSH-DISCONNECT-CONNECTION-LOST "connection closed by peer"))))

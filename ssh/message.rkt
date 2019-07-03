@@ -26,7 +26,7 @@
                    [ssh-bytes->range-message* (format-id #'type "ssh-bytes->~a-message*" (syntax-e #'type))])
        #'(begin (define ssh-range-payload? : (->* (Bytes) (Index) Boolean)
                   (lambda [src [offset 0]]
-                    (<= idmin (bytes-ref src offset) idmax)))
+                    (<= idmin (ssh-message-payload-number src offset) idmax)))
 
                 (define ssh-range-message? : (-> Any Boolean : #:+ SSH-Message)
                   (lambda [self]
@@ -58,6 +58,10 @@
   (lambda [self]
     ((hash-ref ssh-message-length-database (ssh-message-name self)) self)))
 
+(define ssh-message-payload-number : (->* (Bytes) (Index) Byte)
+  (lambda [bmsg [offset 0]]
+    (bytes-ref bmsg offset)))
+
 (define ssh-message->bytes : (SSH-Datum->Bytes SSH-Message)
   (case-lambda
     [(self) ((hash-ref ssh-message->bytes-database (ssh-message-name self)) self)]
@@ -66,7 +70,7 @@
 
 (define ssh-bytes->message : (->* (Bytes) (Index #:groups (Listof Symbol)) (Values SSH-Message Natural))
   (lambda [bmsg [offset 0] #:groups [groups null]]
-    (define id : Byte (bytes-ref bmsg offset))
+    (define id : Byte (ssh-message-payload-number bmsg offset))
     (define-values (msg end)
       (let ([unsafe-bytes->message (hash-ref ssh-bytes->message-database id (λ [] #false))])
         (cond [(and unsafe-bytes->message) (unsafe-bytes->message bmsg offset)]

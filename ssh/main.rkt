@@ -25,5 +25,8 @@
 (provide (all-defined-out))
 
 (provide (all-from-out "base.rkt"))
+(provide (all-from-out "daemon.rkt"))
 
 (require "base.rkt")
+
+(require "daemon.rkt")

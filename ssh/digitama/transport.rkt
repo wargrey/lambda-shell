@@ -20,8 +20,7 @@
 (require "../configuration.rkt")
 
 (struct ssh-transport
-  ([root : Custodian] ; useless, just in order to satisfy the `custodian-managed-list`
-   [custodian : Custodian]
+  ([custodian : Custodian]
    [preference : SSH-Configuration]
    [logger : Logger])
   #:type-name SSH-Transport)

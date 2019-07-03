@@ -56,7 +56,7 @@
                                           (ssh-newkeys-deflate newkeys) (ssh-newkeys-decrypt newkeys) (ssh-newkeys-mac-verify newkeys)
                                           ($ssh-pretty-log-packet-level rfc))]))
     
-    (define message-id : Byte (bytes-ref incoming-parcel ssh-packet-payload-index))
+    (define message-id : Byte (ssh-message-payload-number incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:groups groups))
 
     (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a)" message-id (~size traffic))]

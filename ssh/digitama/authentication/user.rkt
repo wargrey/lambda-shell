@@ -22,15 +22,13 @@
 
 (struct ssh-user
   ([name : Symbol]
-   [service : Symbol]
-   [options : SSH-Userauth-Option])
+   [option : SSH-Userauth-Option])
   #:type-name SSH-User
   #:constructor-name make-ssh-user
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-ssh-userauth-option : (-> [#:flags (Listof Symbol)] [#:parameters (Listof (Pairof Symbol SSH-Option-Value))] [#:source Any]
-                                       SSH-Userauth-Option)
+(define make-ssh-userauth-option : (-> [#:flags (Listof Symbol)] [#:parameters (Listof (Pairof Symbol SSH-Option-Value))] [#:source Any] SSH-Userauth-Option)
   (lambda [#:flags [flags null] #:parameters [parameters null] #:source [source #false]]
     (ssh-userauth-option flags
                          (ssh-userauth-option-map 'environment parameters source ssh-userauth-check-environment)

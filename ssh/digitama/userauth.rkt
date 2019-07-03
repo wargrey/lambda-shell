@@ -6,7 +6,7 @@
 
 (require "message.rkt")
 
-(require "authentication/datatype.rkt")
+(require "authentication/user.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type SSH-Userauth-Constructor (-> Bytes SSH-Userauth))
