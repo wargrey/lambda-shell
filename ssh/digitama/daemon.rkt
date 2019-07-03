@@ -15,7 +15,7 @@
 (require "authentication/user.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-daemon-accept : (-> SSH-Daemon (-> SSH-Port Void) Void)
+(define ssh-daemon-accept : (-> SSH-Listener (-> SSH-Port Void) Void)
   (lambda [sshd serve]
     (parameterize ([current-custodian (ssh-custodian sshd)])
       (let accept-serve-loop ([sshcs : (Listof Thread) null])

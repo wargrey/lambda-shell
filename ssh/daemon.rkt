@@ -16,15 +16,15 @@
 (require "digitama/authentication/user.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-daemon : (-> SSH-Daemon [#:services (SSH-Name-Listof* SSH-Service#)] [#:authentications (SSH-Name-Listof* SSH-Authentication#)] Void)
+(define ssh-daemon : (-> SSH-Listener [#:services (SSH-Name-Listof* SSH-Service#)] [#:authentications (SSH-Name-Listof* SSH-Authentication#)] Void)
   (lambda [sshd #:services [services (ssh-registered-services)] #:authentications [methods (ssh-authentication-methods)]]
     (ssh-daemon-accept sshd (λ [[sshc : SSH-Port]] (ssh-daemon-serve sshc #:services services #:authentications methods)))))
 
-(define ssh-daemon/no-authentication : (-> SSH-Daemon [#:services (SSH-Name-Listof* SSH-Service#)] Void)
+(define ssh-daemon/no-authentication : (-> SSH-Listener [#:services (SSH-Name-Listof* SSH-Service#)] Void)
   (lambda [sshd #:services [services (ssh-registered-services)]]
     (ssh-daemon-accept sshd (λ [[sshc : SSH-Port]] (ssh-daemon-serve/no-authentication sshc #:services services)))))
 
-(define ssh-daemon/authenticate : (-> SSH-Daemon (-> (SSH-Name-Listof* SSH-Service#) SSH-Maybe-User) [#:services (SSH-Name-Listof* SSH-Service#)] Void)
+(define ssh-daemon/authenticate : (-> SSH-Listener (-> (SSH-Name-Listof* SSH-Service#) SSH-Maybe-User) [#:services (SSH-Name-Listof* SSH-Service#)] Void)
   (lambda [sshd authenticate #:services [services (ssh-registered-services)]]
     (ssh-daemon-accept sshd (λ [[sshc : SSH-Port]] (ssh-daemon-serve/authenticate sshc authenticate #:services services)))))
 

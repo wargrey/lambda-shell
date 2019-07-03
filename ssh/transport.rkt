@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide SSH-Port SSH-Daemon)
+(provide SSH-Port SSH-Listener)
 (provide ssh-port-peer-name ssh-transport-preference)
 
 (require racket/tcp)
@@ -57,7 +57,7 @@
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
-                          SSH-Daemon)
+                          SSH-Listener)
   (lambda [port [max-allow-wait 4]
                 #:custodian [root (make-custodian)] #:logger [logger (make-logger 'λsh:sshd (current-logger))] #:hostname [hostname #false]
                 #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]]
@@ -70,24 +70,24 @@
 
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
-      (ssh-daemon listener-custodian rfc logger sshd identification kexinit
-                  (string->symbol (format "~a:~a" local-name local-port)) local-port))))
+      (ssh-listener listener-custodian rfc logger sshd identification kexinit
+                    (string->symbol (format "~a:~a" local-name local-port)) local-port))))
 
-(define ssh-accept : (-> SSH-Daemon [#:custodian Custodian] SSH-Port)
+(define ssh-accept : (-> SSH-Listener [#:custodian Custodian] SSH-Port)
   (lambda [listener #:custodian [root (make-custodian)]]
     (define rfc : SSH-Configuration (ssh-transport-preference listener))
     (define sshd-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian sshd-custodian]
                    [current-logger (ssh-transport-logger listener)])
-      (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-daemon-watchdog listener)))
+      (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-listener-watchdog listener)))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
       (define client-name : Symbol (string->symbol (format "~a:~a" remote-name remote-port)))
       (ssh-log-message 'debug "accepted ~a" client-name #:with-peer-name? #false)
       
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
-        (define kexinit : SSH-MSG-KEXINIT  (ssh-daemon-kexinit listener))
-        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-daemon-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
+        (define kexinit : SSH-MSG-KEXINIT  (ssh-listener-kexinit listener))
+        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : SSH-Identification (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
@@ -142,7 +142,7 @@
     (thread-wait (ssh-port-ghostcat self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-shutdown : (case-> [SSH-Daemon -> Void]
+(define ssh-shutdown : (case-> [SSH-Listener -> Void]
                                [SSH-Port SSH-Disconnection-Reason -> Void]
                                [SSH-Port SSH-Disconnection-Reason (Option String) -> Void])
   (case-lambda
@@ -162,10 +162,10 @@
     (ssh-port-identity self)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-custodian : (-> (U SSH-Daemon SSH-Port) Custodian)
+(define ssh-custodian : (-> (U SSH-Listener SSH-Port) Custodian)
   (lambda [self]
     (ssh-transport-custodian self)))
 
-(define ssh-logger : (-> (U SSH-Daemon SSH-Port) Logger)
+(define ssh-logger : (-> (U SSH-Listener SSH-Port) Logger)
   (lambda [self]
     (ssh-transport-logger self)))
