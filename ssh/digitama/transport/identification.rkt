@@ -49,10 +49,10 @@
              (read-string! line /dev/sshin 0 4)
              (unless (string-prefix? line "SSH-")
                (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-banner-length rfc))])
-                 (cond [(not maybe-end-index) (ssh-raise-defence-error ssh-read-server-identification "banner message overlength: ~s" line)]
+                 (cond [(not maybe-end-index) (throw+exn:ssh:defence ssh-read-server-identification "banner message overlength: ~s" line)]
                        [else (message-handler (substring line 0 maybe-end-index))])
                  (read-check-notify-loop (+ count 1))))]
-            [else (ssh-raise-defence-error ssh-read-server-identification "too many banner messages")]))
+            [else (throw+exn:ssh:defence ssh-read-server-identification "too many banner messages")]))
     (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length rfc))))
 
 (define ssh-read-client-identification : (-> Input-Port SSH-Configuration SSH-Identification)
@@ -60,7 +60,7 @@
     (define line : String (make-string ($ssh-longest-identification-length option)))
     (read-string! line /dev/sshin 0 4)
     (cond [(string-prefix? line "SSH-") (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length option))]
-          [else (ssh-raise-identification-error ssh-read-client-identification "not a SSH client: ~s" (substring line 0 4))])))
+          [else (throw+exn:ssh:identification ssh-read-client-identification "not a SSH client: ~s" (substring line 0 4))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-software-version : (-> String)
@@ -145,5 +145,4 @@
     (or (and maybe-end-idx maybe-protoversion maybe-softwareversion
              (ssh-identification maybe-protoversion maybe-softwareversion
                                  (or maybe-comments "") (substring destline 0 maybe-end-idx)))
-        (ssh-raise-identification-error read-peer-identification
-                                        "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))
+        (throw+exn:ssh:identification read-peer-identification "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))

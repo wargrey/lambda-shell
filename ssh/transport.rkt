@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 (provide SSH-Port SSH-Listener)
+(provide ssh-transport? ssh-port? ssh-listener?)
 (provide ssh-port-peer-name ssh-transport-preference)
 
 (require racket/tcp)
@@ -95,14 +96,19 @@
           
           (unless (= (ssh-identification-protoversion client-id) ($ssh-protoversion rfc))
             (ssh-sync-disconnect sshd 'SSH_DISCONNECT_PROTOCOL_VERSION_NOT_SUPPORTED)
-            (ssh-raise-identification-error ssh-accept
-                                            "incompatible protoversion: ~a"
-                                            (ssh-identification-protoversion client-id)))
+            (throw+exn:ssh:identification ssh-accept
+                                          "incompatible protoversion: ~a"
+                                          (ssh-identification-protoversion client-id)))
 
           (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
           (ssh-port sshd-custodian rfc (current-logger) client-name session-id sshd /dev/sshin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-listener-evt : (-> SSH-Listener (Evtof SSH-Listener))
+  (lambda [self]
+    (wrap-evt (ssh-listener-watchdog self)
+              (λ _ self))))
+
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
   (lambda [self]
     (wrap-evt (ssh-port-read-evt self)
@@ -162,10 +168,10 @@
     (ssh-port-identity self)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-custodian : (-> (U SSH-Listener SSH-Port) Custodian)
+(define ssh-custodian : (-> SSH-Transport Custodian)
   (lambda [self]
     (ssh-transport-custodian self)))
 
-(define ssh-logger : (-> (U SSH-Listener SSH-Port) Logger)
+(define ssh-logger : (-> SSH-Transport Logger)
   (lambda [self]
     (ssh-transport-logger self)))

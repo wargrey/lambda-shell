@@ -121,7 +121,7 @@
     (define s : Bytes (ssh-hostkey.sign hostkey H))
     
     (when (or (< e 1) (> e (sub1 p)))
-      (ssh-raise-kex-error self "'e' is out of range, expected in [1, p-1]"))
+      (throw+exn:ssh:kex self "'e' is out of range, expected in [1, p-1]"))
 
     (values self
             (cons (make-ssh:msg:kex:dh:gex:reply #:K-S K-S #:f f #:s s)
@@ -141,11 +141,10 @@
     (define H : Bytes (dhg-hash self K-S e f K))
     
     (when (or (< f 1) (> f (sub1 p)))
-      (ssh-raise-kex-error self "'f' is out of range, expected in [1, p-1]"))
+      (throw+exn:ssh:kex self "'f' is out of range, expected in [1, p-1]"))
     
     (unless (bytes=? ((ssh-hostkey-sign hostkey) hostkey H) s)
-      (ssh-raise-kex-error #:hostkey? #true
-                           self "Hostkey signature is mismatch"))
+      (throw+exn:ssh:kex:hostkey self "Hostkey signature is mismatch"))
     
     (values self (cons K H))))
 
@@ -156,17 +155,17 @@
     [(self n)
      (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
 
-     (cond [(< n minbits) (ssh-raise-kex-error dhg-request "the requested prime is too small: (~a < ~a)" n minbits)]
-           [else (values (hash-ref dh-modp-groups n (λ [] (ssh-raise-kex-error dhg-request "unable to find the ~a-bits-sized prime" n)))
+     (cond [(< n minbits) (throw+exn:ssh:kex dhg-request "the requested prime is too small: (~a < ~a)" n minbits)]
+           [else (values (hash-ref dh-modp-groups n (λ [] (throw+exn:ssh:kex dhg-request "unable to find the ~a-bits-sized prime" n)))
                          (list n))])]
     [(self smallest preferred biggest)
      (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
-     (cond [(not (<= smallest preferred biggest)) (ssh-raise-kex-error dhg-request "invalid prime size range: (~a <= ~a <= ~a)" smallest preferred biggest)]
-           [(< biggest minbits) (ssh-raise-kex-error dhg-request "the requested prime is too small: (~a < ~a)" biggest minbits)]
+     (cond [(not (<= smallest preferred biggest)) (throw+exn:ssh:kex dhg-request "invalid prime size range: (~a <= ~a <= ~a)" smallest preferred biggest)]
+           [(< biggest minbits) (throw+exn:ssh:kex dhg-request "the requested prime is too small: (~a < ~a)" biggest minbits)]
            [else (let ([n (max smallest minbits)])
                    (values (hash-ref dh-modp-groups n
                                      (λ [] (let seek : DH-MODP-Group ([ns : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
-                                             (cond [(null? ns) (ssh-raise-kex-error dhg-request "unable to find a prime in range [~a, ~a]" n biggest)]
+                                             (cond [(null? ns) (throw+exn:ssh:kex dhg-request "unable to find a prime in range [~a, ~a]" n biggest)]
                                                    [(<= n (car ns) biggest) (hash-ref dh-modp-groups (car ns))]
                                                    [else (seek (cdr ns))]))))
                            (list smallest preferred biggest)))])]))

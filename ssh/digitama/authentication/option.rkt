@@ -56,9 +56,9 @@
     (define size : Index (string-length name=value))
     
     (let split ([i : Nonnegative-Fixnum 0])
-      (cond [(>= i size) (ssh-raise-syntax-error ssh-userauth-check-environment src line col "invalid environment variable")]
+      (cond [(>= i size) (throw+exn:ssh:fsio ssh-userauth-check-environment src line col "invalid environment variable")]
             [(not (eq? (string-ref name=value i) #\=)) (split (+ i 1))]
-            [(= i 0) (ssh-raise-syntax-error ssh-userauth-check-environment src line col "invalid environment variable")]
+            [(= i 0) (throw+exn:ssh:fsio ssh-userauth-check-environment src line col "invalid environment variable")]
             [else (cons (substring name=value 0 i) (substring name=value (+ i 1) size))]))))
 
 (define ssh-userauth-check-expiry-localtime : (-> String Any (Option Natural) (Option Natural) Natural)
@@ -70,7 +70,7 @@
         [(12) (string-append value "00")]
         [else value]))
 
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (ssh-raise-syntax-error ssh-userauth-check-environment src line col "invalid expiry time"))])
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (throw+exn:ssh:fsio ssh-userauth-check-environment src line col "invalid expiry time"))])
       (let ([year (string->number (substring expiration 0 4))]
             [month (string->number (substring expiration 4 6))]
             [day (string->number (substring expiration 6 8))]
@@ -88,16 +88,15 @@
     (cond [(and pattern (pair? (cdr pattern)) (pair? (cddr pattern)) (pair? (cddr pattern)) (pair? (cdddr pattern)) (string? (cadddr pattern)))
            (let ([port (or (string->number (cadddr pattern)) 0)])
              (cond [(and (index? port) (<= port 65535)) (cons (caddr pattern) port)]
-                   [else (ssh-raise-syntax-error ssh-userauth-check-port src line col "port number out of range")]))]
-          [else (ssh-raise-syntax-error ssh-userauth-check-port src line col "invalid host:port")])))
+                   [else (throw+exn:ssh:fsio ssh-userauth-check-port src line col "port number out of range")]))]
+          [else (throw+exn:ssh:fsio ssh-userauth-check-port src line col "invalid host:port")])))
 
 (define ssh-userauth-check-host:port : (-> String Any (Option Natural) (Option Natural) (Pairof String Index))
   (lambda [host:port src line col]
     (define v : (Pairof (Option String) Index) (ssh-userauth-check-port host:port src line col))
     
     (cond [(string? (car v)) v]
-          [else (ssh-raise-syntax-error ssh-userauth-check-host:port src line col
-                                        "lack hostname or address")])))
+          [else (throw+exn:ssh:fsio ssh-userauth-check-host:port src line col "lack hostname or address")])))
 
 (define ssh-userauth-split : (-> String Any (Option Natural) (Option Natural) (Listof String))
   (lambda [value src line col]

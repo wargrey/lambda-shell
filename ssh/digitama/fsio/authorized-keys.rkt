@@ -162,7 +162,7 @@
   (lambda [func /dev/keyin errfmt . messages]
     (define-values (line col _) (port-next-location /dev/keyin))
 
-    (apply ssh-raise-syntax-error func (object-name /dev/keyin) line col errfmt messages)))
+    (raise (apply make-exn:ssh:fsio func (object-name /dev/keyin) line col errfmt messages))))
 
 (define key-srahc->token : (-> (Listof Char) String)
   (lambda [srahc]

@@ -85,7 +85,7 @@
                      (define s : Bytes ((ssh-hostkey-sign hostkey) hostkey H))
                      
                      (when (or (< e 1) (> e (sub1 p)))
-                       (ssh-raise-kex-error self "'e' is out of range, expected in [1, p-1]"))
+                       (throw+exn:ssh:kex self "'e' is out of range, expected in [1, p-1]"))
                      
                      (cons (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:s s)
                            (cons K H))))))))
@@ -107,11 +107,10 @@
                      (define H : Bytes (dh-hash self K-S e f K))
                      
                      (when (or (< f 1) (> f (sub1 p)))
-                       (ssh-raise-kex-error self "'f' is out of range, expected in [1, p-1]"))
+                       (throw+exn:ssh:kex self "'f' is out of range, expected in [1, p-1]"))
                      
                      (unless (bytes=? ((ssh-hostkey-sign hostkey) hostkey H) s)
-                       (ssh-raise-kex-error #:hostkey? #true
-                                            self "Hostkey signature is mismatch"))
+                       (throw+exn:ssh:kex:hostkey self "Hostkey signature is mismatch"))
                      
                      (cons K H)))))))
 

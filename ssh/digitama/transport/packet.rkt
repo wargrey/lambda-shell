@@ -71,7 +71,7 @@
       (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
 
       (unless (bytes=? checksum digest)
-        (ssh-raise-mac-error ssh-read-cipher-packet "corrupted packet")))
+        (throw+exn:ssh:mac ssh-read-cipher-packet "corrupted packet")))
     
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
     
@@ -147,9 +147,9 @@
     (define payload-length : Fixnum (- packet-length (+ padding-length 1)))
     
     (cond [(< payload-length 0)
-           (ssh-raise-defence-error fsrc "invalid payload length: ~a" (~size payload-length))]
+           (throw+exn:ssh:defence fsrc "invalid payload length: ~a" (~size payload-length))]
           [(> payload-length payload-capacity)
-           (ssh-raise-defence-error fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity))]
+           (throw+exn:ssh:defence fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity))]
           [else payload-length])))
 
 (define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)

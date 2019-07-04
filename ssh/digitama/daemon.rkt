@@ -17,18 +17,31 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-daemon-accept : (-> SSH-Listener (-> SSH-Port Void) Void)
   (lambda [sshd serve]
-    (parameterize ([current-custodian (ssh-custodian sshd)])
-      (let accept-serve-loop ([sshcs : (Listof Thread) null])
-        (with-handlers ([exn:break? void])
-          (define maybe-sshc : (U Thread Void)
-            (with-handlers ([exn:fail? (λ [[e : exn]] (eprintf "~a~n" (exn-message e)))])
-              (let ([sshc (ssh-accept sshd)])
-                (parameterize ([current-custodian (ssh-custodian sshc)])
-                  (thread (λ [] (serve sshc)))))))
-          (accept-serve-loop (if (thread? maybe-sshc) (cons maybe-sshc sshcs) sshcs)))
+    (define (ssh-port-accept) : Void
+      (define sshc : (U SSH-Port Void)
+        (with-handlers ([exn? (λ [[e : exn]] (eprintf "=> ~a~n" (exn-message e)))])
+          (ssh-accept sshd)))
 
-        (thread-safe-kill sshcs)
-        (ssh-shutdown sshd)))))
+      (when (ssh-port? sshc)
+        (parameterize ([current-custodian (ssh-custodian sshc)])
+          (serve sshc))))
+    
+    (parameterize ([current-custodian (ssh-custodian sshd)])
+      (define &sshcs : (Boxof (Listof Thread)) (box null))
+
+      (with-handlers ([exn:break? void])
+        (let sync-accept-serve-loop ()
+          (define sshcs : (Listof Thread) (unbox &sshcs))
+          (define who : (U SSH-Listener Thread) (apply sync/enable-break (ssh-listener-evt sshd) sshcs))
+          
+          (set-box! &sshcs
+                    (cond [(thread? who) (remove who sshcs)]
+                          [else (cons (thread ssh-port-accept) sshcs)]))
+          
+          (sync-accept-serve-loop)))
+        
+      (thread-safe-kill (unbox &sshcs))
+      (ssh-shutdown sshd))))
 
 (define ssh-daemon-dispatch : (-> SSH-Port SSH-User (SSH-Nameof SSH-Service#) (SSH-Name-Listof* SSH-Service#) Void)
   (lambda [sshd user 1st-service all-services]
@@ -37,7 +50,7 @@
       (make-hasheq (list (cons (car 1st-service)
                                ((cdr 1st-service) user session)))))
 
-    (with-handlers ([exn? void])
+    (with-handlers ([exn:fail? void])
       (let read-dispatch-loop ()
         (define datum : SSH-Datum (sync/enable-break (ssh-port-datum-evt sshd)))
 

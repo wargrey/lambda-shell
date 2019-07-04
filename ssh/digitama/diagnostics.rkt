@@ -3,18 +3,40 @@
 (provide (all-defined-out))
 
 (require (for-syntax racket/base))
-(require (for-syntax syntax/parse))
+(require (for-syntax racket/syntax))
 
-(define-type SSH-Error exn:ssh)
+(define-syntax (define-ssh-error stx)
+  (syntax-case stx [: lambda λ]
+    [(_ exn:ssh:sub parent (fields ...) #:->* (Extra-Type ...) (Optional-Type ...) (lambda [args ... #:+ fmt argl] body ...))
+     (with-syntax* ([make-exn (format-id #'exn:ssh:sub "make-~a" (syntax-e #'exn:ssh:sub))]
+                    [make+exn (format-id #'exn:ssh:sub "make+~a" (syntax-e #'exn:ssh:sub))]
+                    [throw-exn (format-id #'exn:ssh:sub "throw-~a" (syntax-e #'exn:ssh:sub))]
+                    [throw+exn (format-id #'exn:ssh:sub "throw+~a" (syntax-e #'exn:ssh:sub))])
+       #'(begin (struct exn:ssh:sub parent (fields ...))
 
-(struct exn:ssh exn:fail:network ())
+                (define make-exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any exn:ssh:sub)
+                  (lambda [args ... fmt . argl]
+                    body ...))
+
+                (define make+exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any exn:ssh:sub)
+                  (lambda [args ... fmt . argl]
+                    (let ([errobj (apply make-exn args ... fmt argl)])
+                      (ssh-log-error errobj)
+                      errobj)))
+
+                (define throw-exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any Nothing)
+                  (lambda [args ... fmt . argl]
+                    (raise (apply make-exn args ... fmt argl))))
+
+                (define throw+exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any Nothing)
+                  (lambda [args ... fmt . argl]
+                    (raise (apply make+exn args ... fmt argl))))))]
+    [(_ exn:ssh:sub parent (fields ...) #:->* (Extra-Type ...) (Optional-Type ...) (λ [args ... #:+ fmt argl] body ...))
+     #'(define-ssh-error exn:ssh:sub parent (fields ...) #:->* (Extra-Type ...) (Optional-Type ...) (lambda [args ... #:+ fmt argl] body ...))]))
+
+(struct exn:ssh exn:fail () #:type-name SSH-Error)
+
 (struct exn:ssh:eof exn:ssh ([reason : Symbol]))
-(struct exn:ssh:defence exn:ssh ())
-(struct exn:ssh:identification exn:ssh ())
-(struct exn:ssh:kex exn:ssh ())
-(struct exn:ssh:kex:hostkey exn:ssh:kex ())
-(struct exn:ssh:mac exn:ssh ())
-(struct exn:ssh:fsio exn:ssh ())
 
 (define current-peer-name : (Parameterof (Option Symbol)) (make-parameter #false))
 
@@ -25,53 +47,37 @@
                            (call-with-escape-continuation
                                (λ [[ec : Procedure]] ec))))))
 
-(define ssh-raise-defence-error : (-> Any String Any * Nothing)
-  (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error
-      (exn:ssh:defence (ssh-exn-message func msgfmt argl)
-                       (current-continuation-marks)))
+(define-ssh-error exn:ssh:defence exn:ssh () #:->* (Any) ()
+  (lambda [func #:+ msgfmt argl]
+    (exn:ssh:defence (ssh-exn-message func msgfmt argl)
+                     (current-continuation-marks))))
 
-    (ssh-log-error errobj)
-    (raise errobj)))
+(define-ssh-error exn:ssh:identification exn:ssh () #:->* (Any) ()
+  (lambda [func #:+ msgfmt argl]
+    (exn:ssh:identification (ssh-exn-message func msgfmt argl)
+                            (current-continuation-marks))))
 
-(define ssh-raise-identification-error : (-> Procedure String Any * Nothing)
-  (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error
-      (exn:ssh:identification (ssh-exn-message func msgfmt argl)
-                              (current-continuation-marks)))
+(define-ssh-error exn:ssh:kex exn:ssh () #:->* (Any) ()
+  (lambda [func #:+ msgfmt argl]
+    (exn:ssh:kex (ssh-exn-message func msgfmt argl)
+                 (current-continuation-marks))))
 
-    (ssh-log-error errobj)
-    (raise errobj)))
+(define-ssh-error exn:ssh:kex:hostkey exn:ssh:kex () #:->* (Any) ()
+  (lambda [func #:+ msgfmt argl]
+    (exn:ssh:kex:hostkey (ssh-exn-message func msgfmt argl)
+                         (current-continuation-marks))))
 
-(define ssh-raise-kex-error : (->* (Any String) (#:hostkey? Boolean) #:rest Any Nothing)
-  (lambda [func #:hostkey? [hostkey? #false] msgfmt . argl]
-    (define errobj : SSH-Error
-      ((if hostkey? exn:ssh:kex:hostkey exn:ssh:kex)
-       (ssh-exn-message func msgfmt argl)
-       (current-continuation-marks)))
-
-    (ssh-log-error errobj)
-    (raise errobj)))
-
-(define ssh-raise-mac-error : (-> Any String Any * Nothing)
-  (lambda [func msgfmt . argl]
-    (define errobj : SSH-Error
-      (exn:ssh:mac (ssh-exn-message func msgfmt argl)
-                   (current-continuation-marks)))
-
-    (ssh-log-error errobj)
-    (raise errobj)))
+(define-ssh-error exn:ssh:mac exn:ssh () #:->* (Any) ()
+  (lambda [func #:+ msgfmt argl]
+    (exn:ssh:mac (ssh-exn-message func msgfmt argl)
+                 (current-continuation-marks))))
 
 
-(define ssh-raise-syntax-error : (-> Any Any (Option Natural) (Option Natural) String Any * Nothing)
-  (lambda [func /dev/stdin line col msgfmt . argl]
-    (define errobj : SSH-Error
-      (exn:ssh:fsio (cond [(and line col) (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* /dev/stdin line col argl))]
-                          [else (ssh-exn-message func (string-append "~a: " msgfmt) (list* /dev/stdin argl))])
-                    (current-continuation-marks)))
-
-    (ssh-log-error errobj #:level 'warning)
-    (raise errobj)))
+(define-ssh-error exn:ssh:fsio exn:ssh () #:->* (Any Any (Option Natural) (Option Natural)) ()
+  (lambda [func /dev/stdin line col #:+ msgfmt argl]
+    (exn:ssh:fsio (cond [(and line col) (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* /dev/stdin line col argl))]
+                        [else (ssh-exn-message func (string-append "~a: " msgfmt) (list* /dev/stdin argl))])
+                  (current-continuation-marks))))
 
 (define ssh-raise-eof-error : (->* (Procedure Symbol String) (#:logging? Boolean) #:rest Any Nothing)
   (lambda [func reason #:logging? [logging? #true] msgfmt . argl]

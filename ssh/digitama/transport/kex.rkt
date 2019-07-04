@@ -176,14 +176,14 @@
            (values (cdr kex) (cdr hostkey)
                    (vector-immutable (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
                    (vector-immutable (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac)))]
-          [(not c2s-compression) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server compression algorithm")]
-          [(not s2c-compression) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client compression algorithm")]
-          [(not c2s-mac) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server MAC algorithm")]
-          [(not s2c-mac) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client MAC algorithm")]
-          [(not c2s-cipher) (ssh-raise-kex-error ssh-negotiate "kex: no matching client to server cipher")]
-          [(not s2c-cipher) (ssh-raise-kex-error ssh-negotiate "kex: no matching server to client cipher")]
-          [(not hostkey) (ssh-raise-kex-error ssh-negotiate "kex: no matching public key format")]
-          [else (ssh-raise-kex-error ssh-negotiate "kex: no matching algorihtm")])))
+          [(not c2s-compression) (throw+exn:ssh:kex ssh-negotiate "kex: no matching client to server compression algorithm")]
+          [(not s2c-compression) (throw+exn:ssh:kex ssh-negotiate "kex: no matching server to client compression algorithm")]
+          [(not c2s-mac) (throw+exn:ssh:kex ssh-negotiate "kex: no matching client to server MAC algorithm")]
+          [(not s2c-mac) (throw+exn:ssh:kex ssh-negotiate "kex: no matching server to client MAC algorithm")]
+          [(not c2s-cipher) (throw+exn:ssh:kex ssh-negotiate "kex: no matching client to server cipher")]
+          [(not s2c-cipher) (throw+exn:ssh:kex ssh-negotiate "kex: no matching server to client cipher")]
+          [(not hostkey) (throw+exn:ssh:kex ssh-negotiate "kex: no matching public key format")]
+          [else (throw+exn:ssh:kex ssh-negotiate "kex: no matching algorihtm")])))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Name-Listof a) (SSH-Name-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]
@@ -205,4 +205,4 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-deal-with-unexpected-message : (-> (U SSH-Message Bytes) Any Void)
   (lambda [msg func]
-    (ssh-raise-kex-error func "kex: unexpected message: ~a" (if (bytes? msg) (bytes-ref msg 0) (ssh-message-name msg)))))
+    (throw+exn:ssh:kex func "kex: unexpected message: ~a" (if (bytes? msg) (bytes-ref msg 0) (ssh-message-name msg)))))
