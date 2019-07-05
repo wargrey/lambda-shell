@@ -2,37 +2,7 @@
 
 (provide (all-defined-out))
 
-(require (for-syntax racket/base))
-(require (for-syntax racket/syntax))
-
-(define-syntax (define-ssh-error stx)
-  (syntax-case stx [: lambda λ]
-    [(_ exn:ssh:sub parent (fields ...) #:->* (Extra-Type ...) (Optional-Type ...) (lambda [args ... #:+ fmt argl] body ...))
-     (with-syntax* ([make-exn (format-id #'exn:ssh:sub "make-~a" (syntax-e #'exn:ssh:sub))]
-                    [make+exn (format-id #'exn:ssh:sub "make+~a" (syntax-e #'exn:ssh:sub))]
-                    [throw-exn (format-id #'exn:ssh:sub "throw-~a" (syntax-e #'exn:ssh:sub))]
-                    [throw+exn (format-id #'exn:ssh:sub "throw+~a" (syntax-e #'exn:ssh:sub))])
-       #'(begin (struct exn:ssh:sub parent (fields ...))
-
-                (define make-exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any exn:ssh:sub)
-                  (lambda [args ... fmt . argl]
-                    body ...))
-
-                (define make+exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any exn:ssh:sub)
-                  (lambda [args ... fmt . argl]
-                    (let ([errobj (apply make-exn args ... fmt argl)])
-                      (ssh-log-error errobj)
-                      errobj)))
-
-                (define throw-exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any Nothing)
-                  (lambda [args ... fmt . argl]
-                    (raise (apply make-exn args ... fmt argl))))
-
-                (define throw+exn : (->* (Extra-Type ... String) (Optional-Type ...) #:rest Any Nothing)
-                  (lambda [args ... fmt . argl]
-                    (raise (apply make+exn args ... fmt argl))))))]
-    [(_ exn:ssh:sub parent (fields ...) #:->* (Extra-Type ...) (Optional-Type ...) (λ [args ... #:+ fmt argl] body ...))
-     #'(define-ssh-error exn:ssh:sub parent (fields ...) #:->* (Extra-Type ...) (Optional-Type ...) (lambda [args ... #:+ fmt argl] body ...))]))
+(require digimon/exception)
 
 (struct exn:ssh exn:fail () #:type-name SSH-Error)
 
@@ -47,46 +17,21 @@
                            (call-with-escape-continuation
                                (λ [[ec : Procedure]] ec))))))
 
-(define-ssh-error exn:ssh:defence exn:ssh () #:->* (Any) ()
-  (lambda [func #:+ msgfmt argl]
-    (exn:ssh:defence (ssh-exn-message func msgfmt argl)
-                     (current-continuation-marks))))
-
-(define-ssh-error exn:ssh:identification exn:ssh () #:->* (Any) ()
-  (lambda [func #:+ msgfmt argl]
-    (exn:ssh:identification (ssh-exn-message func msgfmt argl)
-                            (current-continuation-marks))))
-
-(define-ssh-error exn:ssh:kex exn:ssh () #:->* (Any) ()
-  (lambda [func #:+ msgfmt argl]
-    (exn:ssh:kex (ssh-exn-message func msgfmt argl)
-                 (current-continuation-marks))))
-
-(define-ssh-error exn:ssh:kex:hostkey exn:ssh:kex () #:->* (Any) ()
-  (lambda [func #:+ msgfmt argl]
-    (exn:ssh:kex:hostkey (ssh-exn-message func msgfmt argl)
-                         (current-continuation-marks))))
-
-(define-ssh-error exn:ssh:mac exn:ssh () #:->* (Any) ()
-  (lambda [func #:+ msgfmt argl]
-    (exn:ssh:mac (ssh-exn-message func msgfmt argl)
-                 (current-continuation-marks))))
-
-
-(define-ssh-error exn:ssh:fsio exn:ssh () #:->* (Any Any (Option Natural) (Option Natural)) ()
-  (lambda [func /dev/stdin line col #:+ msgfmt argl]
-    (exn:ssh:fsio (cond [(and line col) (ssh-exn-message func (string-append "~a:~a:~a: " msgfmt) (list* /dev/stdin line col argl))]
-                        [else (ssh-exn-message func (string-append "~a: " msgfmt) (list* /dev/stdin argl))])
-                  (current-continuation-marks))))
+(define-exception exn:ssh:defence exn:ssh () (ssh-exn-message))
+(define-exception exn:ssh:identification exn:ssh () (ssh-exn-message))
+(define-exception exn:ssh:kex exn:ssh () (ssh-exn-message))
+(define-exception exn:ssh:kex:hostkey exn:ssh:kex () (ssh-exn-message))
+(define-exception exn:ssh:mac exn:ssh () (ssh-exn-message))
+(define-exception exn:ssh:fsio exn:fail:filesystem () (ssh-exn-fsio-message [/dev/stdin : Input-Port] [line : (Option Natural)] [col : (Option Natural)]))
 
 (define ssh-raise-eof-error : (->* (Procedure Symbol String) (#:logging? Boolean) #:rest Any Nothing)
   (lambda [func reason #:logging? [logging? #true] msgfmt . argl]
     (define errobj : SSH-Error
-      (exn:ssh:eof (ssh-exn-message func msgfmt argl)
+      (exn:ssh:eof (ssh-exn-message func (default-exn-message msgfmt argl))
                    (current-continuation-marks) reason))
 
     (when logging?
-      (ssh-log-error errobj))
+      (default-log-error errobj))
     
     (raise errobj)))
 
@@ -104,21 +49,16 @@
                                      [else (format "~a: ~a" peer message-raw)]))])
                  data)))
 
-(define ssh-log-error : (->* (SSH-Error) (#:level Log-Level) Void)
-  (lambda [errobj #:level [level 'error]]
-    (log-message (current-logger)
-                 level
-                 #false
-                 (format "~a: ~a" (object-name errobj) (exn-message errobj))
-                 errobj)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-exn-message : (-> Any String (Listof Any) String)
-  (lambda [func msgfmt argl]
-    (define message : String (if (null? argl) msgfmt (apply format msgfmt argl)))
-    
+(define ssh-exn-message : (-> Any String String)
+  (lambda [func msg]
     (let ([peername (current-peer-name)]
           [srcname (object-name func)])
-      (cond [(and peername srcname) (string-append (format "~a: ~a: " peername srcname) message)]
-            [(or peername srcname) => (λ [name] (string-append (format "~a: " name) message))]
-            [else message]))))
+      (cond [(and peername srcname) (string-append (format "~a: ~a: " peername srcname) msg)]
+            [(or peername srcname) => (λ [name] (string-append (format "~a: " name) msg))]
+            [else msg]))))
+
+(define ssh-exn-fsio-message : (-> Any Input-Port (Option Natural) (Option Natural) String String)
+  (lambda [func /dev/stdin line col msg]
+    (cond [(and line col) (ssh-exn-message func (string-append (format "~a:~a:~a: " (object-name /dev/stdin) line col) msg))]
+          [else (ssh-exn-message func (string-append (format "~a: " (object-name /dev/stdin)) msg))])))

@@ -17,7 +17,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-userauth-option-ref
   : (All (a) (case-> [Symbol (Listof (Pairof Symbol SSH-Option-Value)) -> (Option String)]
-                     [Symbol (Listof (Pairof Symbol SSH-Option-Value)) Any (-> String Any (Option Natural) (Option Natural) a) -> (Option a)]))
+                     [Symbol (Listof (Pairof Symbol SSH-Option-Value)) Input-Port (-> String Input-Port (Option Natural) (Option Natural) a) -> (Option a)]))
   (case-lambda
     [(key alist)
      (let ([kv (assq key alist)])
@@ -30,7 +30,7 @@
 
 (define ssh-userauth-option-map
   : (All (a) (case-> [Symbol (Listof (Pairof Symbol SSH-Option-Value)) -> (Listof String)]
-                     [Symbol (Listof (Pairof Symbol SSH-Option-Value)) Any (-> String Any (Option Natural) (Option Natural) a) -> (Listof a)]))
+                     [Symbol (Listof (Pairof Symbol SSH-Option-Value)) Input-Port (-> String Input-Port (Option Natural) (Option Natural) a) -> (Listof a)]))
   (case-lambda
     [(key alist)
      (for/list ([kv (in-list alist)] #:when (eq? (car kv) key))
@@ -51,7 +51,7 @@
           [else (car v)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-userauth-check-environment : (-> String Any (Option Natural) (Option Natural) (Pairof String String))
+(define ssh-userauth-check-environment : (-> String Input-Port (Option Natural) (Option Natural) (Pairof String String))
   (lambda [name=value src line col]
     (define size : Index (string-length name=value))
     
@@ -61,7 +61,7 @@
             [(= i 0) (throw+exn:ssh:fsio ssh-userauth-check-environment src line col "invalid environment variable")]
             [else (cons (substring name=value 0 i) (substring name=value (+ i 1) size))]))))
 
-(define ssh-userauth-check-expiry-localtime : (-> String Any (Option Natural) (Option Natural) Natural)
+(define ssh-userauth-check-expiry-localtime : (-> String Input-Port (Option Natural) (Option Natural) Natural)
   (lambda [value src line col]
     (define size : Byte 14)
     (define expiration : String
@@ -81,7 +81,7 @@
                       (assert day byte?) (assert month byte?) (assert year index?)
                       #true)))))
 
-(define ssh-userauth-check-port : (-> String Any (Option Natural) (Option Natural) (Pairof (Option String) Index))
+(define ssh-userauth-check-port : (-> String Input-Port (Option Natural) (Option Natural) (Pairof (Option String) Index))
   (lambda [name=value src line col]
     (define pattern : (Option (Pairof String (Listof (Option String)))) (regexp-match #px"((.+):)?([*]|\\d+)$" name=value))
     
@@ -91,13 +91,13 @@
                    [else (throw+exn:ssh:fsio ssh-userauth-check-port src line col "port number out of range")]))]
           [else (throw+exn:ssh:fsio ssh-userauth-check-port src line col "invalid host:port")])))
 
-(define ssh-userauth-check-host:port : (-> String Any (Option Natural) (Option Natural) (Pairof String Index))
+(define ssh-userauth-check-host:port : (-> String Input-Port (Option Natural) (Option Natural) (Pairof String Index))
   (lambda [host:port src line col]
     (define v : (Pairof (Option String) Index) (ssh-userauth-check-port host:port src line col))
     
     (cond [(string? (car v)) v]
           [else (throw+exn:ssh:fsio ssh-userauth-check-host:port src line col "lack hostname or address")])))
 
-(define ssh-userauth-split : (-> String Any (Option Natural) (Option Natural) (Listof String))
+(define ssh-userauth-split : (-> String Input-Port (Option Natural) (Option Natural) (Listof String))
   (lambda [value src line col]
     (map string-trim (string-split value ","))))

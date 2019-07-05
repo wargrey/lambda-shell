@@ -28,8 +28,8 @@
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-ssh-userauth-option : (-> [#:flags (Listof Symbol)] [#:parameters (Listof (Pairof Symbol SSH-Option-Value))] [#:source Any] SSH-Userauth-Option)
-  (lambda [#:flags [flags null] #:parameters [parameters null] #:source [source #false]]
+(define make-ssh-userauth-option : (-> [#:flags (Listof Symbol)] [#:parameters (Listof (Pairof Symbol SSH-Option-Value))] [#:source Input-Port] SSH-Userauth-Option)
+  (lambda [#:flags [flags null] #:parameters [parameters null] #:source [source (current-input-port)]]
     (ssh-userauth-option flags
                          (ssh-userauth-option-map 'environment parameters source ssh-userauth-check-environment)
                          (ssh-userauth-option-ref 'command parameters)

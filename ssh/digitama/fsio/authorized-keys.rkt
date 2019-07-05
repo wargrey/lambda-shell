@@ -96,7 +96,7 @@
                              (read-option sgalf (cons this-parameter sretemarap) '|| maybe-char))]))]
             [else ; (memq ch '(#false #\newline #\space))
              (let ([flags (reverse (if (eq? sym '||) sgalf (cons sym sgalf)))])
-               (values (make-ssh-userauth-option #:flags flags #:parameters (reverse sretemarap) #:source (object-name /dev/keyin))
+               (values (make-ssh-userauth-option #:flags flags #:parameters (reverse sretemarap) #:source /dev/keyin)
                        ch))]))))
 
 (define ssh-read-key-token : (-> Input-Port Char * (Values String (Option Char)))
@@ -162,7 +162,7 @@
   (lambda [func /dev/keyin errfmt . messages]
     (define-values (line col _) (port-next-location /dev/keyin))
 
-    (raise (apply make-exn:ssh:fsio func (object-name /dev/keyin) line col errfmt messages))))
+    (raise (apply make-exn:ssh:fsio func /dev/keyin line col errfmt messages))))
 
 (define key-srahc->token : (-> (Listof Char) String)
   (lambda [srahc]
