@@ -8,7 +8,6 @@
 
 (require "digitama/authentication.rkt")
 (require "digitama/authentication/message.rkt")
-(require "digitama/authentication/user.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")

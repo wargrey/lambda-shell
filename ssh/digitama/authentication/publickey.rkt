@@ -5,16 +5,16 @@
 (provide (all-defined-out))
 
 (require "../userauth.rkt")
+(require "../message.rkt")
+(require "../diagnostics.rkt")
+
 (require "../fsio/authorized-keys.rkt")
 (require "../algorithm/hostkey/rsa.rkt")
 
 (require "../message/transport.rkt")
 (require "../message/authentication.rkt")
 
-(require "../../message.rkt")
 (require "../../datatype.rkt")
-
-(require "../diagnostics.rkt")
 
 ; `define-ssh-case-messages` requires this because of Racket's phase isolated compilation model
 (require (for-syntax "../message/authentication.rkt"))

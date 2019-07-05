@@ -14,14 +14,14 @@
                       [read-byte-or-special (-> Input-Port SSH-Datum)])
 
 (require "message.rkt")
-(require "assignment.rkt")
 (require "configuration.rkt")
 
-(require "digitama/transport/identification.rkt")
 (require "digitama/transport.rkt")
 (require "digitama/diagnostics.rkt")
 
+(require "digitama/transport/identification.rkt")
 (require "digitama/message/transport.rkt")
+(require "digitama/assignment/transport.rkt")
 
 ;; register builtin assignments for algorithms
 (require "digitama/assignment/kex.rkt")
@@ -148,12 +148,18 @@
     (thread-wait (ssh-port-ghostcat self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-shutdown : (case-> [SSH-Listener -> Void]
-                               [SSH-Port SSH-Disconnection-Reason -> Void]
+(define ssh-shutdown : (case-> [(U SSH-Listener SSH-Port) -> Void]
+                               [SSH-Port (U SSH-Disconnection-Reason String) -> Void]
                                [SSH-Port SSH-Disconnection-Reason (Option String) -> Void])
   (case-lambda
-    [(self) (custodian-shutdown-all (ssh-transport-custodian self))]
-    [(self reason) (ssh-shutdown self reason #false)]
+    [(self)
+     (if (ssh-listener? self)
+         (custodian-shutdown-all (ssh-transport-custodian self))
+         (ssh-shutdown self 'SSH-DISCONNECT-BY-APPLICATION))]
+    [(self reason)
+     (if (string? reason)
+         (ssh-shutdown self 'SSH-DISCONNECT-BY-APPLICATION reason)
+         (ssh-shutdown self reason #false))]
     [(self reason description)
      (ssh-sync-disconnect (ssh-port-ghostcat self) reason description)
      (custodian-shutdown-all (ssh-transport-custodian self))]))

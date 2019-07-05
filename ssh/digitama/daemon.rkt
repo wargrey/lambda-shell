@@ -6,9 +6,9 @@
 
 (require "../transport.rkt")
 (require "../datatype.rkt")
-(require "../assignment.rkt")
 
 (require "service.rkt")
+(require "assignment.rkt")
 (require "diagnostics.rkt")
 
 (require "message/transport.rkt")

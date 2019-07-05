@@ -3,11 +3,13 @@
 (provide (all-defined-out))
 
 (require "../userauth.rkt")
+(require "../message.rkt")
+(require "../assignment.rkt")
 (require "../diagnostics.rkt")
+
+(require "../assignment/message.rkt")
 (require "../message/authentication.rkt")
 
-(require "../../message.rkt")
-(require "../../assignment.rkt")
 (require "../../datatype.rkt")
 (require "../../transport.rkt")
 

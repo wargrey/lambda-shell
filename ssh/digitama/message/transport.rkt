@@ -3,14 +3,15 @@
 (provide (all-defined-out))
 
 (require "../message.rkt")
+(require "../assignment.rkt")
+(require "../assignment/transport.rkt")
+
 (require "../algorithm/random.rkt")
 
-(require "../assignment.rkt")
-(require "../../assignment.rkt")
 (require "../../datatype.rkt")
 
-;; '[30, 49] can be reused for different key exchange authentication methods
-;; see 'ssh/digitama/algorithm/kex/diffie-hellman
+; maessages in [30, 49] can be reused for different key exchange authentication methods
+; see 'ssh/digitama/algorithm/kex/diffie-hellman
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; http://tools.ietf.org/html/rfc4250#section-4.1
@@ -44,5 +45,4 @@
   [SSH_MSG_NEWCOMPRESS                8 ()])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (define SSH:NEWKEYS : SSH-MSG-NEWKEYS (make-ssh:msg:newkeys))

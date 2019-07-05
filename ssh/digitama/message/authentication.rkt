@@ -3,16 +3,13 @@
 (provide (all-defined-out))
 
 (require "../message.rkt")
-(require "../algorithm/random.rkt")
-
 (require "../assignment.rkt")
-(require "../../assignment.rkt")
+
 (require "../../datatype.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; [60, 79] can be reused for different user authentication methods
 ;; see digitama/authentication/publickey
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4252
   [SSH_MSG_USERAUTH_REQUEST          50 ([username : Symbol] [service : Symbol 'ssh-connection] [method : Symbol 'none]) #:case method]

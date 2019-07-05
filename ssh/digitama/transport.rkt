@@ -10,13 +10,13 @@
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
 
+(require "assignment/transport.rkt")
 (require "message/transport.rkt")
 (require "message/authentication.rkt")
 
 (require "diagnostics.rkt")
 
 (require "../message.rkt")
-(require "../assignment.rkt")
 (require "../configuration.rkt")
 
 (struct ssh-transport

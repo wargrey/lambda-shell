@@ -106,8 +106,8 @@
                      (define s : Bytes (ssh:msg:kexdh:reply-s reply))
                      (define H : Bytes (dh-hash self K-S e f K))
                      
-                     (when (or (< f 1) (> f (sub1 p)))
-                       (throw+exn:ssh:kex self "'f' is out of range, expected in [1, p-1]"))
+                     (cond [(or (< f 1) (> f (sub1 p)))
+                            (throw+exn:ssh:kex self "'f' is out of range, expected in [1, p-1]")])
                      
                      (unless (bytes=? ((ssh-hostkey-sign hostkey) hostkey H) s)
                        (throw+exn:ssh:kex:hostkey self "Hostkey signature is mismatch"))

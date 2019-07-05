@@ -7,12 +7,13 @@
 (require "packet.rkt")
 (require "newkeys.rkt")
 
+(require "../message.rkt")
 (require "../diagnostics.rkt")
 
-(require "../../message.rkt")
-(require "../../configuration.rkt")
-
+(require "../assignment/message.rkt")
 (require "../message/transport.rkt")
+
+(require "../../configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration Maybe-Newkeys Natural)

@@ -6,8 +6,7 @@
 
 (require "../service.rkt")
 (require "../message/connection.rkt")
-
-(require "../../message.rkt")
+(require "../assignment/message.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-connection-service : SSH-Service-Constructor

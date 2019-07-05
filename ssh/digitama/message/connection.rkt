@@ -3,10 +3,9 @@
 (provide (all-defined-out))
 
 (require "../message.rkt")
-(require "../algorithm/random.rkt")
 
-(require "../assignment.rkt")
-(require "../../assignment.rkt")
+(require "../assignment/connection.rkt")
+
 (require "../../datatype.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

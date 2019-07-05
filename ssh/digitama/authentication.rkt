@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require "userauth.rkt")
+(require "assignment.rkt")
 
 (require "message/authentication.rkt")
 (require "authentication/user.rkt")
@@ -10,7 +11,6 @@
 
 (require "../datatype.rkt")
 (require "../message.rkt")
-(require "../assignment.rkt")
 (require "../transport.rkt")
 
 (define-type SSH-Maybe-User (U SSH-EOF Void (Pairof SSH-User (SSH-Nameof SSH-Service#))))

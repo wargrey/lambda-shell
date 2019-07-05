@@ -2,11 +2,12 @@
 
 (provide (all-defined-out))
 
+(require "../message.rkt")
 (require "../diagnostics.rkt")
 
+(require "../assignment/message.rkt")
 (require "../message/connection.rkt")
 
-(require "../../message.rkt")
 (require "../../transport.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -2,8 +2,6 @@
 
 (provide (all-defined-out))
 
-(require digimon/thread)
-
 (require "transport.rkt")
 (require "authentication.rkt")
 
@@ -12,8 +10,6 @@
 
 (require "digitama/daemon.rkt")
 (require "digitama/diagnostics.rkt")
-
-(require "digitama/authentication/user.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-daemon : (-> SSH-Listener [#:services (SSH-Name-Listof* SSH-Service#)] [#:authentications (SSH-Name-Listof* SSH-Authentication#)] Void)

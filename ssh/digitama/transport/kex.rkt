@@ -11,14 +11,15 @@
 (require "newkeys.rkt")
 
 (require "../kex.rkt")
+(require "../message.rkt")
 (require "../assignment.rkt")
 (require "../diagnostics.rkt")
 
-(require "../../datatype.rkt")
-(require "../../message.rkt")
-(require "../../configuration.rkt")
-
+(require "../assignment/message.rkt")
 (require "../message/transport.rkt")
+
+(require "../../datatype.rkt")
+(require "../../configuration.rkt")
 
 (define-type SSH-Transport-Algorithms (Immutable-Vector SSH-Compression# SSH-Cipher# SSH-MAC#))
 
