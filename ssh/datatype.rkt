@@ -14,7 +14,7 @@
 
 (define-type SSH-BString Bytes)
 (define-type (SSH-Bytes n) Bytes)
-(define-type (SSH-Symbol ns) ns)
+(define-type (SSH-Symbol ns) Symbol)
 (define-type (SSH-Name-Listof t) (Listof (Pairof Symbol (Option t))))
 (define-type (SSH-Name-Listof* t) (Listof (Pairof Symbol t)))
 (define-type (SSH-Nameof t) (Pairof Symbol t))

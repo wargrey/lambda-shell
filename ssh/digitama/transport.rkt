@@ -10,7 +10,7 @@
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
 
-(require "assignment/transport.rkt")
+(require "assignment/disconnection.rkt")
 (require "message/transport.rkt")
 (require "message/authentication.rkt")
 

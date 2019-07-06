@@ -20,15 +20,21 @@
 
 (define-syntax (define-ssh-symbols stx)
   (syntax-case stx [:]
-    [(_ TypeU : Type ([enum val] ...))
-     (with-syntax ([$id (format-id #'TypeU "$~a" (syntax-e #'TypeU))]
-                   [id? (format-id #'TypeU "~a?" (syntax-e #'TypeU))]
-                   [(name ...) (for/list ([<enum> (in-syntax #'(enum ...))]) (ssh-typename <enum>))])
+    [(_ TypeU : Type #:fallback fallback ([enum val] ...))
+     (with-syntax* ([$id (format-id #'TypeU "$~a" (syntax-e #'TypeU))]
+                    [id? (format-id #'TypeU "~a?" (syntax-e #'TypeU))]
+                    [(name ...) (for/list ([<enum> (in-syntax #'(enum ...))]) (ssh-typename <enum>))]
+                    [fbname (let ([<fbname> (ssh-typename #'fallback)])
+                              (unless (memq (syntax-e <fbname>) (syntax->datum #'(name ...)))
+                                (raise-syntax-error 'define-ssh-symbols (format "the fall back value is not a symbol of ~a" (syntax-e #'TypeU)) #'fallback))
+                              <fbname>)])
        #'(begin (define-type TypeU (U 'name ... 'enum ...))
 
-                (define $id : (case-> [Symbol -> Type] [Integer -> TypeU])
-                  (λ [v] (cond [(symbol? v) (case v [(enum name) val] ... [else 0])]
-                               [else (case v [(val) 'name] ... [else (error 'TypeU "unrecognized assignment: ~a" v)])])))
+                (define $id : (case-> [-> (Listof TypeU)] [Symbol -> Type] [Integer -> TypeU])
+                  (case-lambda
+                    [() (list 'name ...)]
+                    [(v) (cond [(symbol? v) (case v [(enum name) val] ... [else ($id 'fbname)])]
+                               [else (case v [(val) 'name] ... [else 'fbname])])]))
 
                 (define id? : (-> Any Boolean : TypeU)
                   (λ [v] (cond [(or (eq? v 'name) (eq? v 'enum)) #true] ...

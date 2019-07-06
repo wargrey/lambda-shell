@@ -21,7 +21,7 @@
 
 (require "digitama/transport/identification.rkt")
 (require "digitama/message/transport.rkt")
-(require "digitama/assignment/transport.rkt")
+(require "digitama/assignment/disconnection.rkt")
 
 ;; register builtin assignments for algorithms
 (require "digitama/assignment/kex.rkt")
@@ -124,8 +124,8 @@
 
 (define ssh-port-write : (-> SSH-Port Any Void)
   (lambda [self payload]
-    (cond [(ssh-message? payload) (thread-send (ssh-port-ghostcat self) payload)]
-          [else (ssh-port-write self (make-ssh:msg:ignore #:data (format "~s" payload)))])))
+    (cond [(not (ssh-message? payload)) (ssh-port-write self (make-ssh:msg:ignore #:data (format "~s" payload)))]
+          [else (thread-send (ssh-port-ghostcat self) payload)])))
 
 (define ssh-port-debug : (->* (SSH-Port Any) (Boolean) Void)
   (lambda [self payload [display? #false]]

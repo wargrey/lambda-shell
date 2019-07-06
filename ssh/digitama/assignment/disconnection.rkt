@@ -7,7 +7,7 @@
 ; Symbols in [0xFE000000, 0xFFFFFFFF] are left for private use.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-symbols SSH-Disconnection-Reason : Index
+(define-ssh-symbols SSH-Disconnection-Reason : Index #:fallback SSH-DISCONNECT-RESERVED
   ; https://tools.ietf.org/html/rfc4250#section-4.2.2
   ([SSH_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT          1]
    [SSH_DISCONNECT_PROTOCOL_ERROR                       2]

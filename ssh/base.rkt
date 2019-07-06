@@ -2,13 +2,13 @@
 
 (provide (all-defined-out))
 
-(provide (all-from-out "assignment.rkt" "digitama/assignment/transport.rkt"))
+(provide (all-from-out "assignment.rkt" "digitama/assignment/disconnection.rkt"))
 (provide (all-from-out "transport.rkt" "authentication.rkt"))
 (provide (all-from-out "digitama/diagnostics.rkt"))
 (provide (all-from-out "configuration.rkt"))
 
 (require "assignment.rkt")
-(require "digitama/assignment/transport.rkt")
+(require "digitama/assignment/disconnection.rkt")
 
 (require "transport.rkt")
 (require "authentication.rkt")
