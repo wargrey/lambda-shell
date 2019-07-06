@@ -169,6 +169,6 @@
 (define ssh-deliver-error : (-> exn Output-Port Boolean)
   (lambda [e /dev/sshout]
     (cond [(not (exn:ssh:eof? e)) (write-special e /dev/sshout)]
-          [else (let ([reason (assert (exn:ssh:eof-reason e) SSH-Disconnection-Reason?)])
+          [else (let ([reason (exn:ssh:eof-reason e)])
                   (write-special (make-ssh:msg:disconnect #:reason reason #:description (exn-message e))
                                  /dev/sshout))])))

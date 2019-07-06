@@ -11,7 +11,7 @@
 
 (require "../../kex.rkt")
 (require "../../message.rkt")
-(require "../../diagnostics.rkt")
+(require "../../message/disconnection.rkt")
 
 (require "../../../datatype.rkt")
 
@@ -80,15 +80,13 @@
                      (define y : Integer (dh-random 0 q))
                      (define f : Integer (modular-expt g y p))
                      (define K : Integer (modular-expt e y p))
-                     (define K-S : Bytes ((ssh-hostkey-make-public-key hostkey) hostkey))
+                     (define K-S : Bytes (ssh-hostkey.make-public-key hostkey))
                      (define H : Bytes (dh-hash self K-S e f K))
-                     (define s : Bytes ((ssh-hostkey-sign hostkey) hostkey H))
+                     (define s : Bytes (ssh-hostkey.sign hostkey H))
                      
-                     (when (or (< e 1) (> e (sub1 p)))
-                       (throw+exn:ssh:kex self "'e' is out of range, expected in [1, p-1]"))
-                     
-                     (cons (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:s s)
-                           (cons K H))))))))
+                     (cond [(or (< e 1) (> e (sub1 p))) (make-ssh:disconnect:key:exchange:failed "'e' is out of range, expected in [1, p-1]")]
+                           [else (cons (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:s s)
+                                       (cons K H))])))))))
 
 (define ssh-diffie-hellman-exchange-verify : SSH-Kex-Verify
   (lambda [self reply]
@@ -106,13 +104,9 @@
                      (define s : Bytes (ssh:msg:kexdh:reply-s reply))
                      (define H : Bytes (dh-hash self K-S e f K))
                      
-                     (cond [(or (< f 1) (> f (sub1 p)))
-                            (throw+exn:ssh:kex self "'f' is out of range, expected in [1, p-1]")])
-                     
-                     (unless (bytes=? ((ssh-hostkey-sign hostkey) hostkey H) s)
-                       (throw+exn:ssh:kex:hostkey self "Hostkey signature is mismatch"))
-                     
-                     (cons K H)))))))
+                     (cond [(or (< f 1) (> f (sub1 p))) (make-ssh:disconnect:key:exchange:failed "'f' is out of range, expected in [1, p-1]")]
+                           [(not (bytes=? (ssh-hostkey.sign hostkey H) s)) (make-ssh:disconnect:host:key:not:verifiable "Hostkey signature is mismatch")]
+                           [else (cons K H)])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dh-random : (-> Byte Integer Integer)

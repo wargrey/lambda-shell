@@ -4,13 +4,13 @@
 ;;; https://tools.ietf.org/html/rfc4251
 
 (provide (all-defined-out))
-(provide (for-syntax ssh-typename ssh-typeid))
 
 (require racket/unsafe/ops)
 
 (require "datatype.rkt")
 (require "../datatype.rkt")
 
+(require "message/name.rkt")
 (require "message/condition.rkt")
 
 (require/typed "message/condition.rkt"
@@ -25,17 +25,6 @@
 (require (for-syntax "message/condition.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-for-syntax (ssh-typename <id>)
-  (format-id <id> "~a" (string-replace (symbol->string (syntax-e <id>)) "_" "-")))
-
-(define-for-syntax (ssh-typename* <id> <id-suffix>)
-  (syntax-case <id-suffix> []
-    [(suffix) (ssh-typename (format-id <id-suffix> "~a~a" (syntax-e <id>) (syntax-e #'suffix)))]
-    [suffix (ssh-typename (format-id <id-suffix> "~a_~a" (syntax-e <id>) (syntax-e #'suffix)))]))
-
-(define-for-syntax (ssh-typeid <id>)
-  (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) #px"[_-]" ":")))
-
 (define-for-syntax (ssh-message-constructors <ssh:msg>)
   (list (format-id <ssh:msg> "~a" (gensym (format "~a:" (syntax-e <ssh:msg>))))
         (format-id <ssh:msg> "make-~a" (syntax-e <ssh:msg>))))
@@ -79,7 +68,7 @@
     [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values #'ssh-name-length)]
     [(Bytes)       (list #'values #'ssh-bytes->bytes   #'ssh-values         #'values #'bytes-length)]
     [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
-                         [$type (format-id #'T "$~a" (syntax-e #'T))])
+                         [$type (ssh-symname #'T)])
             (case (syntax-e #'TypeOf)
               [(SSH-Bytes)       (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T) #'values #'bytes-length)]
               [(SSH-Symbol)      (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32          #'$type  #'ssh-uint32-length)]

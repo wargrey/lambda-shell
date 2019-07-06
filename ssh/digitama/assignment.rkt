@@ -6,10 +6,10 @@
 (provide (all-defined-out))
 
 (require "kex.rkt")
-(require "message.rkt")
 (require "userauth.rkt")
 (require "service.rkt")
 
+(require "message/name.rkt")
 (require "algorithm/pkcs1/hash.rkt")
 
 (require "../datatype.rkt")
@@ -20,25 +20,23 @@
 
 (define-syntax (define-ssh-symbols stx)
   (syntax-case stx [:]
-    [(_ TypeU : Type #:fallback fallback ([enum val] ...))
-     (with-syntax* ([$id (format-id #'TypeU "$~a" (syntax-e #'TypeU))]
-                    [id? (format-id #'TypeU "~a?" (syntax-e #'TypeU))]
+    [(_ TypeU #:as Type ([enum val] ...) #:fallback fallback)
+     (with-syntax* ([$Type (ssh-symname #'TypeU)]
+                    [#%Type (ssh-symid #'TypeU)]
                     [(name ...) (for/list ([<enum> (in-syntax #'(enum ...))]) (ssh-typename <enum>))]
                     [fbname (let ([<fbname> (ssh-typename #'fallback)])
                               (unless (memq (syntax-e <fbname>) (syntax->datum #'(name ...)))
                                 (raise-syntax-error 'define-ssh-symbols (format "the fall back value is not a symbol of ~a" (syntax-e #'TypeU)) #'fallback))
                               <fbname>)])
        #'(begin (define-type TypeU (U 'name ... 'enum ...))
+                
+                (define #%Type : (Pairof TypeU (Listof TypeU)) '(name ...))
 
-                (define $id : (case-> [-> (Listof TypeU)] [Symbol -> Type] [Integer -> TypeU])
+                (define $Type : (case-> [-> (Listof TypeU)] [Symbol -> Type] [Integer -> TypeU])
                   (case-lambda
                     [() (list 'name ...)]
-                    [(v) (cond [(symbol? v) (case v [(enum name) val] ... [else ($id 'fbname)])]
-                               [else (case v [(val) 'name] ... [else 'fbname])])]))
-
-                (define id? : (-> Any Boolean : TypeU)
-                  (λ [v] (cond [(or (eq? v 'name) (eq? v 'enum)) #true] ...
-                               [else #false])))))]))
+                    [(v) (cond [(symbol? v) (case v [(enum name) val] ... [else ($Type 'fbname)])]
+                               [else (case v [(val) 'name] ... [else 'fbname])])]))))]))
 
 (define-syntax (define-ssh-name stx)
   (syntax-case stx [:]

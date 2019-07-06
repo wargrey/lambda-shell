@@ -35,7 +35,7 @@
      flag-table
      (λ [!voids]
        (with-logging-to-port (current-output-port)
-         (λ [] (ssh-daemon (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level 'info))))
+         (λ [] (ssh-daemon (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level #false))))
          'debug))
      '()
      (compose1 exit display --help)

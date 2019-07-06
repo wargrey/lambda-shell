@@ -7,7 +7,7 @@
 ; Symbols in [0xFE000000, 0xFFFFFFFF] are left for private use.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-ssh-symbols SSH-Disconnection-Reason : Index #:fallback SSH-DISCONNECT-RESERVED
+(define-ssh-symbols SSH-Disconnection-Reason #:as Index
   ; https://tools.ietf.org/html/rfc4250#section-4.2.2
   ([SSH_DISCONNECT_HOST_NOT_ALLOWED_TO_CONNECT          1]
    [SSH_DISCONNECT_PROTOCOL_ERROR                       2]
@@ -23,4 +23,5 @@
    [SSH_DISCONNECT_TOO_MANY_CONNECTIONS                12]
    [SSH_DISCONNECT_AUTH_CANCELLED_BY_USER              13]
    [SSH_DISCONNECT_NO_MORE_AUTH_METHODS_AVAILABLE      14]
-   [SSH_DISCONNECT_ILLEGAL_USER_NAME                   15]))
+   [SSH_DISCONNECT_ILLEGAL_USER_NAME                   15])
+  #:fallback SSH-DISCONNECT-RESERVED)

@@ -11,7 +11,7 @@
 
 (require "../../kex.rkt")
 (require "../../message.rkt")
-(require "../../diagnostics.rkt")
+(require "../../message/disconnection.rkt")
 
 (require "../../../datatype.rkt")
 
@@ -89,12 +89,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dhg-request : (-> SSH-DHG-Kex (U SSH-MSG-KEX-DH-GEX-REQUEST-OLD SSH-MSG-KEX-DH-GEX-REQUEST) (Values SSH-Kex SSH-Message))
   (lambda [self req]
-    (define-values (dh-group bits-range)
+    (define-values (maybe-group bits-range)
       (cond [(ssh:msg:kex:dh:gex:request:old? req) (dhg-seek self (ssh:msg:kex:dh:gex:request:old-n req))]
             [else (dhg-seek self (ssh:msg:kex:dh:gex:request-min req) (ssh:msg:kex:dh:gex:request-n req) (ssh:msg:kex:dh:gex:request-max req))]))
 
-    (values (struct-copy ssh-dhg-kex self [reqbits bits-range] [p (dh-modp-group-p dh-group)] [g (dh-modp-group-g dh-group)])
-            (make-ssh:msg:kex:dh:gex:group #:p (dh-modp-group-p dh-group) #:g (dh-modp-group-g dh-group)))))
+    (cond [(ssh-message? maybe-group) (values self maybe-group)]
+          [else (values (struct-copy ssh-dhg-kex self [reqbits bits-range] [p (dh-modp-group-p maybe-group)] [g (dh-modp-group-g maybe-group)])
+                        (make-ssh:msg:kex:dh:gex:group #:p (dh-modp-group-p maybe-group) #:g (dh-modp-group-g maybe-group)))])))
 
 (define dhg-init : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-GROUP (Values SSH-Kex SSH-Message))
   (lambda [self req]
@@ -106,69 +107,65 @@
     (values (struct-copy ssh-dhg-kex self [p p] [g g] [x x] [e e])
             (make-ssh:msg:kex:dh:gex:init #:e e))))
 
-(define dhg-reply : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-INIT (Values SSH-Kex (Pairof SSH-Message (Pairof Integer Bytes))))
+(define dhg-reply : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-INIT (Values SSH-Kex (U SSH-Message (Pairof SSH-Message (Pairof Integer Bytes)))))
   (lambda [self req]
-    (define hostkey : SSH-Hostkey (ssh-kex-hostkey self))
-
-    (define g : Integer (ssh-dhg-kex-g self))
-    (define p : Integer (ssh-dhg-kex-p self))
-    (define e : Integer (ssh:msg:kex:dh:gex:init-e req))
-    (define y : Integer (dhg-random 0 p)) ; y <- (0, q)
-    (define f : Integer (modular-expt g y p))
-    (define K : Integer (modular-expt e y p))
-    (define K-S : Bytes (ssh-hostkey.make-public-key hostkey))
-    (define H : Bytes (dhg-hash self K-S e f K))
-    (define s : Bytes (ssh-hostkey.sign hostkey H))
-    
-    (when (or (< e 1) (> e (sub1 p)))
-      (throw+exn:ssh:kex self "'e' is out of range, expected in [1, p-1]"))
-
     (values self
-            (cons (make-ssh:msg:kex:dh:gex:reply #:K-S K-S #:f f #:s s)
-                  (cons K H)))))
+            (let ([hostkey (ssh-kex-hostkey self)])
+              (define g : Integer (ssh-dhg-kex-g self))
+              (define p : Integer (ssh-dhg-kex-p self))
+              (define e : Integer (ssh:msg:kex:dh:gex:init-e req))
+              (define y : Integer (dhg-random 0 p)) ; y <- (0, q)
+              (define f : Integer (modular-expt g y p))
+              (define K : Integer (modular-expt e y p))
+              (define K-S : Bytes (ssh-hostkey.make-public-key hostkey))
+              (define H : Bytes (dhg-hash self K-S e f K))
+              (define s : Bytes (ssh-hostkey.sign hostkey H))
+              
+              (cond [(or (< e 1) (> e (sub1 p))) (make-ssh:disconnect:key:exchange:failed "'e' is out of range, expected in [1, p-1]")]
+                    [else (cons (make-ssh:msg:kex:dh:gex:reply #:K-S K-S #:f f #:s s)
+                                (cons K H))])))))
 
-(define dhg-verify : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-REPLY (Values SSH-Kex (Pairof Integer Bytes)))
+(define dhg-verify : (-> SSH-DHG-Kex SSH-MSG-KEX-DH-GEX-REPLY (Values SSH-Kex (U SSH-Message (Pairof Integer Bytes))))
   (lambda [self reply]
-    (define hostkey : SSH-Hostkey (ssh-kex-hostkey self))
-
-    (define p : Integer (ssh-dhg-kex-p self))
-    (define x : Integer (ssh-dhg-kex-x self))
-    (define e : Integer (ssh-dhg-kex-e self))
-    (define f : Integer (ssh:msg:kex:dh:gex:reply-f reply))
-    (define K : Integer (modular-expt f x p))
-    (define K-S : Bytes (ssh:msg:kex:dh:gex:reply-K-S reply))
-    (define s : Bytes (ssh:msg:kex:dh:gex:reply-s reply))
-    (define H : Bytes (dhg-hash self K-S e f K))
-    
-    (when (or (< f 1) (> f (sub1 p)))
-      (throw+exn:ssh:kex self "'f' is out of range, expected in [1, p-1]"))
-    
-    (unless (bytes=? ((ssh-hostkey-sign hostkey) hostkey H) s)
-      (throw+exn:ssh:kex:hostkey self "Hostkey signature is mismatch"))
-    
-    (values self (cons K H))))
+    (values self
+            (let ([hostkey (ssh-kex-hostkey self)])
+              (define p : Integer (ssh-dhg-kex-p self))
+              (define x : Integer (ssh-dhg-kex-x self))
+              (define e : Integer (ssh-dhg-kex-e self))
+              (define f : Integer (ssh:msg:kex:dh:gex:reply-f reply))
+              (define K : Integer (modular-expt f x p))
+              (define K-S : Bytes (ssh:msg:kex:dh:gex:reply-K-S reply))
+              (define s : Bytes (ssh:msg:kex:dh:gex:reply-s reply))
+              (define H : Bytes (dhg-hash self K-S e f K))
+              
+              (cond [(or (< f 1) (> f (sub1 p))) (make-ssh:disconnect:key:exchange:failed "'f' is out of range, expected in [1, p-1]")]
+                    [(not (bytes=? (ssh-hostkey.sign hostkey H) s)) (make-ssh:disconnect:host:key:not:verifiable "Hostkey signature is mismatch")]
+                    [else (cons K H)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define dhg-seek : (case-> [SSH-DHG-Kex Index -> (Values DH-MODP-Group (Listof Index))]
-                           [SSH-DHG-Kex Index Index Index -> (Values DH-MODP-Group (Listof Index))])
+(define dhg-seek : (case-> [SSH-DHG-Kex Index -> (Values (U DH-MODP-Group SSH-Message) (Listof Index))]
+                           [SSH-DHG-Kex Index Index Index -> (Values (U DH-MODP-Group SSH-Message) (Listof Index))])
   (case-lambda
     [(self n)
      (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
 
-     (cond [(< n minbits) (throw+exn:ssh:kex dhg-request "the requested prime is too small: (~a < ~a)" n minbits)]
-           [else (values (hash-ref dh-modp-groups n (λ [] (throw+exn:ssh:kex dhg-request "unable to find the ~a-bits-sized prime" n)))
-                         (list n))])]
+     (values
+      (cond [(< n minbits) (make-ssh:disconnect:key:exchange:failed "the requested prime is too small: (~a < ~a)" n minbits)]
+            [else (hash-ref dh-modp-groups n (λ [] (make-ssh:disconnect:key:exchange:failed "unable to find a ~a-bits-sized prime" n)))])
+      (list n))]
     [(self smallest preferred biggest)
      (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
-     (cond [(not (<= smallest preferred biggest)) (throw+exn:ssh:kex dhg-request "invalid prime size range: (~a <= ~a <= ~a)" smallest preferred biggest)]
-           [(< biggest minbits) (throw+exn:ssh:kex dhg-request "the requested prime is too small: (~a < ~a)" biggest minbits)]
-           [else (let ([n (max smallest minbits)])
-                   (values (hash-ref dh-modp-groups n
-                                     (λ [] (let seek : DH-MODP-Group ([ns : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
-                                             (cond [(null? ns) (throw+exn:ssh:kex dhg-request "unable to find a prime in range [~a, ~a]" n biggest)]
-                                                   [(<= n (car ns) biggest) (hash-ref dh-modp-groups (car ns))]
-                                                   [else (seek (cdr ns))]))))
-                           (list smallest preferred biggest)))])]))
+
+     (values
+      (cond [(not (<= smallest preferred biggest)) (make-ssh:disconnect:key:exchange:failed "invalid prime size range: (~a <= ~a <= ~a)" smallest preferred biggest)]
+            [(< biggest minbits) (make-ssh:disconnect:key:exchange:failed "the requested prime is too small: (~a < ~a)" biggest minbits)]
+            [else (let ([n (max smallest minbits)])
+                    (hash-ref dh-modp-groups n
+                              (λ [] (let seek : (U DH-MODP-Group SSH-Message) ([ns : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
+                                      (cond [(null? ns) (make-ssh:disconnect:key:exchange:failed "unable to find a prime in range [~a, ~a]" n biggest)]
+                                            [(<= n (car ns) biggest) (hash-ref dh-modp-groups (car ns))]
+                                            [else (seek (cdr ns))])))))])
+      (list smallest preferred biggest))]))
 
 (define dhg-random : (-> Byte Integer Integer)
   (lambda [open-min p]
