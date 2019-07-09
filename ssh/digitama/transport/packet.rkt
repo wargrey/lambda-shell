@@ -7,8 +7,13 @@
 (require digimon/number)
 (require digimon/format)
 
-(require "../../datatype.rkt")
+(require "prompt.rkt")
+
 (require "../diagnostics.rkt")
+(require "../message/transport.rkt")
+(require "../message/disconnection.rkt")
+
+(require "../../datatype.rkt")
 
 #|
  uint32    packet_sequence_number ([0, #xFFFFFFFF], never reset, cyclic, not sent over the wire)
@@ -71,7 +76,7 @@
       (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
 
       (unless (bytes=? checksum digest)
-        (throw+exn:ssh:mac ssh-read-cipher-packet "corrupted packet")))
+        (ssh-collapse (make-ssh:disconnect:mac:error #:source ssh-read-cipher-packet "corrupted packet"))))
     
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
     
@@ -147,9 +152,9 @@
     (define payload-length : Fixnum (- packet-length (+ padding-length 1)))
     
     (cond [(< payload-length 0)
-           (throw+exn:ssh:defence fsrc "invalid payload length: ~a" (~size payload-length))]
+           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "invalid payload length: ~a" (~size payload-length)))]
           [(> payload-length payload-capacity)
-           (throw+exn:ssh:defence fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity))]
+           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity)))]
           [else payload-length])))
 
 (define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)
@@ -202,4 +207,6 @@
 (define ssh-read-bytes! : (-> Input-Port Bytes Nonnegative-Fixnum Nonnegative-Fixnum Procedure Void)
   (lambda [/dev/sshin parcel start end func]
     (when (eof-object? (read-bytes! parcel /dev/sshin start end))
-      (ssh-raise-eof-error func 'SSH-DISCONNECT-CONNECTION-LOST "connection closed by peer"))))
+      (let ([eof-msg (make-ssh:disconnect:connection:lost "connection closed by peer")])
+        (ssh-log-message 'warning (ssh:msg:disconnect-description eof-msg) #:data eof-msg)
+        (ssh-collapse eof-msg)))))

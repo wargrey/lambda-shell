@@ -15,13 +15,24 @@
       [(field FieldType) (values #'[field : FieldType] #'field)]
 
       ; TODO: why it fails when `defval` is using other field names?
-      [(field FieldType defval) (values #'[field : (Option FieldType) #false] #'(or field defval))]
+      [(field FieldType defval) (values #'[field : (U FieldType Void) (void)] #'(if (void? field) defval field))]
       [_ (raise-syntax-error 'define-ssh-message-field "malformed field declaration" <declaration>)]))
   (values <kw-name> <argls> <value>))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (SSH-Bytes->Datum t) (->* (Bytes) (Natural) (Values t Natural)))
 (define-type (SSH-Datum->Bytes t) (case-> [-> t Bytes] [->* (t Bytes) (Natural) Natural]))
+(define-type (SSH-Void t) t)
+
+(define ssh-ghost-length : (-> Any Zero)
+  (lambda [?]
+    0))
+
+(define ssh-ghost->bytes : (SSH-Datum->Bytes Any)
+  (case-lambda
+      [(bool) #""]
+      [(bool pool) (ssh-ghost->bytes bool pool 0)]
+      [(bool pool offset) offset]))
 
 (define ssh-values : (SSH-Bytes->Datum Bytes)
   (lambda [braw [offset 0]]

@@ -10,12 +10,13 @@
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
 
-(require "assignment/disconnection.rkt")
 (require "message/transport.rkt")
 (require "message/authentication.rkt")
+(require "message/disconnection.rkt")
 
 (require "diagnostics.rkt")
 
+(require "../kex.rkt")
 (require "../message.rkt")
 (require "../configuration.rkt")
 
@@ -53,7 +54,9 @@
 
              (parameterize ([current-client-identification identification]
                             [current-server-identification (ssh-identification-raw peer)])
-               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #false)))))))
+               (call-with-escape-continuation
+                (λ [[escape : (-> Any Nothing)]]
+                  (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #false escape)))))))))
 
 (define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
@@ -66,64 +69,80 @@
 
              (parameterize ([current-client-identification (ssh-identification-raw peer)]
                             [current-server-identification identification])
-               (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #true)))))))
+               (call-with-escape-continuation
+                (λ [[escape : (-> Any Nothing)]]
+                  (ssh-sync-handle-feedback-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #true escape)))))))))
 
-(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
+(define ssh-sync-handle-feedback-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean (-> Any Nothing) Any)
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server? escape]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (define self : Thread (current-thread))
-    
-    (let sync-handle-feedback-loop : Void ([maybe-rekex : (Option Thread) #false]
-                                           [kexinit : SSH-MSG-KEXINIT kexinit]
-                                           [newkeys : Maybe-Newkeys (make-ssh-parcel ($ssh-payload-capacity rfc))]
-                                           [incoming-traffic : Integer rekex-traffic]
-                                           [outgoing-traffic : Integer rekex-traffic]
-                                           [authenticated : Boolean #false])
+
+    (let ghostcat : Void ([rekex : (U SSH-Kex (Pairof SSH-Kex (Pairof Integer Bytes)) False) #false]
+                          [algorithms : (Option SSH-Transport-Algorithms) #false]
+                          [kexinit : SSH-MSG-KEXINIT kexinit]
+                          [newkeys : Maybe-Newkeys (make-ssh-parcel ($ssh-payload-capacity rfc))]
+                          [inflights : (Option (Listof SSH-Message)) #false] ; to reduce args, #false => |we haven't sent kexinit|
+                          [incoming : Integer rekex-traffic]
+                          [outgoing : Integer rekex-traffic]
+                          [authenticated : Boolean #false])
       (define evt : Any
-        (cond [(and (not maybe-rekex) (or (>= incoming-traffic rekex-traffic) (>= outgoing-traffic rekex-traffic))) kexinit]
-              [else (sync/enable-break /dev/sshin (or maybe-rekex /dev/tcpin))]))
-
-      (define-values (maybe-task maybe-newkeys incoming++ outgoing++ maybe-authenticated)
-        (cond [(tcp-port? evt)
-               (define-values (msg payload itraffic++) (ssh-read-transport-message /dev/tcpin rfc newkeys #false))
-               (define maybe-task : Any
-                 (cond [(not msg) (ssh-deliver-message payload /dev/sshout authenticated)]
-                       [(ssh:msg:kexinit? msg) (ssh-kex/starts-with-peer msg kexinit /dev/tcpin /dev/tcpout rfc newkeys payload server?)]
-                       [(ssh-message-undefined? msg) (thread-send self (make-ssh:msg:unimplemented #:number (ssh-message-number msg)))]
-                       [(ssh-ignored-incoming-message? msg) (void)]
-                       [(not (ssh:msg:service:request? msg)) (write-special msg /dev/sshout)]
-                       [else (let ([service (ssh:msg:service:request-name msg)])
-                               (cond [(and authenticated) (write-special msg /dev/sshout)]
-                                     [else (thread-send self (cond [(and server? (eq? service 'ssh-userauth)) (ssh-service-accept-message service)]
-                                                                   [else (make-ssh:msg:disconnect #:reason 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
-                                                                                                  #:description (ssh-service-reject-description service))]))]))]))
-               (values (and (thread? maybe-task) maybe-task) newkeys itraffic++ 0 authenticated)]
-
-              [(ssh-message? evt)
-               (if (not maybe-rekex)
-                   (cond [(ssh:msg:kexinit? evt) (values (ssh-kex/starts-with-self evt /dev/tcpin /dev/tcpout rfc newkeys server?) newkeys 0 0 authenticated)]
-                         [else (values maybe-rekex newkeys 0 (ssh-write-message /dev/tcpout evt rfc newkeys) (or authenticated (ssh:msg:userauth:success? evt)))])
-                   (cond [(ssh-kex-transparent-message? evt) (values maybe-rekex newkeys 0 (ssh-write-message /dev/tcpout evt rfc newkeys) authenticated)]
-                         [else (thread-send maybe-rekex evt) (values maybe-rekex newkeys 0 0 authenticated)]))]
-              
-              [(and (pair? evt) (ssh-newkeys? (car evt)) (exact-nonnegative-integer? (cdr evt)))
-               (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
-                 (write-special (ssh-newkeys-identity (car evt)) /dev/sshout))
-               (values #false (car evt) (- incoming-traffic) (- (cdr evt) outgoing-traffic) authenticated)]
-
-              [(exn? evt)
-               
-               (raise evt)]
-        
-              [else (values maybe-rekex newkeys 0 0 authenticated)]))
+        (cond [(and (not rekex) (or (>= incoming rekex-traffic) (>= outgoing rekex-traffic))) kexinit]
+              [else (sync/enable-break /dev/sshin /dev/tcpin)]))
       
-      (sync-handle-feedback-loop maybe-task (if (ssh:msg:kexinit? evt) evt kexinit) maybe-newkeys
-                                 (+ incoming-traffic incoming++) (+ outgoing-traffic outgoing++)
-                                 maybe-authenticated))))
+      (cond [(tcp-port? evt)
+             (define-values (msg payload traffic)
+               (ssh-read-transport-message /dev/tcpin rfc newkeys
+                                           (cond [(not rekex) #false]
+                                                 [(ssh-kex? rekex) (ssh-kex-name rekex)]
+                                                 [else (ssh-kex-name (car rekex))])))
+             
+             (define maybe-rekex : Any
+               (cond [(not msg) (ssh-deliver-message payload /dev/sshout authenticated)]
+                     [(ssh-ignored-incoming-message? msg) (void)]
+                     [(and rekex #| coincide with |# algorithms) 
+                      (void)]
+                     
+                     [(ssh:msg:kexinit? msg)
+                      (unless (list? inflights) (ssh-write-message /dev/tcpout kexinit rfc newkeys))
+                      (cond [(and server?) (ssh-kex-instantiate/server kexinit msg rfc payload escape)]
+                            [else (let-values ([(kex-self req) (ssh-kex-instantiate/client kexinit msg rfc newkeys payload escape)])
+                                    kex-self)])]
+                     
+                     [(and (not authenticated) (ssh:msg:service:request? msg))
+                      (define service : Symbol (ssh:msg:service:request-name msg))
+                      (thread-send self (cond [(and server? (eq? service 'ssh-userauth)) (ssh-service-accept-message service)]
+                                              [else (make-ssh:disconnect:service:not:available (ssh-service-reject-description service))]))]
+                     
+                     [else (write-special msg /dev/sshout)]))
+             
+             (let ([incoming++ (+ incoming traffic)])
+               (cond [(ssh-kex? maybe-rekex) (ghostcat maybe-rekex algorithms kexinit newkeys (or inflights null) incoming++ outgoing authenticated)]
+                     [else (ghostcat rekex algorithms kexinit newkeys inflights incoming++ outgoing authenticated)]))]
+            
+            [(ssh-message? evt)
+             (if (not rekex)
+                 (let ([traffic (ssh-write-message /dev/tcpout evt rfc newkeys)])
+                   (if (ssh:msg:kexinit? evt)
+                       (ghostcat rekex algorithms evt newkeys null #|we have sent kexinit|# incoming (+ outgoing traffic) authenticated)
+                       (ghostcat rekex algorithms kexinit newkeys inflights incoming (+ outgoing traffic) (or authenticated (ssh:msg:userauth:success? evt)))))
+                 (if (ssh-kex-transparent-message? evt)
+                     (let ([traffic (ssh-write-message /dev/tcpout evt rfc newkeys)])
+                       (ghostcat rekex algorithms kexinit newkeys inflights incoming (+ outgoing traffic) authenticated))
+                     (ghostcat rekex algorithms kexinit newkeys (if (list? inflights) (cons evt inflights) (list evt)) incoming outgoing authenticated)))]
+            
+            [(and (pair? evt) (ssh-newkeys? (car evt)) (exact-nonnegative-integer? (cdr evt)))
+             (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
+               (write-special (ssh-newkeys-identity (car evt)) /dev/sshout))
+             (ghostcat #false algorithms kexinit (car evt) inflights 0 (cdr evt) authenticated)]
+            
+            [else ; maybe the application want to make jokes
+             (define traffic : Integer (ssh-write-message /dev/tcpout (make-ssh:msg:ignore #:data (format "~s" evt)) rfc newkeys))
+             (ghostcat rekex algorithms kexinit newkeys inflights incoming (+ outgoing traffic) authenticated)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-disconnect : (->* (Output-Port SSH-Disconnection-Reason SSH-Configuration Maybe-Newkeys) ((U String exn False)) Natural)
+(define ssh-disconnect : (->* (Output-Port Symbol SSH-Configuration Maybe-Newkeys) ((U String exn False)) Natural)
   (lambda [/dev/tcpout reason rfc newkeys [details #false]]
     (define description : (Option String) (if (exn? details) (exn-message details) details))
     (define msg : SSH-Message (make-ssh:msg:disconnect #:reason reason #:description description))
@@ -139,7 +158,7 @@
   (lambda [service]
     (format "service '~a' not available" service)))
 
-(define ssh-sync-disconnect : (->* (Thread SSH-Disconnection-Reason) ((Option String)) Void)
+(define ssh-sync-disconnect : (->* (Thread Symbol) ((Option String)) Void)
   (lambda [self reason [description #false]]
     (thread-send self (make-ssh:msg:disconnect #:reason reason #:description description))
     (thread-wait self)))

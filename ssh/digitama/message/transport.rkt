@@ -19,7 +19,8 @@
   ; for http://tools.ietf.org/html/rfc4253
   [SSH_MSG_DISCONNECT                 1 ([reason : (SSH-Symbol SSH-Disconnection-Reason)]
                                          [description : String (symbol->string reason)]
-                                         [language : Symbol '||])]
+                                         [language : Symbol '||]
+                                         [peer? : (SSH-Void Boolean) #true])]
   [SSH_MSG_IGNORE                     2 ([data : String ""])]
   [SSH_MSG_UNIMPLEMENTED              3 ([number : Index])]
   [SSH_MSG_DEBUG                      4 ([display? : Boolean #false] [message : String] [language : Symbol '||])]

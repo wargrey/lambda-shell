@@ -24,17 +24,6 @@
 (define-exception exn:ssh:mac exn:ssh () (ssh-exn-message))
 (define-exception exn:ssh:fsio exn:fail:filesystem () (ssh-exn-fsio-message [/dev/stdin : Input-Port] [line : (Option Natural)] [col : (Option Natural)]))
 
-(define ssh-raise-eof-error : (->* (Procedure Symbol String) (#:logging? Boolean) #:rest Any Nothing)
-  (lambda [func reason #:logging? [logging? #true] msgfmt . argl]
-    (define errobj : SSH-Error
-      (exn:ssh:eof (ssh-exn-message func (default-exn-message msgfmt argl))
-                   (current-continuation-marks) reason))
-
-    (when logging?
-      (default-log-error errobj))
-    
-    (raise errobj)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-message : (->* (Log-Level String) (#:data Any #:with-peer-name? Boolean) #:rest Any Void)
   (lambda [level msgfmt #:data [data #false] #:with-peer-name? [peername? #true] . argl]

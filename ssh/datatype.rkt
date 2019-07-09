@@ -2,7 +2,7 @@
 
 ;;; http://tools.ietf.org/html/rfc4251#section-5
 
-(provide (all-defined-out) SSH-Datum->Bytes SSH-Bytes->Datum)
+(provide (all-defined-out) SSH-Datum->Bytes SSH-Bytes->Datum SSH-Void)
 
 (require racket/string)
 

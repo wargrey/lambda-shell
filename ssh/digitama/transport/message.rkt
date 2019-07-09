@@ -42,7 +42,7 @@
     (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
     (ssh-log-outgoing-message msg 'debug)
 
-    (when (ssh:msg:disconnect? msg)
+    #;(when (ssh:msg:disconnect? msg)
       (ssh-suicide ssh-write-message msg))
 
     traffic))
@@ -70,7 +70,7 @@
       (cond [(ssh:msg:debug? maybe-trans-msg)
              (($ssh-debug-message-handler rfc)
               (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))]
-            [(ssh:msg:disconnect? maybe-trans-msg)
+            #;[(ssh:msg:disconnect? maybe-trans-msg)
              (ssh-suicide ssh-read-transport-message maybe-trans-msg)]))
 
     (values maybe-trans-msg
@@ -147,8 +147,3 @@
            (ssh-log-message #:with-peer-name? #false
                             level "~a accepts the request for service '~a'"
                             (current-peer-name) (ssh:msg:service:accept-name msg))])))
-
-(define ssh-suicide : (-> Procedure SSH-MSG-DISCONNECT Nothing)
-  (lambda [func msg]
-    (ssh-raise-eof-error func (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg)
-                         #:logging? #false)))
