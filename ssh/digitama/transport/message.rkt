@@ -6,12 +6,14 @@
 
 (require "packet.rkt")
 (require "newkeys.rkt")
+(require "prompt.rkt")
 
 (require "../message.rkt")
 (require "../diagnostics.rkt")
 
 (require "../assignment/message.rkt")
 (require "../message/transport.rkt")
+(require "../message/disconnection.rkt")
 
 (require "../../configuration.rkt")
 
@@ -42,8 +44,8 @@
     (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
     (ssh-log-outgoing-message msg 'debug)
 
-    #;(when (ssh:msg:disconnect? msg)
-      (ssh-suicide ssh-write-message msg))
+    (when (ssh:msg:disconnect? msg)
+      (ssh-collapse msg))
 
     traffic))
 
@@ -70,8 +72,8 @@
       (cond [(ssh:msg:debug? maybe-trans-msg)
              (($ssh-debug-message-handler rfc)
               (ssh:msg:debug-display? maybe-trans-msg) (ssh:msg:debug-message maybe-trans-msg) (ssh:msg:debug-language maybe-trans-msg))]
-            #;[(ssh:msg:disconnect? maybe-trans-msg)
-             (ssh-suicide ssh-read-transport-message maybe-trans-msg)]))
+            [(ssh:msg:disconnect? maybe-trans-msg)
+             (ssh-collapse maybe-trans-msg)]))
 
     (values maybe-trans-msg
             (cond [(and maybe-trans-msg (not (ssh:msg:kexinit? maybe-trans-msg))) #"" #| useless but to satisfy the type system |#]

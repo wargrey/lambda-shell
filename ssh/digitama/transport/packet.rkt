@@ -207,6 +207,6 @@
 (define ssh-read-bytes! : (-> Input-Port Bytes Nonnegative-Fixnum Nonnegative-Fixnum Procedure Void)
   (lambda [/dev/sshin parcel start end func]
     (when (eof-object? (read-bytes! parcel /dev/sshin start end))
-      (let ([eof-msg (make-ssh:disconnect:connection:lost "connection closed by peer")])
+      (let ([eof-msg (make-ssh:disconnect:connection:lost #:source func "connection closed by peer")])
         (ssh-log-message 'warning (ssh:msg:disconnect-description eof-msg) #:data eof-msg)
         (ssh-collapse eof-msg)))))

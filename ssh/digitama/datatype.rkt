@@ -22,7 +22,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (SSH-Bytes->Datum t) (->* (Bytes) (Natural) (Values t Natural)))
 (define-type (SSH-Datum->Bytes t) (case-> [-> t Bytes] [->* (t Bytes) (Natural) Natural]))
-(define-type (SSH-Void t) t)
+(define-type (SSH-Void T v) T)
 
 (define ssh-ghost-length : (-> Any Zero)
   (lambda [?]

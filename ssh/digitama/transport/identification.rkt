@@ -12,6 +12,10 @@
 (require typed/setup/getinfo)
 
 (require "../diagnostics.rkt")
+
+(require "../message/transport.rkt")
+(require "../message/disconnection.rkt")
+
 (require "../../configuration.rkt")
 
 (struct ssh-identification
@@ -40,27 +44,26 @@
     (write-char #\linefeed /dev/sshout)
     (flush-output /dev/sshout)))
 
-(define ssh-read-server-identification : (-> Input-Port SSH-Configuration SSH-Identification)
+(define ssh-read-server-identification : (-> Input-Port SSH-Configuration (U SSH-Identification SSH-MSG-DISCONNECT))
   (lambda [/dev/sshin rfc]
     (define line : String (make-string (max ($ssh-longest-identification-length rfc) ($ssh-longest-server-banner-length rfc))))
     (define message-handler : SSH-Server-Line-Handler ($ssh-server-banner-handler rfc))
-    (let read-check-notify-loop ([count : Nonnegative-Fixnum 0])
-      (cond [(< count ($ssh-maximum-server-banner-count rfc))
-             (read-string! line /dev/sshin 0 4)
-             (unless (string-prefix? line "SSH-")
-               (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-banner-length rfc))])
-                 (cond [(not maybe-end-index) (throw+exn:ssh:defence ssh-read-server-identification "banner message overlength: ~s" line)]
-                       [else (message-handler (substring line 0 maybe-end-index))])
-                 (read-check-notify-loop (+ count 1))))]
-            [else (throw+exn:ssh:defence ssh-read-server-identification "too many banner messages")]))
-    (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length rfc))))
+    (or (let read-check-notify-loop : (Option SSH-MSG-DISCONNECT) ([count : Nonnegative-Fixnum 0])
+          (cond [(< count ($ssh-maximum-server-banner-count rfc))
+                 (read-string! line /dev/sshin 0 4)
+                 (and (not (string-prefix? line "SSH-"))
+                      (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-banner-length rfc))])
+                        (cond [(and maybe-end-index) (message-handler (substring line 0 maybe-end-index)) (read-check-notify-loop (+ count 1))]
+                              [else (make-ssh:disconnect:protocol:error #:source ssh-read-server-identification "banner message overlength: ~s" line)])))]
+                [else (make-ssh:disconnect:protocol:error #:source ssh-read-server-identification "too many banner messages")]))
+        (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length rfc) rfc ssh-read-server-identification))))
 
-(define ssh-read-client-identification : (-> Input-Port SSH-Configuration SSH-Identification)
+(define ssh-read-client-identification : (-> Input-Port SSH-Configuration (U SSH-Identification SSH-MSG-DISCONNECT))
   (lambda [/dev/sshin option]
     (define line : String (make-string ($ssh-longest-identification-length option)))
     (read-string! line /dev/sshin 0 4)
-    (cond [(string-prefix? line "SSH-") (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length option))]
-          [else (throw+exn:ssh:identification ssh-read-client-identification "not a SSH client: ~s" (substring line 0 4))])))
+    (cond [(string-prefix? line "SSH-") (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length option) #false ssh-read-client-identification)]
+          [else (make-ssh:disconnect:protocol:error #:source ssh-read-client-identification "not a SSH client: ~s" (substring line 0 4))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-software-version : (-> String)
@@ -108,8 +111,8 @@
                    [(or (eq? maybe-ch #\linefeed) (eof-object? maybe-ch)) end-idx]
                    [else (string-set! destline idx maybe-ch) (read-loop next-idx next-idx)]))))))
 
-(define read-peer-identification : (-> Input-Port String Positive-Index Positive-Index SSH-Identification)
-  (lambda [/dev/sshin destline idx0 idx-max]
+(define read-peer-identification : (-> Input-Port String Positive-Index Positive-Index (Option SSH-Configuration) Procedure (U SSH-Identification SSH-MSG-DISCONNECT))
+  (lambda [/dev/sshin destline idx0 idx-max rfc src]
     (define-values (maybe-end-idx maybe-protoversion maybe-softwareversion maybe-comments)
       (let read-loop : (Values (Option Positive-Index) (Option Positive-Flonum) (Option String) (Option String))
         ([idx : Positive-Index idx0]
@@ -142,7 +145,9 @@
                                         comments #true)]
                             [else (string-set! destline idx maybe-ch)
                                   (read-loop next-idx next-idx token-idx protoversion softwareversion comments space?)]))])))
-    (or (and maybe-end-idx maybe-protoversion maybe-softwareversion
-             (ssh-identification maybe-protoversion maybe-softwareversion
-                                 (or maybe-comments "") (substring destline 0 maybe-end-idx)))
-        (throw+exn:ssh:identification read-peer-identification "invalid identification: ~s" (substring destline 0 (or maybe-end-idx idx-max))))))
+    (let ([idstr (substring destline 0 (or maybe-end-idx idx-max))])
+      (cond [(not (and maybe-end-idx maybe-protoversion maybe-softwareversion))
+             (make-ssh:disconnect:protocol:error #:source src "invalid identification: ~s" idstr)]
+            [(and rfc (not (= maybe-protoversion ($ssh-protoversion rfc))))
+             (make-ssh:disconnect:protocol:version:not:supported #:source src "incompatible protoversion: ~a(~s)" maybe-protoversion idstr)]
+            [else (ssh-identification maybe-protoversion maybe-softwareversion (or maybe-comments "") idstr)]))))

@@ -52,5 +52,5 @@
       (define psLen : Integer (- emLen tLen 3))
 
       (cond [(byte? psLen) (bytes-append 0x0001 (make-bytes psLen #xFF) 0x00 T)]
-            [else (make+exn:ssh:kex src "intended encoding message length too short (~a < ~a)" embits (+ tLen 3))
+            [else (ssh-log-message 'error "intended encoding message length too short (~a < ~a)" embits (+ tLen 3))
                   (bytes-append 0x0001 0x00 T)]))))

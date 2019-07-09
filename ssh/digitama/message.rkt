@@ -46,29 +46,27 @@
               (cons <value> slav))))
   (list kw-args (reverse seulav)))
 
-(define-for-syntax (ssh-message-field-transforms ssh:msg <fields> <FieldTypes> <defvals>)
+(define-for-syntax (ssh-message-field-transforms ssh:msg <fields> <FieldTypes>)
   (for/list ([<field> (in-syntax <fields>)]
-             [<FType> (in-syntax <FieldTypes>)]
-             [<defval> (in-syntax <defvals>)])
+             [<FType> (in-syntax <FieldTypes>)])
     (list (format-id <field> "~a-~a" ssh:msg (syntax-e <field>))
-          (ssh-datum-pipeline 'define-ssh-messages <FType> <defval>))))
+          (ssh-datum-pipeline 'define-ssh-messages <FType>))))
 
 (define-for-syntax (ssh-make-nbytes->bytes <n>)
   #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Natural)
       (let ([end (+ offset #,(syntax-e <n>))])
         (values (subbytes braw offset end) end))))
 
-(define-for-syntax (ssh-make-ghost->bytes <T> <v> <src>)
-  (define vs (syntax->list <v>))
+(define-for-syntax (ssh-make-ghost->bytes <T> <vs> <src>)
+  (define vs (syntax->list <vs>))
 
-  (when (null? vs)
-    (raise-syntax-error 'ssh-make-ghost->bytes
-                        "non-SSH field must have a constant value" <src>))
+  (cond [(null? vs) (raise-syntax-error 'ssh-make-ghost->bytes "SSH-Void requires a constant value" <src>)]
+        [(> (length vs) 1) (raise-syntax-error 'ssh-make-ghost->bytes "SSH-Void requires only one constant value" <src> #false (cdr vs))])
   
   #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values #,(syntax-e <T>) Natural)
-      (values (begin #,@(map syntax-e vs)) offset)))
+      (values #,@(map syntax-e vs) offset)))
 
-(define-for-syntax (ssh-datum-pipeline func <FType> <v>)
+(define-for-syntax (ssh-datum-pipeline func <FType>)
   (case (syntax->datum <FType>)
     [(Boolean)     (list #'values #'ssh-boolean->bytes #'ssh-bytes->boolean #'values #'ssh-boolean-length)]
     [(Index)       (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values #'ssh-uint32-length)]
@@ -78,13 +76,13 @@
     [(Integer)     (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values #'ssh-mpint-length)]
     [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values #'ssh-name-length)]
     [(Bytes)       (list #'values #'ssh-bytes->bytes   #'ssh-values         #'values #'bytes-length)]
-    [else (with-syntax* ([(TypeOf T) (syntax-e <FType>)]
+    [else (with-syntax* ([(TypeOf T v ...) (syntax-e <FType>)]
                          [$type (ssh-symname #'T)])
             (case (syntax-e #'TypeOf)
-              [(SSH-Bytes)       (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T)            #'values #'bytes-length)]
-              [(SSH-Symbol)      (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32                     #'$type  #'ssh-uint32-length)]
-              [(SSH-Name-Listof) (list #'ssh-names->namelist   #'ssh-namelist->bytes #'ssh-bytes->namelist                   #'$type  #'ssh-namelist-length)]
-              [(SSH-Void)        (list #'values                #'ssh-ghost->bytes    (ssh-make-ghost->bytes #'T <v> <FType>) #'values #'ssh-ghost-length)]
+              [(SSH-Bytes)       (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T)                  #'values #'bytes-length)]
+              [(SSH-Symbol)      (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32                           #'$type  #'ssh-uint32-length)]
+              [(SSH-Name-Listof) (list #'ssh-names->namelist   #'ssh-namelist->bytes #'ssh-bytes->namelist                         #'$type  #'ssh-namelist-length)]
+              [(SSH-Void)        (list #'values                #'ssh-ghost->bytes    (ssh-make-ghost->bytes #'T #'(v ...) <FType>) #'values #'ssh-ghost-length)]
               [else (if (and (free-identifier=? #'TypeOf #'Listof) (free-identifier=? #'T #'Symbol))
                         (list #'values #'ssh-namelist->bytes #'ssh-bytes->namelist #'values #'ssh-namelist-length)
                         (raise-syntax-error func "invalid SSH data type" <FType>))]))]))
@@ -97,7 +95,7 @@
                     [(constructor make-ssh:msg) (ssh-message-constructors #'ssh:msg)]
                     [([kw-args ...] [init-values ...]) (ssh-message-arguments #'([field FieldType defval ...] ...))]
                     [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket ssh-datum-length)] ...)
-                     (ssh-message-field-transforms (syntax-e #'ssh:msg) #'(field ...) #'(FieldType ...) #'((defval ...) ...))])
+                     (ssh-message-field-transforms (syntax-e #'ssh:msg) #'(field ...) #'(FieldType ...))])
        #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 
@@ -118,13 +116,6 @@
                                                [offset++ (ssh->bytes (racket->ssh (field-ref self)) pool offset++)] ...)
                                           (bytes-set! pool offset n)
                                           offset++)]))
-
-                (displayln '(define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Natural))
-                  (lambda [bmsg [offset 0]]
-                    (let*-values ([(offset) (+ offset 1)]
-                                  [(field offset) (bytes->ssh bmsg offset)] ...)
-                      (values (constructor n 'SSH-MSG (ssh->racket field) ...)
-                              offset)))))
                 
                 (define unsafe-bytes->ssh:msg : (->* (Bytes) (Index) (Values SSH-MSG Natural))
                   (lambda [bmsg [offset 0]]
@@ -154,9 +145,9 @@
                     [(constructor make-ssh:msg) (ssh-message-constructors #'ssh:msg)]
                     [([kw-args ...] [init-values ...]) (ssh-message-arguments #'([pield PieldType pefval ...] ... [field FieldType defval ...] ...))]
                     [([_ (_ _ parent-bytes->ssh parent-ssh->racket _)] ...)
-                     (ssh-message-field-transforms (syntax-e #'pssh:msg) #'(pield ...) #'(PieldType ...) #'((pefval ...) ...))]
+                     (ssh-message-field-transforms (syntax-e #'pssh:msg) #'(pield ...) #'(PieldType ...))]
                     [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket ssh-datum-length)] ...)
-                     (ssh-message-field-transforms (syntax-e #'ssh:msg) #'(field ...) #'(FieldType ...) #'((defval ...) ...))])
+                     (ssh-message-field-transforms (syntax-e #'ssh:msg) #'(field ...) #'(FieldType ...))])
        #'(begin (struct ssh:msg pssh:msg ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 

@@ -67,5 +67,9 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
          (lambda [idstring]
            (define-values (/dev/sshin /dev/sshout) (make-pipe #false '/dev/sshin '/dev/sshout))
            (ssh-write-text /dev/sshout idstring (string-length idstring))
-           (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
-             (ssh-read-client-identification /dev/sshin rfc))))]
+
+           (let ([maybe-id (ssh-read-client-identification /dev/sshin rfc)])
+             (cond [(ssh-identification? maybe-id) maybe-id]
+                   [else (fprintf (current-error-port) "~a~n    ~a"
+                                  (ssh:msg:disconnect-reason maybe-id)
+                                  (ssh:msg:disconnect-description maybe-id))]))))]

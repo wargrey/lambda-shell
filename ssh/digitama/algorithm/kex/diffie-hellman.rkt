@@ -84,9 +84,9 @@
                      (define H : Bytes (dh-hash self K-S e f K))
                      (define s : Bytes (ssh-hostkey.sign hostkey H))
                      
-                     (cond [(or (< e 1) (> e (sub1 p))) (make-ssh:disconnect:key:exchange:failed "'e' is out of range, expected in [1, p-1]")]
-                           [else (cons (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:s s)
-                                       (cons K H))])))))))
+                     (cond [(or (< e 1) (> e (sub1 p)))
+                            (make-ssh:disconnect:key:exchange:failed #:source ssh-diffie-hellman-exchange-reply "'e' is out of range: [1, p-1]")]
+                           [else (cons (make-ssh:msg:kexdh:reply #:K-S K-S #:f f #:s s) (cons K H))])))))))
 
 (define ssh-diffie-hellman-exchange-verify : SSH-Kex-Verify
   (lambda [self reply]
@@ -104,8 +104,10 @@
                      (define s : Bytes (ssh:msg:kexdh:reply-s reply))
                      (define H : Bytes (dh-hash self K-S e f K))
                      
-                     (cond [(or (< f 1) (> f (sub1 p))) (make-ssh:disconnect:key:exchange:failed "'f' is out of range, expected in [1, p-1]")]
-                           [(not (bytes=? (ssh-hostkey.sign hostkey H) s)) (make-ssh:disconnect:host:key:not:verifiable "Hostkey signature is mismatch")]
+                     (cond [(or (< f 1) (> f (sub1 p)))
+                            (make-ssh:disconnect:key:exchange:failed #:source ssh-diffie-hellman-exchange-verify "'f' is out of range: [1, p-1]")]
+                           [(not (bytes=? (ssh-hostkey.sign hostkey H) s))
+                            (make-ssh:disconnect:host:key:not:verifiable #:source ssh-diffie-hellman-exchange-verify "Hostkey signature is mismatch")]
                            [else (cons K H)])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

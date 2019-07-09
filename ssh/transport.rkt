@@ -49,11 +49,13 @@
         (define sshc : Thread (sshc-ghostcat /dev/sshout identification hostname port kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
-          (define server-id : SSH-Identification (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
-          (ssh-log-message 'debug "server[~a:~a] identification string: ~a" hostname port (ssh-identification-raw server-id))
+          (define server-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
 
-          (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port sshc-custodian rfc logger server-name session-id sshc /dev/sshin))))))
+          (cond [(ssh-message? server-id) (thread-send sshc server-id)]
+                [else (ssh-log-message 'debug "server[~a] identification string: ~a" server-name (ssh-identification-raw server-id))])
+
+          (define session-id : (U Bytes SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
+          (ssh-port sshc-custodian rfc logger server-name (if (bytes? session-id) session-id #"") sshc /dev/sshin))))))
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
@@ -90,17 +92,13 @@
         (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
-          (define client-id : SSH-Identification (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
-          (ssh-log-message 'debug "client[~a:~a] identification string: ~a" remote-name remote-port (ssh-identification-raw client-id))
-          
-          (unless (= (ssh-identification-protoversion client-id) ($ssh-protoversion rfc))
-            (ssh-sync-disconnect sshd 'SSH_DISCONNECT_PROTOCOL_VERSION_NOT_SUPPORTED)
-            (throw+exn:ssh:identification ssh-accept
-                                          "incompatible protoversion: ~a"
-                                          (ssh-identification-protoversion client-id)))
+          (define client-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
 
-          (define session-id : Bytes (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port sshd-custodian rfc (current-logger) client-name session-id sshd /dev/sshin))))))
+          (cond [(ssh-message? client-id) (thread-send sshd client-id)]
+                [else (ssh-log-message 'debug "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))])
+
+          (define session-id : (U Bytes SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
+          (ssh-port sshd-custodian rfc (current-logger) client-name (if (bytes? session-id) session-id #"") sshd /dev/sshin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-listener-evt : (-> SSH-Listener (Evtof SSH-Listener))
@@ -138,9 +136,9 @@
     (ssh-shutdown self 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
                   (ssh-service-reject-description service))))
 
-(define ssh-port-wait : (-> SSH-Port [#:abandon? Boolean] Void)
-  (lambda [self #:abandon? [abandon? #false]]
-    (unless (not abandon?)
+(define ssh-port-wait : (-> SSH-Port [#:kill? Boolean] Void)
+  (lambda [self #:kill? [kill? #false]]
+    (unless (not kill?)
       (custodian-shutdown-all (ssh-transport-custodian self)))
     
     (thread-wait (ssh-port-ghostcat self))))
@@ -159,8 +157,8 @@
          (ssh-shutdown self 'SSH-DISCONNECT-BY-APPLICATION reason)
          (ssh-shutdown self reason #false))]
     [(self reason description)
-     (ssh-sync-disconnect (ssh-port-ghostcat self) reason description)
-     (custodian-shutdown-all (ssh-transport-custodian self))]))
+     (thread-send (ssh-port-ghostcat self) (make-ssh:msg:disconnect #:reason reason #:description (or description (void))))
+     (ssh-port-wait self #:kill? #false)]))
 
 (define ssh-eof? : (-> Any Boolean : #:+ SSH-EOF)
   (lambda [datum]

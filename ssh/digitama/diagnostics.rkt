@@ -6,8 +6,6 @@
 
 (struct exn:ssh exn:fail () #:type-name SSH-Error)
 
-(struct exn:ssh:eof exn:ssh ([reason : Symbol]))
-
 (define current-peer-name : (Parameterof (Option Symbol)) (make-parameter #false))
 
 (define ssh-raise-timeout-error : (->* (Procedure Real) (String) Nothing)
@@ -17,11 +15,6 @@
                            (call-with-escape-continuation
                                (λ [[ec : Procedure]] ec))))))
 
-(define-exception exn:ssh:defence exn:ssh () (ssh-exn-message))
-(define-exception exn:ssh:identification exn:ssh () (ssh-exn-message))
-(define-exception exn:ssh:kex exn:ssh () (ssh-exn-message))
-(define-exception exn:ssh:kex:hostkey exn:ssh:kex () (ssh-exn-message))
-(define-exception exn:ssh:mac exn:ssh () (ssh-exn-message))
 (define-exception exn:ssh:fsio exn:fail:filesystem () (ssh-exn-fsio-message [/dev/stdin : Input-Port] [line : (Option Natural)] [col : (Option Natural)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -9,6 +9,7 @@
 
 (require "message.rkt")
 (require "newkeys.rkt")
+(require "prompt.rkt")
 
 (require "../kex.rkt")
 (require "../message.rkt")
@@ -30,12 +31,12 @@
 (define current-server-identification : (Parameterof String) (make-parameter ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex-instantiate/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Bytes (-> Any Nothing) (Pairof SSH-Kex SSH-Transport-Algorithms))
-  (lambda [self-kexinit peer-kexinit rfc Ic escape]
+(define ssh-kex-instantiate/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Bytes (Pairof SSH-Kex SSH-Transport-Algorithms))
+  (lambda [self-kexinit peer-kexinit rfc Ic]
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
 
-    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit escape))
+    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit))
     (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
     (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
     
@@ -73,13 +74,13 @@
 
     (void)))
 
-(define ssh-kex-instantiate/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes (-> Any Nothing)
+(define ssh-kex-instantiate/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes
                                          (Values (Pairof SSH-Kex SSH-Transport-Algorithms) SSH-Message))
-  (lambda [self-kexinit peer-kexinit rfc oldkeys Is escape]
+  (lambda [self-kexinit peer-kexinit rfc oldkeys Is]
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
-    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit escape))
+    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit))
     (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
     (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
 
@@ -161,8 +162,8 @@
     newkeys))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (-> Any Nothing) (Values SSH-Kex# SSH-Hostkey# SSH-Transport-Algorithms))
-  (lambda [Mc Ms escape]
+(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values SSH-Kex# SSH-Hostkey# SSH-Transport-Algorithms))
+  (lambda [Mc Ms]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes Mc) (ssh:msg:kexinit-kexes Ms) "algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-hostkeys Mc) (ssh:msg:kexinit-hostkeys Ms) "host key format")))
@@ -187,14 +188,16 @@
            (values (cdr kex) (cdr hostkey)
                    (cons (vector-immutable (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
                          (vector-immutable (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac))))]
-          [(not c2s-compression) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching client to server compression algorithm"))]
-          [(not s2c-compression) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching server to client compression algorithm"))]
-          [(not c2s-mac) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching client to server MAC algorithm"))]
-          [(not s2c-mac) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching server to client MAC algorithm"))]
-          [(not c2s-cipher) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching client to server cipher"))]
-          [(not s2c-cipher) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching server to client cipher"))]
-          [(not hostkey) (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching public key format"))]
-          [else (escape (make-ssh:disconnect:key:exchange:failed "kex: no matching algorihtm"))])))
+          [(not c2s-compression)
+           (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching client to server compression algorithm"))]
+          [(not s2c-compression)
+           (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching server to client compression algorithm"))]
+          [(not c2s-mac) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching client to server MAC algorithm"))]
+          [(not s2c-mac) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching server to client MAC algorithm"))]
+          [(not c2s-cipher) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching client to server cipher"))]
+          [(not s2c-cipher) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching server to client cipher"))]
+          [(not hostkey) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching public key format"))]
+          [else (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching algorihtm"))])))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Name-Listof a) (SSH-Name-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]
@@ -216,4 +219,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-deal-with-unexpected-message : (-> (U SSH-Message Bytes) Any Void)
   (lambda [msg func]
-    (throw+exn:ssh:kex func "kex: unexpected message: ~a" (if (bytes? msg) (bytes-ref msg 0) (ssh-message-name msg)))))
+    #;(throw+exn:ssh:kex func "kex: unexpected message: ~a" (if (bytes? msg) (bytes-ref msg 0) (ssh-message-name msg)))
+    (void)))
