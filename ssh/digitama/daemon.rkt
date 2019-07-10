@@ -9,7 +9,6 @@
 
 (require "service.rkt")
 (require "assignment.rkt")
-(require "diagnostics.rkt")
 
 (require "message/transport.rkt")
 (require "authentication/user.rkt")
@@ -19,7 +18,8 @@
   (lambda [sshd serve]
     (define (ssh-port-accept) : Void
       (define sshc : (U SSH-Port Void)
-        (with-handlers ([exn? void])
+        (with-handlers ([exn:fail? (λ [[e : exn]] (displayln (exn-message e) (current-error-port)))]
+                        [exn:break? void])
           (ssh-accept sshd)))
 
       (when (ssh-port? sshc)
@@ -65,4 +65,6 @@
                  
                  (void)])
         
-          (read-dispatch-loop))))))
+          (read-dispatch-loop))))
+
+    (ssh-port-wait sshd #:abandon? #true)))

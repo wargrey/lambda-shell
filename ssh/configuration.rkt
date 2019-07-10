@@ -19,7 +19,7 @@
    [payload-capacity : Index 32768]
    [minimum-key-bits : Positive-Index 3072]
 
-   [timeout : (Option Nonnegative-Real) #false]
+   [timeout : Index 0] ; seconds
    [rekex-traffic : Positive-Integer (* 1024 1024 1024)]
 
    [debug-message-handler : SSH-Debug-Message-Handler void]
@@ -31,5 +31,5 @@
    [pretty-log-packet-level : (Option Log-Level) #false]
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   [userauth-timeout : Index 600]
+   [userauth-timeout : Index 600] ; seconds
    [userauth-retry : Index 20]))

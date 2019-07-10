@@ -54,16 +54,17 @@
              (unless (string-prefix? line "SSH-")
                (let ([maybe-end-index (read-server-message /dev/sshin line 4 ($ssh-longest-server-banner-length rfc))])
                  (cond [(and maybe-end-index) (message-handler (substring line 0 maybe-end-index))]
-                       [else (ssh-collapse (make-ssh:disconnect:protocol:error #:source ssh-read-server-identification "banner message overlength: ~s" line))]))
+                       [else (ssh-collapse (make-ssh:disconnect:host:not:allowed:to:connect #:source ssh-read-server-identification
+                                                                                            "banner message overlength: ~s" line))]))
                (read-check-notify-loop (+ count 1)))]
-            [else (ssh-collapse (make-ssh:disconnect:protocol:error #:source ssh-read-server-identification "too many banner messages"))]))
-    (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length rfc) rfc ssh-read-server-identification)))
+            [else (ssh-collapse (make-ssh:disconnect:host:not:allowed:to:connect #:source ssh-read-server-identification "too many banner messages"))]))
+    (read-peer-identification /dev/sshin line 4 rfc ssh-read-server-identification)))
 
 (define ssh-read-client-identification : (-> Input-Port SSH-Configuration SSH-Identification)
-  (lambda [/dev/sshin option]
-    (define line : String (make-string ($ssh-longest-identification-length option)))
+  (lambda [/dev/sshin rfc]
+    (define line : String (make-string ($ssh-longest-identification-length rfc)))
     (read-string! line /dev/sshin 0 4)
-    (cond [(string-prefix? line "SSH-") (read-peer-identification /dev/sshin line 4 ($ssh-longest-identification-length option) #false ssh-read-client-identification)]
+    (cond [(string-prefix? line "SSH-") (read-peer-identification /dev/sshin line 4 rfc ssh-read-client-identification)]
           [else (ssh-collapse (make-ssh:disconnect:protocol:error #:source ssh-read-client-identification "not a SSH client: ~s" (substring line 0 4)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -112,8 +113,9 @@
                    [(or (eq? maybe-ch #\linefeed) (eof-object? maybe-ch)) end-idx]
                    [else (string-set! destline idx maybe-ch) (read-loop next-idx next-idx)]))))))
 
-(define read-peer-identification : (-> Input-Port String Positive-Index Positive-Index (Option SSH-Configuration) Procedure SSH-Identification)
-  (lambda [/dev/sshin destline idx0 idx-max rfc src]
+(define read-peer-identification : (-> Input-Port String Positive-Index SSH-Configuration Procedure SSH-Identification)
+  (lambda [/dev/sshin destline idx0 rfc src]
+    (define idx-max : Positive-Index ($ssh-longest-identification-length rfc))
     (define-values (maybe-end-idx maybe-protoversion maybe-softwareversion maybe-comments)
       (let read-loop : (Values (Option Positive-Index) (Option Positive-Flonum) (Option String) (Option String))
         ([idx : Positive-Index idx0]

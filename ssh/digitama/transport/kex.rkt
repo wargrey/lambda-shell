@@ -26,12 +26,9 @@
 (define-type SSH-Transport-Algorithms (Immutable-Vector SSH-Compression# SSH-Cipher# SSH-MAC#))
 (define-type SSH-Kex-Process (-> SSH-Kex SSH-Message (U (Pairof SSH-Kex SSH-Message) SSH-Newkeys)))
 
-(define current-client-identification : (Parameterof String) (make-parameter ""))
-(define current-server-identification : (Parameterof String) (make-parameter ""))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes (U (Pairof SSH-Kex SSH-Kex-Process) SSH-Message))
-  (lambda [self-kexinit peer-kexinit rfc oldkeys Ic]
+(define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys String String Bytes (U (Pairof SSH-Kex SSH-Kex-Process) SSH-Message))
+  (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Ic]
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
 
@@ -45,8 +42,7 @@
             (define &secrets : (Boxof (Option (Pairof Integer Bytes))) (box #false))
             
             ((inst cons SSH-Kex SSH-Kex-Process)
-             ((vector-ref kex 0) (current-client-identification) (current-server-identification) Ic (ssh:msg:kexinit->bytes self-kexinit)
-                                 ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)
+             ((vector-ref kex 0) Vc Vs Ic (ssh:msg:kexinit->bytes self-kexinit) ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)
              
              (λ [[kex-self : SSH-Kex] [msg : SSH-Message]] : (U (Pairof SSH-Kex SSH-Message) SSH-Newkeys)
                (or (and (ssh-kex-message? msg)
@@ -60,8 +56,9 @@
                                (ssh-kex-done oldkeys (car secrets) (cdr secrets) HASH c2s s2c rfc #true))))
                    (cons kex-self (ssh-deal-with-unexpected-message msg ssh-kex/server))))))))))
 
-(define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes (Pairof (Option (Pairof SSH-Kex SSH-Kex-Process)) SSH-Message))
-  (lambda [self-kexinit peer-kexinit rfc oldkeys Is]
+(define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys String String Bytes
+                             (Pairof (Option (Pairof SSH-Kex SSH-Kex-Process)) SSH-Message))
+  (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Is]
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
@@ -74,7 +71,7 @@
             (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
 
             (define-values (kex-self req)
-              (ssh-kex.request ((vector-ref kex 0) (current-client-identification) (current-server-identification) (ssh:msg:kexinit->bytes self-kexinit) Is
+              (ssh-kex.request ((vector-ref kex 0) Vc Vs (ssh:msg:kexinit->bytes self-kexinit) Is
                                                    ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)))
     
             (cons (cons kex-self

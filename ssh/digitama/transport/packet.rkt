@@ -160,7 +160,7 @@
 (define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)
   (let ([/dev/pktout (open-output-bytes '/dev/pktout)])
     (lambda [source parcel packet-end blocksize level [start ssh-packet-size-index] #:digest [digest #""] #:cipher? [cipher? #true] #:2nd? [2nd? #false]]
-      (when (and level (not (eq? level 'none)))
+      (unless (not level)
         (define padding-mark-idx-1 : Fixnum (if cipher? packet-end (- packet-end (+ (bytes-ref parcel ssh-packet-padding-size-index) 1))))
 
         (when (= start ssh-packet-size-index)

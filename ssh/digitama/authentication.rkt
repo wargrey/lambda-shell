@@ -26,7 +26,7 @@
       
       (cond [(ssh-eof? datum) datum]
             [(null? methods) (ssh-shutdown sshc 'SSH-DISCONNECT-NO-MORE-AUTH-METHODS-AVAILABLE)]
-            [(< retry 0) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "too many authentication failures")]
+            [(< retry 0) (ssh-shutdown sshc 'SSH-DISCONNECT-TOO-MANY-CONNECTIONS "too many authentication failures")]
             [(not (ssh:msg:userauth:request? datum)) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT)]
             [else (let* ([username (ssh:msg:userauth:request-username datum)]
                          [service (ssh:msg:userauth:request-service datum)]
@@ -56,7 +56,7 @@
       (define datum : SSH-Datum (sync/enable-break datum-evt))
       
       (cond [(ssh-eof? datum) datum]
-            [(< retry 0) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT "too many authentication failures")]
+            [(< retry 0) (ssh-shutdown sshc 'SSH-DISCONNECT-TOO-MANY-CONNECTIONS "too many authentication failures")]
             [(not (ssh:msg:userauth:request? datum)) (ssh-shutdown sshc 'SSH-DISCONNECT-HOST-NOT-ALLOWED-TO-CONNECT)]
             [else (let* ([username (ssh:msg:userauth:request-username datum)]
                          [service (ssh:msg:userauth:request-service datum)]

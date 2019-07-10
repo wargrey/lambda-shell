@@ -33,7 +33,8 @@
    [kexinit : SSH-MSG-KEXINIT]
    [local-name : Symbol]
    [port-number : Index]
-   [sshcs : (Async-Channelof (List Input-Port Output-Port))])
+   [subcustodian : Custodian]
+   [sshcs : (Async-Channelof (List Custodian Input-Port Output-Port))])
   #:type-name SSH-Listener)
 
 (struct ssh-port ssh-transport
@@ -49,6 +50,7 @@
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
+             (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc)))
              (define peer : (U SSH-Identification SSH-MSG-DISCONNECT)
                (ssh-prompt #false
                            (λ [] (ssh-read-server-identification /dev/tcpin rfc))
@@ -57,16 +59,17 @@
              (ssh-write-text /dev/tcpout identification)
              (write-special peer /dev/sshout)
 
-             (parameterize ([current-client-identification identification]
-                            [current-server-identification (if (ssh-identification? peer) (ssh-identification-raw peer) identification)])
-               (ssh-prompt (current-peer-name)
-                           (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #false))
-                           /dev/sshout)))))))
+             (if (ssh-message? peer)
+                 (ssh-write-message /dev/tcpout peer rfc parcel)
+                 (ssh-prompt (current-peer-name)
+                             (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit identification (ssh-identification-raw peer) parcel rfc #false))
+                             /dev/sshout)))))))
 
 (define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
+             (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc)))
              (define peer : (U SSH-Identification SSH-MSG-DISCONNECT)
                (ssh-prompt #false
                            (λ [] (ssh-read-client-identification /dev/tcpin rfc))
@@ -75,22 +78,26 @@
              (ssh-write-text /dev/tcpout identification)
              (write-special peer /dev/sshout)
 
-             (parameterize ([current-client-identification (if (ssh-identification? peer) (ssh-identification-raw peer) identification)]
-                            [current-server-identification identification])
-               (ssh-prompt (current-peer-name)
-                           (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit rfc #true))
-                           /dev/sshout)))))))
+             (if (ssh-message? peer)
+                 (ssh-write-message /dev/tcpout peer rfc parcel)
+                 (ssh-prompt (current-peer-name)
+                             (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit (ssh-identification-raw peer) identification parcel rfc #true))
+                             /dev/sshout)))))))
 
-(define ssh-transport-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Boolean Void)
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit rfc server?]
+(define ssh-transport-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT String String SSH-Parcel SSH-Configuration Boolean Void)
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit Vc Vs parcel rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (define self : Thread (current-thread))
 
+    (define handshake : Any (sync/enable-break /dev/sshin))
+    (when (ssh-message? handshake)
+      (ssh-write-message /dev/tcpout handshake rfc parcel))
+
     (let ghostcat-loop : Void ([rekex : (U SSH-Kex False) #false]
                                [rekexing : (Option SSH-Kex-Process) #false]
                                [kexinit : SSH-MSG-KEXINIT kexinit]
-                               [newkeys : Maybe-Newkeys (make-ssh-parcel ($ssh-payload-capacity rfc))]
+                               [newkeys : Maybe-Newkeys parcel]
                                [sthgilfni : (Option (Listof SSH-Message)) #false] ; to reduce args, #false => |we haven't sent kexinit|
                                [incoming : Integer rekex-traffic]
                                [outgoing : Integer rekex-traffic]
@@ -113,8 +120,9 @@
                           (ssh-write-message /dev/tcpout reply rfc newkeys)
                           (ghostcat-loop kex-self rekexing kexinit newkeys sthgilfni incoming++ outgoing authenticated))
                         (let ([session : Bytes (ssh-newkeys-identity maybe-newkeys)])
+                          (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
+                            (write-special session /dev/sshout))
                           (ssh-write-message /dev/tcpout SSH:NEWKEYS rfc newkeys)
-                          (write-special session /dev/sshout)
                           (let send-inflights ([inflights : (Listof SSH-Message) (if (list? sthgilfni) (reverse sthgilfni) null)]
                                                [flights-outgoing : Integer 0])
                             (cond [(null? inflights) (ghostcat-loop #false #false kexinit maybe-newkeys #false 0 flights-outgoing authenticated)]
@@ -123,8 +131,8 @@
                    [(ssh:msg:kexinit? msg)
                     (unless (list? sthgilfni) (ssh-write-message /dev/tcpout kexinit rfc newkeys))
                     (define maybe-kex-ing : (U (Pairof SSH-Kex SSH-Kex-Process) SSH-Message)
-                      (cond [(and server?) (ssh-kex/server kexinit msg rfc newkeys payload)]
-                            [else (let* ([maybe-kex.req (ssh-kex/client kexinit msg rfc newkeys payload)]
+                      (cond [(and server?) (ssh-kex/server kexinit msg rfc newkeys Vc Vs payload)]
+                            [else (let* ([maybe-kex.req (ssh-kex/client kexinit msg rfc newkeys Vc Vs payload)]
                                          [kex-self (car maybe-kex.req)])
                                     (and kex-self (ssh-write-message /dev/tcpout (cdr maybe-kex.req) rfc newkeys))
                                     (or kex-self (cdr maybe-kex.req)))]))
@@ -153,22 +161,9 @@
                        (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) authenticated))
                      (ghostcat-loop rekex rekexing kexinit newkeys (if (list? sthgilfni) (cons evt sthgilfni) (list evt)) incoming outgoing authenticated)))]
             
-            [(and (pair? evt) (ssh-newkeys? (car evt)) (exact-nonnegative-integer? (cdr evt)))
-             (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
-               (write-special (ssh-newkeys-identity (car evt)) /dev/sshout))
-             (ghostcat-loop #false rekexing kexinit (car evt) sthgilfni 0 (cdr evt) authenticated)]
-            
             [else ; maybe the application want to make jokes
              (define traffic : Integer (ssh-write-message /dev/tcpout (make-ssh:msg:ignore #:data (format "~s" evt)) rfc newkeys))
              (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) authenticated)]))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-disconnect : (->* (Output-Port Symbol SSH-Configuration Maybe-Newkeys) ((U String exn False)) Natural)
-  (lambda [/dev/tcpout reason rfc newkeys [details #false]]
-    (define description : (Option String) (if (exn? details) (exn-message details) details))
-    (define msg : SSH-Message (make-ssh:msg:disconnect #:reason reason #:description (or description (void))))
-    
-    (ssh-write-message /dev/tcpout msg rfc newkeys)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-service-accept-message : (-> Symbol SSH-MSG-SERVICE-ACCEPT)
@@ -180,16 +175,16 @@
     (format "service '~a' not available" service)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-pull-special : (All (a) (-> Input-Port (Option Nonnegative-Real) (-> Any Boolean : a) Procedure (U a SSH-MSG-DISCONNECT)))
+(define ssh-pull-special : (All (a) (-> Input-Port Index (-> Any Boolean : a) Procedure (U a SSH-MSG-DISCONNECT)))
   (lambda [/dev/sshin timeout ? func]
-    (unless (cond [(not timeout) (sync/enable-break /dev/sshin)]
-                  [else (sync/timeout/enable-break timeout /dev/sshin)])
-      (ssh-raise-timeout-error func timeout))
+    (define datum-evt : (Evtof Any) (wrap-evt /dev/sshin (λ [_] (read-byte-or-special /dev/sshin))))
+    (define maybe-datum : Any
+      (cond [(not timeout) (sync/enable-break datum-evt)]
+            [else (sync/timeout/enable-break timeout datum-evt)]))
 
-    (define exn-or-datum (read-byte-or-special /dev/sshin))
-    (cond [(exn? exn-or-datum) (raise exn-or-datum)]
-          [(ssh:msg:disconnect? exn-or-datum) exn-or-datum]
-          [else (assert exn-or-datum ?)])))
+    (cond [(not maybe-datum) (make-ssh:disconnect:connection:lost "timeout")]
+          [(ssh:msg:disconnect? maybe-datum) maybe-datum]
+          [else (assert maybe-datum ?)])))
 
 (define ssh-deliver-message : (-> Bytes Output-Port Boolean Void)
   (lambda [payload /dev/sshout authenticated]
@@ -203,3 +198,12 @@
   (lambda [e /dev/sshout]
     (write-special (make-ssh:disconnect:reserved #:source ssh-deliver-error "~a: ~a: ~a" (current-peer-name) (object-name e) (exn-message e))
                    /dev/sshout)))
+
+(define ssh-throw-disconnection : (->* (SSH-MSG-DISCONNECT) (#:level (Option Log-Level)) Nothing)
+  (lambda [msg #:level [level 'error]]
+    (define message : String (format "~a: ~a" (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg)))
+
+    (unless (not level)
+      (ssh-log-message level message))
+    
+    (raise (make-exn:fail:network message (current-continuation-marks)))))

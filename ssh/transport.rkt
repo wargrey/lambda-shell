@@ -52,18 +52,22 @@
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
           (define server-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
 
-          (cond [(ssh-message? server-id) (thread-send sshc server-id)]
-                [else (ssh-log-message 'debug "server[~a] identification string: ~a" server-name (ssh-identification-raw server-id))])
+          (cond [(ssh-message? server-id) (ssh-throw-disconnection server-id #:level #false)]
+                [else (ssh-log-message 'debug #:with-peer-name? #false
+                                       "server[~a] identification string: ~a" server-name (ssh-identification-raw server-id))])
 
-          (define session-id : (U Bytes SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port sshc-custodian rfc logger server-name (if (bytes? session-id) session-id #"") sshc /dev/sshin))))))
+          (thread-send sshc #true)
+          (let ([session (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
+            (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
+                [else (ssh-port sshc-custodian rfc logger server-name session sshc /dev/sshin)])))))))
 
 (define ssh-listen : (->* (Natural)
-                          (Index #:custodian Custodian #:logger Logger #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
+                          (Index #:custodian Custodian #:client-custodian Custodian #:logger Logger
+                                 #:hostname (Option String) #:kexinit SSH-MSG-KEXINIT #:configuration SSH-Configuration)
                           SSH-Listener)
   (lambda [port [max-allow-wait 4]
-                #:custodian [root (make-custodian)] #:logger [logger (make-logger 'λsh:sshd (current-logger))] #:hostname [hostname #false]
-                #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]]
+                #:custodian [root (make-custodian)] #:client-custodian [client-root (make-custodian)] #:logger [logger (make-logger 'λsh:sshd (current-logger))]
+                #:hostname [hostname #false] #:kexinit [kexinit (make-ssh:msg:kexinit)] #:configuration [rfc (make-ssh-configuration)]]
     (define listener-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian listener-custodian]
                    [current-logger logger])
@@ -75,17 +79,19 @@
       (ssh-log-message 'debug "local identification string: ~a" identification)
       (ssh-listener listener-custodian rfc logger sshd identification kexinit
                     (string->symbol (format "~a:~a" local-name local-port)) local-port
-                    (make-async-channel)))))
+                    client-root (make-async-channel)))))
 
-(define ssh-accept : (-> SSH-Listener [#:custodian Custodian] SSH-Port)
-  (lambda [listener #:custodian [root (make-custodian)]]
+(define ssh-accept : (-> SSH-Listener SSH-Port)
+  (lambda [listener]
     (define rfc : SSH-Configuration (ssh-transport-preference listener))
-    (define sshd-custodian : Custodian (make-custodian root))
+    (define-values (sshd-custodian /dev/tcpin /dev/tcpout)
+      (let* ([sshcs (ssh-listener-sshcs listener)]
+             [pending (async-channel-try-get sshcs)]
+             [pending (or pending (sync/enable-break (wrap-evt (ssh-listener-evt listener) (λ [_] (async-channel-get sshcs)))))])
+        (values (car pending) (cadr pending) (caddr pending))))
+    
     (parameterize ([current-custodian sshd-custodian]
                    [current-logger (ssh-transport-logger listener)])
-      (define-values (/dev/tcpin /dev/tcpout)
-        (let ([pending (sync/enable-break (ssh-listener-sshcs listener) (tcp-accept-evt (ssh-listener-watchdog listener)))])
-          (values (car pending) (cadr pending))))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
       (define client-name : Symbol (string->symbol (format "~a:~a" remote-name remote-port)))
       (ssh-log-message 'debug "accepted client[~a]" client-name #:with-peer-name? #false)
@@ -98,19 +104,24 @@
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
 
-          (cond [(ssh-message? client-id) (thread-send sshd client-id)]
-                [else (ssh-log-message 'debug "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))])
+          (cond [(ssh-message? client-id) (ssh-throw-disconnection client-id #:level #false)]
+                [else (ssh-log-message 'debug #:with-peer-name? #false
+                                       "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))])
 
-          (define session-id : (U Bytes SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect))
-          (ssh-port sshd-custodian rfc (current-logger) client-name (if (bytes? session-id) session-id #"") sshd /dev/sshin))))))
+          (thread-send sshd #true)
+          (let ([session (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
+            (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
+                  [else (ssh-port sshd-custodian rfc (current-logger) client-name session sshd /dev/sshin)])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-listener-evt : (-> SSH-Listener (Evtof SSH-Listener))
   (lambda [self]
-    (wrap-evt (tcp-accept-evt (ssh-listener-watchdog self))
-              (λ [[sshc : (List Input-Port Output-Port)]]
-                (async-channel-put (ssh-listener-sshcs self) sshc)
-                self))))
+    (wrap-evt (ssh-listener-watchdog self)
+              (λ [[sshd : TCP-Listener]]
+                (parameterize ([current-custodian (make-custodian (ssh-listener-subcustodian self))])
+                  (let-values ([(/dev/tcpin /dev/tcpout) (tcp-accept/enable-break sshd)])
+                    (async-channel-put (ssh-listener-sshcs self) (list (current-custodian) /dev/tcpin /dev/tcpout))
+                    self))))))
 
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
   (lambda [self]

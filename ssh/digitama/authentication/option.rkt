@@ -10,7 +10,7 @@
                     (Boolean)
                     Nonnegative-Fixnum)])
 
-(require "../diagnostics.rkt")
+(require "../fsio/exception.rkt")
 
 (define-type SSH-Option-Value (U String (List String (Option Natural) (Option Natural))))
 

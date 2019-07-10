@@ -5,10 +5,11 @@
 (require digimon/binscii)
 (require digimon/filesystem)
 
+(require "exception.rkt")
+
 (require "../authentication/user.rkt")
 (require "../algorithm/fingerprint.rkt")
 
-(require "../diagnostics.rkt")
 (require "../assignment.rkt")
 (require "../../datatype.rkt")
 
