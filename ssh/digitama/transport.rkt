@@ -32,7 +32,8 @@
    [identification : String]
    [kexinit : SSH-MSG-KEXINIT]
    [local-name : Symbol]
-   [port-number : Index])
+   [port-number : Index]
+   [sshcs : (Async-Channelof (List Input-Port Output-Port))])
   #:type-name SSH-Listener)
 
 (struct ssh-port ssh-transport

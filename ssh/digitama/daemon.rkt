@@ -19,7 +19,7 @@
   (lambda [sshd serve]
     (define (ssh-port-accept) : Void
       (define sshc : (U SSH-Port Void)
-        (with-handlers ([exn? (λ [[e : exn]] (eprintf "=> ~a~n" (exn-message e)))])
+        (with-handlers ([exn? void])
           (ssh-accept sshd)))
 
       (when (ssh-port? sshc)

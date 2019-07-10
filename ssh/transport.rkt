@@ -7,6 +7,7 @@
 
 (require racket/tcp)
 (require racket/port)
+(require typed/racket/async-channel)
 
 (require typed/racket/unsafe)
 
@@ -29,7 +30,7 @@
 (require "digitama/assignment/cipher.rkt")
 (require "digitama/assignment/compression.rkt")
 
-(define-type SSH-EOF (U SSH-MSG-DISCONNECT exn))
+(define-type SSH-EOF SSH-MSG-DISCONNECT)
 (define-type SSH-Datum (U SSH-Message SSH-EOF Bytes))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -73,7 +74,8 @@
       (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
       (ssh-listener listener-custodian rfc logger sshd identification kexinit
-                    (string->symbol (format "~a:~a" local-name local-port)) local-port))))
+                    (string->symbol (format "~a:~a" local-name local-port)) local-port
+                    (make-async-channel)))))
 
 (define ssh-accept : (-> SSH-Listener [#:custodian Custodian] SSH-Port)
   (lambda [listener #:custodian [root (make-custodian)]]
@@ -81,10 +83,12 @@
     (define sshd-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian sshd-custodian]
                    [current-logger (ssh-transport-logger listener)])
-      (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break (ssh-listener-watchdog listener)))
+      (define-values (/dev/tcpin /dev/tcpout)
+        (let ([pending (sync/enable-break (ssh-listener-sshcs listener) (tcp-accept-evt (ssh-listener-watchdog listener)))])
+          (values (car pending) (cadr pending))))
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
       (define client-name : Symbol (string->symbol (format "~a:~a" remote-name remote-port)))
-      (ssh-log-message 'debug "accepted ~a" client-name #:with-peer-name? #false)
+      (ssh-log-message 'debug "accepted client[~a]" client-name #:with-peer-name? #false)
       
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
@@ -103,13 +107,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-listener-evt : (-> SSH-Listener (Evtof SSH-Listener))
   (lambda [self]
-    (wrap-evt (ssh-listener-watchdog self)
-              (λ _ self))))
+    (wrap-evt (tcp-accept-evt (ssh-listener-watchdog self))
+              (λ [[sshc : (List Input-Port Output-Port)]]
+                (async-channel-put (ssh-listener-sshcs self) sshc)
+                self))))
 
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
   (lambda [self]
     (wrap-evt (ssh-port-read-evt self)
-              (λ _ (ssh-port-read self)))))
+              (λ [[/dev/sshin : Input-Port]]
+                (read-byte-or-special /dev/sshin)))))
 
 (define ssh-port-read-evt : (-> SSH-Port (Evtof Input-Port))
   (lambda [self]
@@ -136,9 +143,9 @@
     (ssh-shutdown self 'SSH-DISCONNECT-SERVICE-NOT-AVAILABLE
                   (ssh-service-reject-description service))))
 
-(define ssh-port-wait : (-> SSH-Port [#:kill? Boolean] Void)
-  (lambda [self #:kill? [kill? #false]]
-    (unless (not kill?)
+(define ssh-port-wait : (-> SSH-Port [#:abandon? Boolean] Void)
+  (lambda [self #:abandon? [abandon? #false]]
+    (unless (not abandon?)
       (custodian-shutdown-all (ssh-transport-custodian self)))
     
     (thread-wait (ssh-port-ghostcat self))))
@@ -158,12 +165,11 @@
          (ssh-shutdown self reason #false))]
     [(self reason description)
      (thread-send (ssh-port-ghostcat self) (make-ssh:msg:disconnect #:reason reason #:description (or description (void))))
-     (ssh-port-wait self #:kill? #false)]))
+     (ssh-port-wait self #:abandon? #false)]))
 
 (define ssh-eof? : (-> Any Boolean : #:+ SSH-EOF)
   (lambda [datum]
-    (or (ssh:msg:disconnect? datum)
-        (exn? datum))))
+    (ssh:msg:disconnect? datum)))
 
 (define ssh-port-session-identity : (-> SSH-Port Bytes)
   (lambda [self]
