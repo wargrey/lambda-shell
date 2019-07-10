@@ -23,110 +23,79 @@
 (require "../../datatype.rkt")
 (require "../../configuration.rkt")
 
-(define-type SSH-Transport-Algorithms
-  (Pairof (Immutable-Vector SSH-Compression# SSH-Cipher# SSH-MAC#)
-          (Immutable-Vector SSH-Compression# SSH-Cipher# SSH-MAC#)))
+(define-type SSH-Transport-Algorithms (Immutable-Vector SSH-Compression# SSH-Cipher# SSH-MAC#))
+(define-type SSH-Kex-Process (-> SSH-Kex SSH-Message (U (Pairof SSH-Kex SSH-Message) SSH-Newkeys)))
 
 (define current-client-identification : (Parameterof String) (make-parameter ""))
 (define current-server-identification : (Parameterof String) (make-parameter ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex-instantiate/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Bytes (Pairof SSH-Kex SSH-Transport-Algorithms))
-  (lambda [self-kexinit peer-kexinit rfc Ic]
+(define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes (U (Pairof SSH-Kex SSH-Kex-Process) SSH-Message))
+  (lambda [self-kexinit peer-kexinit rfc oldkeys Ic]
     (ssh-log-kexinit self-kexinit "local server")
     (ssh-log-kexinit peer-kexinit "peer client")
 
-    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit))
-    (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
-    (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
-    
-    (cons ((vector-ref kex 0) (current-client-identification) (current-server-identification) Ic (ssh:msg:kexinit->bytes self-kexinit)
-                              ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)
-          c2s+s2c)))
+    (let ([algorithms (ssh-negotiate peer-kexinit self-kexinit)])
+      (if (string? algorithms)
+          (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate algorithms)
 
-#;(define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes Void)
-  (lambda [self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc oldkeys Ic]
-    (ssh-log-kexinit self-kexinit "local server")
-    (ssh-log-kexinit peer-kexinit "peer client")
-    
-    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit))
-    (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
-    (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
-    
-    (define kex-self : SSH-Kex
-      ((vector-ref kex 0) (current-client-identification) (current-server-identification) Ic (ssh:msg:kexinit->bytes self-kexinit)
-                          ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
+          (let-values ([(kex hostkey c2s s2c) (values (car algorithms) (cadr algorithms) (caddr algorithms) (cadddr algorithms))])
+            (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
+            (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
+            (define &secrets : (Boxof (Option (Pairof Integer Bytes))) (box #false))
+            
+            ((inst cons SSH-Kex SSH-Kex-Process)
+             ((vector-ref kex 0) (current-client-identification) (current-server-identification) Ic (ssh:msg:kexinit->bytes self-kexinit)
+                                 ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)
+             
+             (λ [[kex-self : SSH-Kex] [msg : SSH-Message]] : (U (Pairof SSH-Kex SSH-Message) SSH-Newkeys)
+               (or (and (ssh-kex-message? msg)
+                        (let-values ([(kex-self reply) (ssh-kex.reply kex-self msg)])
+                          (and reply
+                               (cond [(ssh-message? reply) (cons kex-self reply)]
+                                     [else (set-box! &secrets (cdr reply)) (cons kex-self (car reply))]))))
+                   (and (ssh:msg:newkeys? msg)
+                        (let ([secrets (unbox &secrets)])
+                          (and (pair? secrets)
+                               (ssh-kex-done oldkeys (car secrets) (cdr secrets) HASH c2s s2c rfc #true))))
+                   (cons kex-self (ssh-deal-with-unexpected-message msg ssh-kex/server))))))))))
 
-    (let rekex : (U SSH-Newkeys Void) ([kex-self : SSH-Kex kex-self]
-                                       [secrets : (Option (Pairof Integer Bytes)) #false])
-      (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys (ssh-kex-name kex-self)))
-      (or (and (ssh-kex-message? msg)
-               (let-values ([(kex-self reply) (ssh-kex.reply kex-self msg)])
-                 (and reply
-                      (let-values ([(response K+H) (if (pair? reply) (values (car reply) (cdr reply)) (values reply secrets))])
-                        (ssh-write-message /dev/tcpout response rfc oldkeys)
-                        (rekex kex-self K+H)))))
-          (and (pair? secrets)
-               (ssh:msg:newkeys? msg)
-               (void (ssh-write-message /dev/tcpout msg rfc oldkeys)
-                     (ssh-kex-done oldkeys (car secrets) (cdr secrets) HASH c2s+s2c /dev/tcpout rfc #true)))
-          (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/server)))
-
-    (void)))
-
-(define ssh-kex-instantiate/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes
-                                         (Values (Pairof SSH-Kex SSH-Transport-Algorithms) SSH-Message))
+(define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys Bytes (Pairof (Option (Pairof SSH-Kex SSH-Kex-Process)) SSH-Message))
   (lambda [self-kexinit peer-kexinit rfc oldkeys Is]
     (ssh-log-kexinit self-kexinit "local client")
     (ssh-log-kexinit peer-kexinit "peer server")
 
-    (define-values (kex hostkey c2s+s2c) (ssh-negotiate peer-kexinit self-kexinit))
-    (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
-    (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
+    (let ([algorithms (ssh-negotiate peer-kexinit self-kexinit)])
+      (if (string? algorithms)
+          (cons #false (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate algorithms))
 
-    (define-values (kex-self req)
-      (ssh-kex.request ((vector-ref kex 0) (current-client-identification) (current-server-identification) (ssh:msg:kexinit->bytes self-kexinit) Is
-                                           ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)))
+          (let-values ([(kex hostkey c2s s2c) (values (car algorithms) (cadr algorithms) (caddr algorithms) (cadddr algorithms))])
+            (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
+            (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
 
-    (values (cons kex-self c2s+s2c) req)))
-
-#;(define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT Input-Port Output-Port SSH-Configuration Maybe-Newkeys Bytes (U SSH-Message SSH-Newkeys False))
-  (lambda [self-kexinit peer-kexinit /dev/tcpin /dev/tcpout rfc oldkeys Is]
-    (ssh-log-kexinit self-kexinit "local client")
-    (ssh-log-kexinit peer-kexinit "peer server")
-
-    (define-values (kex hostkey c2s+s2c) (ssh-negotiate self-kexinit peer-kexinit))
-    (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
-    (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
+            (define-values (kex-self req)
+              (ssh-kex.request ((vector-ref kex 0) (current-client-identification) (current-server-identification) (ssh:msg:kexinit->bytes self-kexinit) Is
+                                                   ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits)))
     
-    (define kex-self : SSH-Kex
-      ((vector-ref kex 0) (current-client-identification) (current-server-identification) (ssh:msg:kexinit->bytes self-kexinit) Is
-                          ((vector-ref hostkey 0) (vector-ref hostkey 1) minbits) HASH minbits))
-
-    (let-values ([(kex-self req) (ssh-kex.request kex-self)])
-      (ssh-write-message /dev/tcpout req rfc oldkeys)
-      (let rekex : (U SSH-Newkeys Void) ([kex-self : SSH-Kex kex-self])
-        (define-values (msg payload _) (ssh-read-transport-message /dev/tcpin rfc oldkeys (ssh-kex-name kex-self)))
-        (or (and (ssh-kex-message? msg)
-                 (let-values ([(kex-self result) (ssh-kex.verify kex-self msg)])
-                   (and result
-                        (let-values ([(response secrets) (if (pair? result) (values SSH:NEWKEYS result) (values result #false))])
-                          (ssh-write-message /dev/tcpout response rfc oldkeys)
-                          (cond [(not secrets) (rekex kex-self)]
-                                [else (ssh-kex-done oldkeys (car secrets) (cdr secrets) HASH c2s+s2c /dev/tcpout rfc #false)])))))
-            (ssh-deal-with-unexpected-message (or msg payload) ssh-kex/client))))
-
-    #false))
+            (cons (cons kex-self
+                        (λ [[kex-self : SSH-Kex] [msg : SSH-Message]] : (U (Pairof SSH-Kex SSH-Message) SSH-Newkeys)
+                          (or (and (ssh-kex-message? msg)
+                                   (let-values ([(kex-self result) (ssh-kex.verify kex-self msg)])
+                                     (and result
+                                          (cond [(not (pair? result)) (cons kex-self result)]
+                                                [else (ssh-kex-done oldkeys (car result) (cdr result) HASH c2s s2c rfc #false)]))))
+                              (cons kex-self (ssh-deal-with-unexpected-message msg ssh-kex/client)))))
+                  req))))))
   
-(define ssh-kex-done : (-> Maybe-Newkeys Integer Bytes (-> Bytes Bytes) SSH-Transport-Algorithms Output-Port SSH-Configuration Boolean SSH-Newkeys)
-  (lambda [maybe-oldkeys shared-secret H HASH c2s+s2c /dev/tcpout rfc server?]
+(define ssh-kex-done : (-> Maybe-Newkeys Integer Bytes (-> Bytes Bytes)
+                           SSH-Transport-Algorithms SSH-Transport-Algorithms SSH-Configuration Boolean SSH-Newkeys)
+  (lambda [maybe-oldkeys shared-secret H HASH c2s s2c rfc server?]
     (define K : Bytes (ssh-mpint->bytes shared-secret))
     (define-values (session-id parcel)
       (cond [(ssh-parcel? maybe-oldkeys) (values H maybe-oldkeys)]
             [else (values (ssh-newkeys-identity maybe-oldkeys)
                           (ssh-newkeys-parcel maybe-oldkeys))]))
 
-    (define-values (c2s s2c) (values (car c2s+s2c) (cdr c2s+s2c)))
     (define-values (c2s-compression s2c-compression) (values (vector-ref c2s 0) (vector-ref s2c 0)))
     (define-values (c2s-cipher s2c-cipher) (values (vector-ref c2s 1) (vector-ref s2c 1)))
     (define-values (c2s-cipher-block-size-in-bytes s2c-cipher-block-size-in-bytes) (values (vector-ref c2s-cipher 1) (vector-ref s2c-cipher 1)))
@@ -162,7 +131,7 @@
     newkeys))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (Values SSH-Kex# SSH-Hostkey# SSH-Transport-Algorithms))
+(define ssh-negotiate : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT (U (List SSH-Kex# SSH-Hostkey# SSH-Transport-Algorithms SSH-Transport-Algorithms) String))
   (lambda [Mc Ms]
     (define-values (kex hostkey)
       (values (ssh-choose-algorithm (ssh:msg:kexinit-kexes Mc) (ssh:msg:kexinit-kexes Ms) "algorithm")
@@ -180,24 +149,21 @@
       (values (ssh-choose-algorithm (ssh:msg:kexinit-c2s-compressions Mc) (ssh:msg:kexinit-c2s-compressions Ms) "client to server compression algorithm")
               (ssh-choose-algorithm (ssh:msg:kexinit-s2c-compressions Mc) (ssh:msg:kexinit-s2c-compressions Ms) "server to client compression algorithm")))
 
-    (cond [(and kex hostkey c2s-cipher c2s-mac c2s-compression s2c-cipher s2c-mac s2c-compression)
-           (ssh-log-message 'debug "kex: algorithm: ~a" (car kex))
-           (ssh-log-message 'debug "kex: public key format: ~a" (car hostkey))
-           (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-mac) (car s2c-compression))
-           (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-mac) (car c2s-compression))
-           (values (cdr kex) (cdr hostkey)
-                   (cons (vector-immutable (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
-                         (vector-immutable (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac))))]
-          [(not c2s-compression)
-           (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching client to server compression algorithm"))]
-          [(not s2c-compression)
-           (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching server to client compression algorithm"))]
-          [(not c2s-mac) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching client to server MAC algorithm"))]
-          [(not s2c-mac) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching server to client MAC algorithm"))]
-          [(not c2s-cipher) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching client to server cipher"))]
-          [(not s2c-cipher) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching server to client cipher"))]
-          [(not hostkey) (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching public key format"))]
-          [else (ssh-collapse (make-ssh:disconnect:key:exchange:failed #:source ssh-negotiate "kex: no matching algorihtm"))])))
+    (cond [(not c2s-compression) "kex: no matching client to server compression algorithm"]
+          [(not s2c-compression) "kex: no matching server to client compression algorithm"]
+          [(not c2s-mac) "kex: no matching client to server MAC algorithm"]
+          [(not s2c-mac) "kex: no matching server to client MAC algorithm"]
+          [(not c2s-cipher) "kex: no matching client to server cipher"]
+          [(not s2c-cipher) "kex: no matching server to client cipher"]
+          [(not hostkey) "kex: no matching public key format"]
+          [(not kex) "kex: no matching algorihtm"]
+          [else (ssh-log-message 'debug "kex: algorithm: ~a" (car kex))
+                (ssh-log-message 'debug "kex: public key format: ~a" (car hostkey))
+                (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-mac) (car s2c-compression))
+                (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-mac) (car c2s-compression))
+                (list (cdr kex) (cdr hostkey)
+                      (vector-immutable (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
+                      (vector-immutable (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac)))])))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Name-Listof a) (SSH-Name-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]
@@ -217,7 +183,6 @@
             [else (subbytes ΣK 0 key-size)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-deal-with-unexpected-message : (-> (U SSH-Message Bytes) Any Void)
+(define ssh-deal-with-unexpected-message : (-> SSH-Message Procedure SSH-MSG-DISCONNECT)
   (lambda [msg func]
-    #;(throw+exn:ssh:kex func "kex: unexpected message: ~a" (if (bytes? msg) (bytes-ref msg 0) (ssh-message-name msg)))
-    (void)))
+    (make-ssh:disconnect:key:exchange:failed #:source func "kex: unexpected message: ~a" (ssh-message-name msg))))

@@ -50,26 +50,32 @@ This section demonstrates the implementation of @~cite[SSH-TRANS].
        (module+ tamer |<transport:*>|)]
 
 @chunk[|<transport:*>|
-       (module+ story
+       (module story typed/racket/base
+         (require (submod digimon/tamer typed))
+         
          <identification>)]
 
 @chunk[<identification>
        (require "message.rkt")
        
+       (require "../transport.rkt") ; import builtin algorithms
        (require "../configuration.rkt")
+       
        (require "../digitama/message/transport.rkt")
        (require "../digitama/transport/identification.rkt")
+       (require "../digitama/transport/prompt.rkt")
        
-       (define rfc (make-ssh-configuration))
-       (define default-identification (ssh-identification-string rfc))
+       (define rfc : SSH-Configuration (make-ssh-configuration))
+       (define default-identification : String (ssh-identification-string rfc))
 
-       (define ssh-peer-identification
+       (define ssh-peer-identification : (-> String (U SSH-Identification Void))
          (lambda [idstring]
-           (define-values (/dev/sshin /dev/sshout) (make-pipe #false '/dev/sshin '/dev/sshout))
+           (define-values (/dev/sshin /dev/sshout) (make-pipe))
            (ssh-write-text /dev/sshout idstring (string-length idstring))
 
-           (let ([maybe-id (ssh-read-client-identification /dev/sshin rfc)])
-             (cond [(ssh-identification? maybe-id) maybe-id]
-                   [else (fprintf (current-error-port) "~a~n    ~a"
-                                  (ssh:msg:disconnect-reason maybe-id)
-                                  (ssh:msg:disconnect-description maybe-id))]))))]
+           (ssh-prompt #false
+                       (λ [] (ssh-read-client-identification /dev/sshin rfc))
+                       (λ [[eof-msg : SSH-MSG-DISCONNECT]]
+                         (fprintf (current-error-port) "~a~n  ~a~n"
+                                  (ssh:msg:disconnect-reason eof-msg)
+                                  (ssh:msg:disconnect-description eof-msg))))))]

@@ -23,7 +23,7 @@
            (lambda [#:language [lang #false] #:source [src #false] [descfmt #false] . argl]
              (let* ([desc (unless (not descfmt) (if (null? argl) descfmt (apply format descfmt argl)))]
                     [desc (unless (not desc) (if (and src) (format "~a: ~a" (object-name src) desc) desc))])
-               (make-ssh:msg:disconnect #:reason 'REASON #:language (or lang (void)) #:description desc #:peer? #false)))))]))
+               (make-ssh:msg:disconnect #:reason 'REASON #:language (or lang (void)) #:description desc)))))]))
 
 (define-syntax (define-make-disconnections stx)
   (syntax-case stx [:]

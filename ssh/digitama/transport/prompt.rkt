@@ -16,7 +16,8 @@
 
 (define default-ssh-transport-prompt : (Parameterof (Prompt-Tagof Any Any)) (make-parameter (make-continuation-prompt-tag)))
 
-(define ssh-prompt : (-> (Option Symbol) (-> Void) (U (-> SSH-MSG-DISCONNECT Void) Output-Port) Void)
+(define ssh-prompt : (All (a b) (case-> [(Option Symbol) (-> a) Output-Port -> (U Void a)]
+                                        [(Option Symbol) (-> a) (-> SSH-MSG-DISCONNECT b) -> (U a b)]))
   (lambda [tagname do-task at-collapse]
     (define current-prompt : (Prompt-Tagof Any Any)
       (cond [(not tagname) (make-continuation-prompt-tag)]

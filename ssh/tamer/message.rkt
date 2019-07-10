@@ -1,4 +1,4 @@
-#lang racket/base
+#lang typed/racket/base
 
 (provide (all-defined-out))
 (provide (all-from-out "../message.rkt"))
@@ -6,8 +6,7 @@
 (require "../message.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-message
+(define ssh-message : (-> SSH-Message (Values Bytes SSH-Message))
   (lambda [self]
-    (with-handlers ([exn:fail? (λ [e] (displayln (exn-message e) (current-error-port)))])
-      (define payload (ssh-message->bytes self))
-      (values payload (ssh-bytes->message* payload)))))
+    (define payload (ssh-message->bytes self))
+    (values payload (ssh-bytes->message* payload))))
