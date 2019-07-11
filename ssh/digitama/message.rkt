@@ -273,11 +273,14 @@
 (define-syntax (define-ssh-message-range stx)
   (syntax-case stx [:]
     [(_ type idmin idmax comments ...)
-     (with-syntax ([ssh-range-payload? (format-id #'type "ssh-~a-payload?" (syntax-e #'type))]
+     (with-syntax ([ssh-range (format-id #'type "ssh-~a-range" (syntax-e #'type))]
+                   [ssh-range-payload? (format-id #'type "ssh-~a-payload?" (syntax-e #'type))]
                    [ssh-range-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
                    [ssh-bytes->range-message (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))]
                    [ssh-bytes->range-message* (format-id #'type "ssh-bytes->~a-message*" (syntax-e #'type))])
-       #'(begin (define ssh-range-payload? : (->* (Bytes) (Index) Boolean)
+       #'(begin (define ssh-range : (Pairof Index Index) (cons idmin idmax))
+
+                (define ssh-range-payload? : (->* (Bytes) (Index) Boolean)
                   (lambda [src [offset 0]]
                     (<= idmin (ssh-message-payload-number src offset) idmax)))
 

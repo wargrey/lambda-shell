@@ -8,6 +8,7 @@
 (require "../datatype.rkt")
 
 (require "service.rkt")
+(require "message.rkt")
 (require "assignment.rkt")
 (require "transport.rkt")
 (require "diagnostics.rkt")
@@ -57,7 +58,20 @@
         (define datum : SSH-Datum (sync/enable-break (ssh-port-datum-evt sshd)))
 
         (unless (ssh-eof? datum)
-          (cond [(bytes? datum) (read-dispatch-serve-loop)]
+          (cond [(bytes? datum)
+                 (define mid : Byte (ssh-message-payload-number datum))
+                 (let dispatch ([services (hash-values alive-services)])
+                   (cond [(null? services) (ssh-port-write sshd (make-ssh:msg:unimplemented #:number mid))]
+                         [else (let*-values ([(service) (car services)]
+                                             [(name) (ssh-service-name service)]
+                                             [(idmin idmax) (let ([r (ssh-service-range service)]) (values (car r) (cdr r)))])
+                                 (cond [(not (<= idmin mid idmax)) (dispatch (cdr services))]
+                                       [else (let-values ([(state response) (ssh-service.response service datum)])
+                                               (hash-set! alive-services (ssh-service-name state) state)
+                                               (for ([resp (if (list? response) (in-list response) (in-value response))])
+                                                 (if (<= idmin (ssh-message-number resp) idmax)
+                                                     (ssh-port-write sshd resp)
+                                                     (ssh-port-ignore sshd resp))))]))]))]
                 
                 [(ssh:msg:service:request? datum)
                  (define service : Symbol (ssh:msg:service:request-name datum))
@@ -67,8 +81,8 @@
                  
                  (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description service))]
                        [else (let ([construct (cdr nth-service)])
-                               (hash-set! alive-services service (construct user session))
-                               (ssh-port-write sshd (make-ssh:msg:service:accept #:name service)))])])
+                               (ssh-port-write sshd (make-ssh:msg:service:accept #:name service))
+                               (hash-set! alive-services service (construct user session)))])])
 
           (read-dispatch-serve-loop))))
 

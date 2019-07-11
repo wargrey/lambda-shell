@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-connection-service : SSH-Service-Constructor
   (lambda [user session]
-    (make-ssh-service #:name 'ssh-connection #:user user #:session session #:range? ssh-connection-payload?
+    (make-ssh-service #:name 'ssh-connection #:user user #:session session #:range ssh-connection-range
                       #:response ssh-connection-response)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
