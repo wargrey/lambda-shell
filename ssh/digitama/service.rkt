@@ -20,4 +20,4 @@
    [session : Bytes]
    [range? : (->* (Bytes) (Index) Boolean)])
   ([response : SSH-Service-Response]
-   [destructor : SSH-Service-Destructor void]))
+   [destruct : SSH-Service-Destructor void]))

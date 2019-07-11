@@ -25,7 +25,7 @@
 
 (define ssh-write-authentication-message : (-> SSH-Port SSH-Message Void)
   (lambda [self message]
-    (ssh-log-outgoing-message message 'debug)
+    (ssh-log-outgoing-message message)
 
     (ssh-port-write self message)))
 
@@ -45,7 +45,7 @@
     #;(when (and (string? banner) (> (string-length banner) 0))
         (ssh-write-authentication-message sshc (make-ssh:msg:userauth:banner #:message banner)))
     
-    (ssh-log-message 'debug #:with-peer-name? #false "accept client[~a@~a]" username (current-peer-name))
+    (ssh-log-message 'info #:with-peer-name? #false "client[~a@~a] is authenticated" username (current-peer-name))
     
     (ssh-write-authentication-message self
                                       (cond [(ssh-message? maybe-msg:success) maybe-msg:success]
@@ -63,25 +63,25 @@
                        (ssh-message-name maybe-userauth-msg)
                        (ssh-message-number maybe-userauth-msg))
       
-      (ssh-log-incoming-message maybe-userauth-msg 'debug))
+      (ssh-log-incoming-message maybe-userauth-msg))
     
     maybe-userauth-msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
-  (lambda [msg [level 'debug]]
+(define ssh-log-outgoing-message : (-> SSH-Message Void)
+  (lambda [msg]
     (cond [(ssh:msg:userauth:failure? msg)
            (if (ssh:msg:userauth:failure-partial-success? msg)
-               (ssh-log-message level "partially accepted, continue")
-               (ssh-log-message level "denied, methods that can continue: ~a"
+               (ssh-log-message 'debug "partially accepted, continue")
+               (ssh-log-message 'debug "denied, methods that can continue: ~a"
                                 (ssh-names->namelist (ssh:msg:userauth:failure-methods msg))))]
           [(ssh:msg:userauth:banner? msg)
-           (ssh-log-message level #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
+           (ssh-log-message 'debug #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
 
-(define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
-  (lambda [msg [level 'debug]]
+(define ssh-log-incoming-message : (-> SSH-Message Void)
+  (lambda [msg]
     (cond [(ssh:msg:userauth:banner? msg)
            (ssh-log-message #:with-peer-name? #false 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
           [(ssh:msg:userauth:request? msg)
-           (ssh-log-message level "'~a' requests authentication with method '~a'"
+           (ssh-log-message 'debug "'~a' requests authentication with method '~a'"
                             (ssh:msg:userauth:request-username msg) (ssh:msg:userauth:request-method msg))])))

@@ -29,8 +29,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys String String Bytes (U (Pairof SSH-Kex SSH-Kex-Process) SSH-Message))
   (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Ic]
-    (ssh-log-kexinit self-kexinit "local server")
-    (ssh-log-kexinit peer-kexinit "peer client")
+    (ssh-log-kexinit self-kexinit "local server" 'debug)
+    (ssh-log-kexinit peer-kexinit "peer client" 'debug)
 
     (let ([algorithms (ssh-negotiate peer-kexinit self-kexinit)])
       (if (string? algorithms)
@@ -59,8 +59,8 @@
 (define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys String String Bytes
                              (Pairof (Option (Pairof SSH-Kex SSH-Kex-Process)) SSH-Message))
   (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Is]
-    (ssh-log-kexinit self-kexinit "local client")
-    (ssh-log-kexinit peer-kexinit "peer server")
+    (ssh-log-kexinit self-kexinit "local client" 'debug)
+    (ssh-log-kexinit peer-kexinit "peer server" 'debug)
 
     (let ([algorithms (ssh-negotiate peer-kexinit self-kexinit)])
       (if (string? algorithms)
@@ -154,13 +154,14 @@
           [(not s2c-cipher) "kex: no matching server to client cipher"]
           [(not hostkey) "kex: no matching public key format"]
           [(not kex) "kex: no matching algorihtm"]
-          [else (ssh-log-message 'debug "kex: algorithm: ~a" (car kex))
-                (ssh-log-message 'debug "kex: public key format: ~a" (car hostkey))
-                (ssh-log-message 'debug "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-mac) (car s2c-compression))
-                (ssh-log-message 'debug "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-mac) (car c2s-compression))
-                (list (cdr kex) (cdr hostkey)
-                      (vector-immutable (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
-                      (vector-immutable (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac)))])))
+          [else (let ([level 'info])
+                  (ssh-log-message level "kex: algorithm: ~a" (car kex))
+                  (ssh-log-message level "kex: public key format: ~a" (car hostkey))
+                  (ssh-log-message level "kex: server to client cipher: ~a MAC: ~a Compression: ~a" (car s2c-cipher) (car s2c-mac) (car s2c-compression))
+                  (ssh-log-message level "kex: client to server cipher: ~a MAC: ~a Compression: ~a" (car c2s-cipher) (car c2s-mac) (car c2s-compression))
+                  (list (cdr kex) (cdr hostkey)
+                        (vector-immutable (cdr c2s-compression) (cdr c2s-cipher) (cdr c2s-mac))
+                        (vector-immutable (cdr s2c-compression) (cdr s2c-cipher) (cdr s2c-mac))))])))
 
 (define ssh-choose-algorithm : (All (a) (-> (SSH-Name-Listof a) (SSH-Name-Listof a) String (Option (Pairof Symbol a))))
   (lambda [cs-dirty ss-dirty type]

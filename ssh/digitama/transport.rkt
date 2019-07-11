@@ -179,7 +179,7 @@
   (lambda [/dev/sshin timeout ? func]
     (define datum-evt : (Evtof Any) (wrap-evt /dev/sshin (λ [_] (read-byte-or-special /dev/sshin))))
     (define maybe-datum : Any
-      (cond [(not timeout) (sync/enable-break datum-evt)]
+      (cond [(= timeout 0) (sync/enable-break datum-evt)]
             [else (sync/timeout/enable-break timeout datum-evt)]))
 
     (cond [(not maybe-datum) (make-ssh:disconnect:connection:lost "timeout")]

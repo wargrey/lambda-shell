@@ -42,7 +42,7 @@
       (bytes-copy! outgoing-parcel 0 maybe-overload-parcel 0 (bytes-length outgoing-parcel)))
     
     (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
-    (ssh-log-outgoing-message msg 'debug)
+    (ssh-log-outgoing-message msg)
 
     (when (ssh:msg:disconnect? msg)
       (ssh-collapse msg))
@@ -67,7 +67,7 @@
                                  (ssh-message-name maybe-trans-msg) message-id (~size traffic))])
     
     (unless (not maybe-trans-msg)
-      (ssh-log-incoming-message maybe-trans-msg 'debug)
+      (ssh-log-incoming-message maybe-trans-msg)
 
       (cond [(ssh:msg:debug? maybe-trans-msg)
              (($ssh-debug-message-handler rfc)
@@ -106,46 +106,46 @@
     (ssh-log-message level "~a c2s compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-c2s-compressions msg)) #:with-peer-name? #false)
     (ssh-log-message level "~a s2c compression algorithms: ~a" prefix (map (inst car Symbol Any) (ssh:msg:kexinit-s2c-compressions msg)) #:with-peer-name? #false)))
 
-(define ssh-log-outgoing-message : (->* (SSH-Message) (Log-Level) Void)
-  (lambda [msg [level 'debug]]
+(define ssh-log-outgoing-message : (-> SSH-Message Void)
+  (lambda [msg]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG] ~a" (ssh:msg:debug-message msg) #:with-peer-name? #false))]
+             (ssh-log-message 'debug "[DEBUG] ~a" (ssh:msg:debug-message msg) #:with-peer-name? #false))]
           [(ssh:msg:disconnect? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "terminate the connection ~a because of ~a, details: ~a"
+                            'info "terminate the connection ~a because of ~a, details: ~a"
                             (current-peer-name) (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "cannot not deal with message ~a from ~a"
+                            'debug "cannot not deal with message ~a from ~a"
                             (ssh:msg:unimplemented-number msg) (current-peer-name))]
           [(ssh:msg:service:request? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "request service '~a' from ~a"
+                            'info "request service '~a' from ~a"
                             (ssh:msg:service:request-name msg) (current-peer-name))]
           [(ssh:msg:service:accept? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "service '~a' is available to ~a"
+                            'info "service '~a' is available to ~a"
                             (ssh:msg:service:accept-name msg) (current-peer-name))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:debug? msg)
            (when (ssh:msg:debug-display? msg)
-             (ssh-log-message level "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg) #:with-peer-name? #false))]
+             (ssh-log-message 'info "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg) #:with-peer-name? #false))]
           [(ssh:msg:disconnect? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "~a has disconnected with the reason ~a(~a)" (current-peer-name)
+                            'info "~a has disconnected with the reason ~a(~a)" (current-peer-name)
                             (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "~a cannot deal with message ~a"
+                            'debug "~a cannot deal with message ~a"
                             (current-peer-name) (ssh:msg:unimplemented-number msg))]
           [(ssh:msg:service:request? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "~a requests the service '~a'"
+                            'info "~a requests the service '~a'"
                             (current-peer-name) (ssh:msg:service:request-name msg))]
           [(ssh:msg:service:accept? msg)
            (ssh-log-message #:with-peer-name? #false
-                            level "~a accepts the request for service '~a'"
+                            'info "~a accepts the request for service '~a'"
                             (current-peer-name) (ssh:msg:service:accept-name msg))])))

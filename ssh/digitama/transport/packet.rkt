@@ -144,7 +144,7 @@
 (define ssh-check-outgoing-payload-size : (-> Natural Index Boolean)
   (lambda [payload-length payload-capacity]
     (or (<= payload-length payload-capacity)
-        (not (ssh-log-message 'debug "packet may overload based on local preference(~a > ~a), nonetheless, the peer may hold a much larger capacity"
+        (not (ssh-log-message 'warning "packet may overload based on local preference(~a > ~a), nonetheless, the peer may hold a much larger capacity"
                               (~size payload-length) (~size payload-capacity))))))
 
 (define ssh-incoming-payload-size : (-> Index Byte Index Procedure Index)
@@ -208,5 +208,5 @@
   (lambda [/dev/sshin parcel start end func]
     (when (eof-object? (read-bytes! parcel /dev/sshin start end))
       (let ([eof-msg (make-ssh:disconnect:connection:lost #:source func "connection closed by peer")])
-        (ssh-log-message 'warning (ssh:msg:disconnect-description eof-msg) #:data eof-msg)
+        (ssh-log-message 'info (ssh:msg:disconnect-description eof-msg) #:data eof-msg)
         (ssh-collapse eof-msg)))))

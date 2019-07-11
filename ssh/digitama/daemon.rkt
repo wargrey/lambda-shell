@@ -9,6 +9,8 @@
 
 (require "service.rkt")
 (require "assignment.rkt")
+(require "transport.rkt")
+(require "diagnostics.rkt")
 
 (require "message/transport.rkt")
 (require "authentication/user.rkt")
@@ -49,22 +51,28 @@
     (define alive-services : (HashTable Symbol SSH-Service)
       (make-hasheq (list (cons (car 1st-service)
                                ((cdr 1st-service) user session)))))
-
-    (with-handlers ([exn:fail? void])
-      (let read-dispatch-loop ()
+    
+    (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))])
+      (let read-dispatch-serve-loop ()
         (define datum : SSH-Datum (sync/enable-break (ssh-port-datum-evt sshd)))
 
         (unless (ssh-eof? datum)
-          (cond [(bytes? datum) (void)]
+          (cond [(bytes? datum) (read-dispatch-serve-loop)]
                 
                 [(ssh:msg:service:request? datum)
-                 (define maybe-service (assq (ssh:msg:service:request-name datum) all-services))
+                 (define service : Symbol (ssh:msg:service:request-name datum))
+                 (define nth-service : (Option (Pairof Symbol SSH-Service-Constructor))
+                   (and (not (hash-has-key? alive-services service))
+                        (assq (ssh:msg:service:request-name datum) all-services)))
                  
-                 (when (pair? maybe-service)
-                   (void))
-                 
-                 (void)])
-        
-          (read-dispatch-loop))))
+                 (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description service))]
+                       [else (let ([construct (cdr nth-service)])
+                               (hash-set! alive-services service (construct user session))
+                               (ssh-port-write sshd (make-ssh:msg:service:accept #:name service)))])])
 
+          (read-dispatch-serve-loop))))
+
+    (for ([service (in-hash-values alive-services)])
+      (ssh-service.destruct service))
+    
     (ssh-port-wait sshd #:abandon? #true)))

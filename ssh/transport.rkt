@@ -41,7 +41,7 @@
     (parameterize ([current-custodian sshc-custodian]
                    [current-logger logger])
       (define server-name : Symbol (string->symbol (format "~a:~a" hostname port)))
-      (ssh-log-message 'debug "connecting to ~a" server-name)
+      (ssh-log-message 'info "connecting to ~a" server-name)
 
       (parameterize ([current-peer-name server-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 server-name server-name))
@@ -75,7 +75,7 @@
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses sshd #true))
       (define identification : String (ssh-identification-string rfc))
 
-      (ssh-log-message 'debug "listening on ~a:~a" local-name local-port)
+      (ssh-log-message 'info "listening on ~a:~a" local-name local-port)
       (ssh-log-message 'debug "local identification string: ~a" identification)
       (ssh-listener listener-custodian rfc logger sshd identification kexinit
                     (string->symbol (format "~a:~a" local-name local-port)) local-port
@@ -94,7 +94,7 @@
                    [current-logger (ssh-transport-logger listener)])
       (define-values (local-name local-port remote-name remote-port) (tcp-addresses /dev/tcpin #true))
       (define client-name : Symbol (string->symbol (format "~a:~a" remote-name remote-port)))
-      (ssh-log-message 'debug "accepted client[~a]" client-name #:with-peer-name? #false)
+      (ssh-log-message 'info "client[~a] established a connection" client-name #:with-peer-name? #false)
       
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))

@@ -39,9 +39,11 @@
 
 (define ssh-daemon-serve/authenticate : (-> SSH-Port (-> (SSH-Name-Listof* SSH-Service#) SSH-Maybe-User) [#:services (SSH-Name-Listof* SSH-Service#)] Void)
   (lambda [sshd authenticate #:services [services (ssh-registered-services)]]
-    (parameterize ([current-peer-name (ssh-port-peer-name sshd)])
-      (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
-        (define maybe-user : SSH-Maybe-User (authenticate services))
+    (parameterize ([current-peer-name (ssh-port-peer-name sshd)]
+                   [current-custodian (ssh-custodian sshd)])
+      (define maybe-user : SSH-Maybe-User
+        (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
+          (authenticate services)))
         
-        (when (pair? maybe-user)
-          (ssh-daemon-dispatch sshd (car maybe-user) (cdr maybe-user) services))))))
+      (when (pair? maybe-user)
+        (ssh-daemon-dispatch sshd (car maybe-user) (cdr maybe-user) services)))))
