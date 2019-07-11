@@ -18,10 +18,11 @@
   (lambda [self auth-self]
     (define group : (Option Symbol) (and auth-self (ssh-userauth-name auth-self)))
     
-    (wrap-evt (ssh-port-read-evt self)
-              (λ _ (let ([datum (ssh-port-read self)])
-                     (or (and (bytes? datum) (ssh-filter-authentication-message datum group))
-                         datum))))))
+    (wrap-evt (ssh-port-datum-evt self)
+              (λ [[datum : SSH-Datum]]
+                (or (and (bytes? datum)
+                         (ssh-filter-authentication-message datum group))
+                    datum)))))
 
 (define ssh-write-authentication-message : (-> SSH-Port SSH-Message Void)
   (lambda [self message]

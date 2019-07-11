@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require "stdio.rkt")
+
 (require "../message/transport.rkt")
 
 (require typed/racket/unsafe)
@@ -16,7 +18,7 @@
 
 (define default-ssh-transport-prompt : (Parameterof (Prompt-Tagof Any Any)) (make-parameter (make-continuation-prompt-tag)))
 
-(define ssh-prompt : (All (a b) (case-> [(Option Symbol) (-> a) Output-Port -> (U Void a)]
+(define ssh-prompt : (All (a b) (case-> [(Option Symbol) (-> a) (SSH-Stdout Port) -> (U Void a)]
                                         [(Option Symbol) (-> a) (-> SSH-MSG-DISCONNECT b) -> (U a b)]))
   (lambda [tagname do-task at-collapse]
     (define current-prompt : (Prompt-Tagof Any Any)
@@ -25,9 +27,9 @@
 
     (parameterize ([default-ssh-transport-prompt current-prompt])
       (call-with-continuation-prompt do-task current-prompt
-        (cond [(not (output-port? at-collapse)) at-collapse]
+        (cond [(not (logger? at-collapse)) at-collapse]
               [else (λ [[eof-msg : SSH-MSG-DISCONNECT]] : Void
-                      (void (write-special eof-msg at-collapse)))])))))
+                      (ssh-stdout-propagate at-collapse eof-msg))])))))
 
 (define ssh-collapse : (-> SSH-MSG-DISCONNECT Nothing)
   (lambda [msg]

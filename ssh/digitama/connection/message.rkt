@@ -31,6 +31,9 @@
                             (~size (ssh:msg:channel:open-window-size msg) #:precision 3)
                             (ssh:msg:channel:open-type msg) (ssh:msg:channel:open-sender msg)
                             (~size (ssh:msg:channel:open-packet-upsize msg) #:precision 3))]
+          [(ssh:msg:channel:request? msg)
+           (ssh-log-message 'debug "request channel[~a] for extension '~a'"
+                            (ssh:msg:channel:request-recipient msg) (ssh:msg:channel:request-type msg))]
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "identify the channel[~a] with channel[~a]"
                             (ssh:msg:channel:open:confirmation-recipient msg) (ssh:msg:channel:open:confirmation-sender msg))])))
@@ -42,6 +45,9 @@
                             (~size (ssh:msg:channel:open-window-size msg) #:precision 3)
                             (ssh:msg:channel:open-type msg) (ssh:msg:channel:open-sender msg)
                             (~size (ssh:msg:channel:open-packet-upsize msg) #:precision 3))]
+          [(ssh:msg:channel:request? msg)
+           (ssh-log-message 'debug "request channel[~a] for extension '~a'"
+                            (ssh:msg:channel:request-recipient msg) (ssh:msg:channel:request-type msg))]
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "the channel[~a] has been identified with channel[~a]"
                             (ssh:msg:channel:open:confirmation-sender msg) (ssh:msg:channel:open:confirmation-recipient msg))])))

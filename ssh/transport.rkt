@@ -9,17 +9,13 @@
 (require racket/port)
 (require typed/racket/async-channel)
 
-(require typed/racket/unsafe)
-
-(unsafe-require/typed racket/base
-                      [read-byte-or-special (-> Input-Port SSH-Datum)])
-
 (require "message.rkt")
 (require "configuration.rkt")
 
 (require "digitama/transport.rkt")
 (require "digitama/diagnostics.rkt")
 
+(require "digitama/transport/stdio.rkt")
 (require "digitama/transport/identification.rkt")
 (require "digitama/message/transport.rkt")
 
@@ -44,20 +40,20 @@
       (ssh-log-message 'info "connecting to ~a" server-name)
 
       (parameterize ([current-peer-name server-name])
-        (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 server-name server-name))
+        (define-values (/dev/sshin /dev/sshout) (make-ssh-stdio server-name))
         (define identification : String (ssh-identification-string rfc))
         (ssh-log-message 'debug "local identification string: ~a" identification)       
         (define sshc : Thread (sshc-ghostcat /dev/sshout identification hostname port kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
-          (define server-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
+          (define server-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
 
           (cond [(ssh-message? server-id) (ssh-throw-disconnection server-id #:level #false)]
                 [else (ssh-log-message 'debug #:with-peer-name? #false
                                        "server[~a] identification string: ~a" server-name (ssh-identification-raw server-id))])
 
           (thread-send sshc #true)
-          (let ([session (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
+          (let ([session (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
             (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
                 [else (ssh-port sshc-custodian rfc logger server-name session sshc /dev/sshin)])))))))
 
@@ -97,19 +93,19 @@
       (ssh-log-message 'info "client[~a] established a connection" client-name #:with-peer-name? #false)
       
       (parameterize ([current-peer-name client-name])
-        (define-values (/dev/sshin /dev/sshout) (make-pipe-with-specials 1 client-name client-name))
+        (define-values (/dev/sshin /dev/sshout) (make-ssh-stdio client-name))
         (define kexinit : SSH-MSG-KEXINIT  (ssh-listener-kexinit listener))
         (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
-          (define client-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-special /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
+          (define client-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
 
           (cond [(ssh-message? client-id) (ssh-throw-disconnection client-id #:level #false)]
                 [else (ssh-log-message 'debug #:with-peer-name? #false
                                        "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))])
 
           (thread-send sshd #true)
-          (let ([session (ssh-pull-special /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
+          (let ([session (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
             (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
                   [else (ssh-port sshd-custodian rfc (current-logger) client-name session sshd /dev/sshin)])))))))
 
@@ -125,17 +121,12 @@
 
 (define ssh-port-datum-evt : (-> SSH-Port (Evtof SSH-Datum))
   (lambda [self]
-    (wrap-evt (ssh-port-read-evt self)
-              (λ [[/dev/sshin : Input-Port]]
-                (read-byte-or-special /dev/sshin)))))
-
-(define ssh-port-read-evt : (-> SSH-Port (Evtof Input-Port))
-  (lambda [self]
-    (ssh-port-sshin self)))
+    ((inst ssh-stdin-evt SSH-Datum)
+     (ssh-port-sshin self))))
 
 (define ssh-port-read : (-> SSH-Port SSH-Datum)
   (lambda [self]
-    (read-byte-or-special (ssh-port-sshin self))))
+    (sync/enable-break (ssh-port-datum-evt self))))
 
 (define ssh-port-write : (-> SSH-Port Any Void)
   (lambda [self payload]

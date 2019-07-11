@@ -10,6 +10,7 @@
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
 (require "transport/prompt.rkt")
+(require "transport/stdio.rkt")
 
 (require "message/transport.rkt")
 (require "message/authentication.rkt")
@@ -41,11 +42,11 @@
   ([peer-name : Symbol]
    [identity : Bytes]
    [ghostcat : Thread]
-   [sshin : Input-Port])
+   [sshin : (SSH-Stdin Port)])
   #:type-name SSH-Port)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define sshc-ghostcat : (-> Output-Port String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
+(define sshc-ghostcat : (-> (SSH-Stdout Port) String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification hostname port kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
@@ -57,7 +58,7 @@
                            (λ [[eof-msg : SSH-MSG-DISCONNECT]] eof-msg)))
 
              (ssh-write-text /dev/tcpout identification)
-             (write-special peer /dev/sshout)
+             (ssh-stdout-propagate /dev/sshout peer)
 
              (if (ssh-message? peer)
                  (ssh-write-message /dev/tcpout peer rfc parcel)
@@ -65,7 +66,7 @@
                              (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit identification (ssh-identification-raw peer) parcel rfc #false))
                              /dev/sshout)))))))
 
-(define sshd-ghostcat : (-> Output-Port String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
+(define sshd-ghostcat : (-> (SSH-Stdout Port) String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
   (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
@@ -76,7 +77,7 @@
                            (λ [[eof-msg : SSH-MSG-DISCONNECT]] eof-msg)))
 
              (ssh-write-text /dev/tcpout identification)
-             (write-special peer /dev/sshout)
+             (ssh-stdout-propagate /dev/sshout peer)
 
              (if (ssh-message? peer)
                  (ssh-write-message /dev/tcpout peer rfc parcel)
@@ -84,7 +85,7 @@
                              (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit (ssh-identification-raw peer) identification parcel rfc #true))
                              /dev/sshout)))))))
 
-(define ssh-transport-loop : (-> Input-Port Output-Port Output-Port SSH-MSG-KEXINIT String String SSH-Parcel SSH-Configuration Boolean Void)
+(define ssh-transport-loop : (-> Input-Port Output-Port (SSH-Stdout Port) SSH-MSG-KEXINIT String String SSH-Parcel SSH-Configuration Boolean Void)
   (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit Vc Vs parcel rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
@@ -121,7 +122,7 @@
                           (ghostcat-loop kex-self rekexing kexinit newkeys sthgilfni incoming++ outgoing authenticated))
                         (let ([session : Bytes (ssh-newkeys-identity maybe-newkeys)])
                           (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
-                            (write-special session /dev/sshout))
+                            (ssh-stdout-propagate /dev/sshout session))
                           (ssh-write-message /dev/tcpout SSH:NEWKEYS rfc newkeys)
                           (let send-inflights ([inflights : (Listof SSH-Message) (if (list? sthgilfni) (reverse sthgilfni) null)]
                                                [flights-outgoing : Integer 0])
@@ -144,11 +145,11 @@
                     (define ssh-userauth? : Boolean (eq? service 'ssh-userauth))
                     (thread-send self
                                  (cond [(and (not authenticated) server? ssh-userauth?) (ssh-service-accept-message service)]
-                                       [(and authenticated (not ssh-userauth?)) (write-special msg /dev/sshout)]
+                                       [(and authenticated (not ssh-userauth?)) (ssh-stdout-propagate /dev/sshout msg)]
                                        [else (make-ssh:disconnect:service:not:available #:source ssh-transport-loop (ssh-service-reject-description service))]))
                     (ghostcat-step)]
                    
-                   [else (write-special msg /dev/sshout) (ghostcat-step)])]
+                   [else (ssh-stdout-propagate /dev/sshout msg) (ghostcat-step)])]
             
             [(ssh-message? datum)
              (if (not rekex)
@@ -175,9 +176,9 @@
     (format "service '~a' not available" service)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-pull-special : (All (a) (-> Input-Port Index (-> Any Boolean : a) Procedure (U a SSH-MSG-DISCONNECT)))
+(define ssh-pull-datum : (All (a) (-> (SSH-Stdin Port) Index (-> Any Boolean : a) Procedure (U a SSH-MSG-DISCONNECT)))
   (lambda [/dev/sshin timeout ? func]
-    (define datum-evt : (Evtof Any) (wrap-evt /dev/sshin (λ [_] (read-byte-or-special /dev/sshin))))
+    (define datum-evt : (Evtof Any) ((inst ssh-stdin-evt Any) /dev/sshin))
     (define maybe-datum : Any
       (cond [(= timeout 0) (sync/enable-break datum-evt)]
             [else (sync/timeout/enable-break timeout datum-evt)]))
@@ -186,18 +187,17 @@
           [(ssh:msg:disconnect? maybe-datum) maybe-datum]
           [else (assert maybe-datum ?)])))
 
-(define ssh-deliver-message : (-> Bytes Output-Port Boolean Void)
+(define ssh-deliver-message : (-> Bytes (SSH-Stdout Port) Boolean Void)
   (lambda [payload /dev/sshout authenticated]
     (define userauth? : Boolean (ssh-authentication-payload? payload))
     
     (when (if (not authenticated) userauth? (not userauth?))
-      (write-special payload /dev/sshout)
-      (void))))
+      (ssh-stdout-propagate /dev/sshout payload))))
 
-(define ssh-deliver-error : (-> exn Output-Port Boolean)
+(define ssh-deliver-error : (-> exn (SSH-Stdout Port) Void)
   (lambda [e /dev/sshout]
-    (write-special (make-ssh:disconnect:reserved #:source ssh-deliver-error "~a: ~a: ~a" (current-peer-name) (object-name e) (exn-message e))
-                   /dev/sshout)))
+    (define eof-msg : SSH-MSG-DISCONNECT (make-ssh:disconnect:reserved #:source ssh-deliver-error "~a: ~a: ~a" (current-peer-name) (object-name e) (exn-message e)))
+    (ssh-stdout-propagate #:level 'error /dev/sshout eof-msg (ssh:msg:disconnect-description eof-msg))))
 
 (define ssh-throw-disconnection : (->* (SSH-MSG-DISCONNECT) (#:level (Option Log-Level)) Nothing)
   (lambda [msg #:level [level 'error]]

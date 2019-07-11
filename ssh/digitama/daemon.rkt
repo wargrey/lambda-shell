@@ -72,10 +72,11 @@
                                              [(idmin idmax) (let ([r (ssh-service-range srv-state)]) (values (car r) (cdr r)))]
                                              [(log-outgoing-message) (ssh-service-log-outgoing srv-state)])
                                  (cond [(not (<= idmin mid idmax)) (dispatch (cdr services))]
-                                       [else (let-values ([(srv++ response) (ssh-service.response srv-state datum)])
+                                       [else (let-values ([(srv++ response) (ssh-service.response srv-state datum rfc)])
                                                (ssh-services-update! alive-services alive-evts srv++ srv-state)
-                                               (for ([resp (if (list? response) (in-list response) (in-value response))])
-                                                 (ssh-send-message sshc resp log-outgoing-message idmin idmax)))]))]))]
+                                               (unless (not response)
+                                                 (for ([resp (if (list? response) (in-list response) (in-value response))])
+                                                   (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]))]))]
                 
                 [(ssh:msg:service:request? datum)
                  (define service : Symbol (ssh:msg:service:request-name datum))
