@@ -102,11 +102,11 @@
                                [incoming : Integer rekex-traffic]
                                [outgoing : Integer rekex-traffic]
                                [authenticated : Boolean #false])
-      (define evt : Any
+      (define datum : Any
         (cond [(or (>= incoming rekex-traffic) (>= outgoing rekex-traffic)) kexinit]
               [else (sync/enable-break /dev/sshin /dev/tcpin)]))
       
-      (cond [(tcp-port? evt)
+      (cond [(tcp-port? datum)
              (define-values (msg payload traffic) (ssh-read-transport-message /dev/tcpin rfc newkeys (and rekex (ssh-kex-name rekex))))
              (define incoming++ : Integer (+ incoming traffic))
              (define ghostcat-step : (-> Void) (λ [] (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming++ outgoing authenticated)))
@@ -150,19 +150,19 @@
                    
                    [else (write-special msg /dev/sshout) (ghostcat-step)])]
             
-            [(ssh-message? evt)
+            [(ssh-message? datum)
              (if (not rekex)
-                 (let ([traffic (ssh-write-message /dev/tcpout evt rfc newkeys)])
-                   (if (ssh:msg:kexinit? evt)
-                       (ghostcat-loop rekex rekexing evt newkeys null #|we have sent kexinit|# 0 0 authenticated)
-                       (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) (or authenticated (ssh:msg:userauth:success? evt)))))
-                 (if (ssh-kex-transparent-message? evt)
-                     (let ([traffic (ssh-write-message /dev/tcpout evt rfc newkeys)])
+                 (let ([traffic (ssh-write-message /dev/tcpout datum rfc newkeys)])
+                   (if (ssh:msg:kexinit? datum)
+                       (ghostcat-loop rekex rekexing datum newkeys null #|we have sent kexinit|# 0 0 authenticated)
+                       (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) (or authenticated (ssh:msg:userauth:success? datum)))))
+                 (if (ssh-kex-transparent-message? datum)
+                     (let ([traffic (ssh-write-message /dev/tcpout datum rfc newkeys)])
                        (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) authenticated))
-                     (ghostcat-loop rekex rekexing kexinit newkeys (if (list? sthgilfni) (cons evt sthgilfni) (list evt)) incoming outgoing authenticated)))]
+                     (ghostcat-loop rekex rekexing kexinit newkeys (if (list? sthgilfni) (cons datum sthgilfni) (list datum)) incoming outgoing authenticated)))]
             
-            [else ; maybe the application want to make jokes
-             (define traffic : Integer (ssh-write-message /dev/tcpout (make-ssh:msg:ignore #:data (format "~s" evt)) rfc newkeys))
+            [else ; applications have their rights to joke
+             (define traffic : Integer (ssh-write-message /dev/tcpout (make-ssh:msg:ignore #:data (format "~s" datum)) rfc newkeys))
              (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) authenticated)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

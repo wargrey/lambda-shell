@@ -45,7 +45,7 @@
     #;(when (and (string? banner) (> (string-length banner) 0))
         (ssh-write-authentication-message sshc (make-ssh:msg:userauth:banner #:message banner)))
     
-    (ssh-log-message 'info #:with-peer-name? #false "client[~a@~a] is authenticated" username (current-peer-name))
+    (ssh-log-message 'info #:with-peer-name? #false "client[~a@~a] is identified" username (current-peer-name))
     
     (ssh-write-authentication-message self
                                       (cond [(ssh-message? maybe-msg:success) maybe-msg:success]
@@ -59,7 +59,7 @@
     (define-values (maybe-userauth-msg _) (ssh-bytes->authentication-message payload 0 #:group group))
     
     (unless (not maybe-userauth-msg)
-      (ssh-log-message 'debug "found authentication message ~a[~a]"
+      (ssh-log-message 'debug "found authentication layer message ~a[~a]"
                        (ssh-message-name maybe-userauth-msg)
                        (ssh-message-number maybe-userauth-msg))
       

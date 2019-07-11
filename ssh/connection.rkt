@@ -6,3 +6,6 @@
 
 ;; register builtin assignments for services
 (require "digitama/assignment/service.rkt")
+
+;; register builtin assignments for channels
+(require "digitama/assignment/channel.rkt")

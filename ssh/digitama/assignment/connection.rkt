@@ -4,7 +4,9 @@
 
 (require "../assignment.rkt")
 
-;; Symbols in [0xFE000000, 0xFFFFFFFF] are left for private use.
+;; https://tools.ietf.org/html/rfc4250#section-4.3.4
+; Symbols in [0xFE000000, 0xFEFFFFFF] are used for conjunction with locally assigned channels;
+; Symbols in [0xFE000000, 0xFFFFFFFF] are left for private use.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-symbols SSH-Channel-Failure-Reason #:as Index

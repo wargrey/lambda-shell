@@ -13,7 +13,6 @@
 
 (require "../assignment/message.rkt")
 (require "../message/transport.rkt")
-(require "../message/disconnection.rkt")
 
 (require "../../configuration.rkt")
 
@@ -41,7 +40,7 @@
       ; the content of the overload parcel can also be used as the 'random' padding for following message 
       (bytes-copy! outgoing-parcel 0 maybe-overload-parcel 0 (bytes-length outgoing-parcel)))
     
-    (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic))
+    (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic #:precision 3))
     (ssh-log-outgoing-message msg)
 
     (when (ssh:msg:disconnect? msg)
@@ -62,9 +61,9 @@
     (define message-id : Byte (ssh-message-payload-number incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:group group))
 
-    (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a)" message-id (~size traffic))]
+    (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a)" message-id (~size traffic #:precision 3))]
           [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"
-                                 (ssh-message-name maybe-trans-msg) message-id (~size traffic))])
+                                 (ssh-message-name maybe-trans-msg) message-id (~size traffic #:precision 3))])
     
     (unless (not maybe-trans-msg)
       (ssh-log-incoming-message maybe-trans-msg)

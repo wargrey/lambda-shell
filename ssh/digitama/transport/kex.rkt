@@ -9,7 +9,6 @@
 
 (require "message.rkt")
 (require "newkeys.rkt")
-(require "prompt.rkt")
 
 (require "../kex.rkt")
 (require "../message.rkt")

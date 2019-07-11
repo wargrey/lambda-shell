@@ -11,11 +11,13 @@
   (define <field> (car declaration))
   (define <kw-name> (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>)))))
   (define-values (<argls> <value>)
-    (syntax-case <declaration> []
+    (syntax-case <declaration> [SSH-Void Boolean]
       [(field FieldType) (values #'[field : FieldType] #'field)]
 
       ; TODO: why it fails when `defval` is using other field names?
-      [(field FieldType defval) (values #'[field : (U FieldType Void) (void)] #'(if (void? field) defval field))]
+      [(field (SSH-Void Boolean _) defval) (values #'[field : (U Boolean Void) (void)] #'(if (void? field) defval field))]
+      [(field Boolean defval) (values #'[field : (U Boolean Void) (void)] #'(if (void? field) defval field))]
+      [(field FieldType defval) (values #'[field : (Option FieldType) #false] #'(or field defval))]
       [_ (raise-syntax-error 'define-ssh-message-field "malformed field declaration" <declaration>)]))
   (values <kw-name> <argls> <value>))
 

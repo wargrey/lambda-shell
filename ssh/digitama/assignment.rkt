@@ -8,6 +8,7 @@
 (require "kex.rkt")
 (require "userauth.rkt")
 (require "service.rkt")
+(require "connection/channel.rkt")
 
 (require "message/name.rkt")
 (require "algorithm/pkcs1/hash.rkt")
@@ -91,6 +92,9 @@
      #'(begin (define-ssh-name &ssh-authentication-methods definition) ...)]
     [(_ #:service (definition ...))
      #'(begin (define-ssh-name &ssh-registered-services definition) ...)]
+
+    [(_ #:channel (definition ...))
+     #'(begin (define-ssh-name &ssh-registered-channels definition) ...)]
     
     [(_ keyword (definitions ...))
      (with-syntax* ([&id (let ([kw (syntax-e #'keyword)])
@@ -112,6 +116,8 @@
 
 (define-ssh-namebase ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
 (define-ssh-namebase ssh-registered-services : SSH-Service# #:as SSH-Service-Constructor)
+
+(define-ssh-namebase ssh-registered-channels : SSH-Channel# #:as SSH-Channel-Constructor)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-filter-names : (All (a) (-> (Listof Symbol) (Listof (Pairof Symbol a)) Boolean (Listof (Pairof Symbol a))))

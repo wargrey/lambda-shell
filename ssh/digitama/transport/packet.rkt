@@ -145,16 +145,17 @@
   (lambda [payload-length payload-capacity]
     (or (<= payload-length payload-capacity)
         (not (ssh-log-message 'warning "packet may overload based on local preference(~a > ~a), nonetheless, the peer may hold a much larger capacity"
-                              (~size payload-length) (~size payload-capacity))))))
+                              (~size payload-length #:precision 3) (~size payload-capacity))))))
 
 (define ssh-incoming-payload-size : (-> Index Byte Index Procedure Index)
   (lambda [packet-length padding-length payload-capacity fsrc]
     (define payload-length : Fixnum (- packet-length (+ padding-length 1)))
     
     (cond [(< payload-length 0)
-           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "invalid payload length: ~a" (~size payload-length)))]
+           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "invalid payload length: ~a" (~size payload-length #:precision 3)))]
           [(> payload-length payload-capacity)
-           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "packet overlength: ~a > ~a" (~size payload-length) (~size payload-capacity)))]
+           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "packet overlength: ~a > ~a"
+                                                             (~size payload-length #:precision 3) (~size payload-capacity #:precision 3)))]
           [else payload-length])))
 
 (define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)
@@ -165,7 +166,7 @@
 
         (when (= start ssh-packet-size-index)
           (fprintf /dev/pktout "~a ~a (blocksize: ~a)~n"
-                   (if 2nd? '>>> '==>) source (~size blocksize)))
+                   (if 2nd? '>>> '==>) source (~size blocksize #:precision 3)))
 
         (with-asserts ([packet-end index?])
           (let pretty-print ([pidx : Nonnegative-Fixnum start])
