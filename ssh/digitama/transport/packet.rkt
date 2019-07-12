@@ -87,7 +87,7 @@
 (define ssh-write-plain-packet : (-> Output-Port Bytes Natural (Option Log-Level) Index)
   (lambda [/dev/tcpout parcel payload-length debug-level]
     (define-values (packet-length padding-length) (ssh-resolve-package-length payload-length 0))
-    (define packet-end : Positive-Fixnum (+ ssh-packet-padding-size-index packet-length))
+    (define packet-end : Positive-Integer (+ ssh-packet-padding-size-index packet-length))
 
     (ssh-uint32->bytes packet-length parcel ssh-packet-size-index)
     (bytes-set! parcel ssh-packet-padding-size-index padding-length)
@@ -112,7 +112,7 @@
                     payload-length)]))
     
     (define-values (packet-length padding-length) (ssh-resolve-package-length payload-length cipher-blocksize))
-    (define packet-end : Positive-Fixnum (+ ssh-packet-padding-size-index packet-length))
+    (define packet-end : Positive-Integer (+ ssh-packet-padding-size-index packet-length))
 
     (ssh-uint32->bytes packet-length parcel ssh-packet-size-index)
     (bytes-set! parcel ssh-packet-padding-size-index padding-length)
@@ -130,16 +130,16 @@
         sent))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-resolve-package-length : (-> Natural Byte (Values Index Integer))
+(define ssh-resolve-package-length : (-> Natural Byte (Values Natural Integer))
   (lambda [payload-length cipher-blocksize]
     (let* ([idsize (max cipher-blocksize 8)]
            [packet-draft (+ 4 1 payload-length)]
            [padding-draft (- idsize (remainder packet-draft idsize))]
            [thwarting-capacity (quotient (- #xFF padding-draft) idsize)]
-           [padding-length (+ padding-draft (* idsize (random (+ thwarting-capacity 1))))] ; TODO it seems that it pads too much
-           [padding-length (if (< padding-length 4) (+ padding-length idsize) padding-length)])
-      (values (assert (- (+ packet-draft padding-length) 4) index?)
-              padding-length))))
+           [padding-length-4 (+ padding-draft (* idsize (random (+ thwarting-capacity 1))) -4)] ; TODO it seems that it pads too much
+           [padding-length-4 (if (< padding-length-4 0) (abs (+ padding-length-4 idsize)) padding-length-4)])
+      (values (+ packet-draft padding-length-4)
+              (+ padding-length-4 4)))))
 
 (define ssh-check-outgoing-payload-size : (-> Natural Index Boolean)
   (lambda [payload-length payload-capacity]
@@ -158,11 +158,11 @@
                                                              (~size payload-length #:precision 3) (~size payload-capacity #:precision 3)))]
           [else payload-length])))
 
-(define ssh-pretty-print-packet : (->* (Symbol Bytes Nonnegative-Fixnum Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)
+(define ssh-pretty-print-packet : (->* (Symbol Bytes Natural Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)
   (let ([/dev/pktout (open-output-bytes '/dev/pktout)])
     (lambda [source parcel packet-end blocksize level [start ssh-packet-size-index] #:digest [digest #""] #:cipher? [cipher? #true] #:2nd? [2nd? #false]]
       (unless (not level)
-        (define padding-mark-idx-1 : Fixnum (if cipher? packet-end (- packet-end (+ (bytes-ref parcel ssh-packet-padding-size-index) 1))))
+        (define padding-mark-idx-1 : Integer (if cipher? packet-end (- packet-end (+ (bytes-ref parcel ssh-packet-padding-size-index) 1))))
 
         (when (= start ssh-packet-size-index)
           (fprintf /dev/pktout "~a ~a (blocksize: ~a)~n"

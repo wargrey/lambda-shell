@@ -4,11 +4,8 @@
 
 (require racket/string)
 
-(require/typed
- racket/date
- [find-seconds (->* (Nonnegative-Integer Nonnegative-Integer Nonnegative-Integer Nonnegative-Integer Nonnegative-Integer Nonnegative-Integer)
-                    (Boolean)
-                    Nonnegative-Fixnum)])
+(require/typed racket/date
+               [find-seconds (->* (Integer Integer Integer Integer Integer Integer) (Boolean) Natural)])
 
 (require "../fsio/exception.rkt")
 
@@ -78,7 +75,7 @@
             [minute (string->number (substring expiration 10 12))]
             [second (string->number (substring expiration 12 14))])
         (find-seconds (assert second byte?) (assert minute byte?) (assert hour byte?)
-                      (assert day byte?) (assert month byte?) (assert year index?)
+                      (assert day byte?) (assert month byte?) (assert year fixnum?)
                       #true)))))
 
 (define ssh-userauth-check-port : (-> String Input-Port (Option Natural) (Option Natural) (Pairof (Option String) Index))
@@ -87,7 +84,7 @@
     
     (cond [(and pattern (pair? (cdr pattern)) (pair? (cddr pattern)) (pair? (cddr pattern)) (pair? (cdddr pattern)) (string? (cadddr pattern)))
            (let ([port (or (string->number (cadddr pattern)) 0)])
-             (cond [(and (index? port) (<= port 65535)) (cons (caddr pattern) port)]
+             (cond [(and (exact-nonnegative-integer? port) (<= port 65535)) (cons (caddr pattern) port)]
                    [else (throw+exn:ssh:fsio ssh-userauth-check-port src line col "port number out of range")]))]
           [else (throw+exn:ssh:fsio ssh-userauth-check-port src line col "invalid host:port")])))
 

@@ -139,7 +139,7 @@
 (define ssh-bytes->mpint : (SSH-Bytes->Datum Integer)
   (lambda [bmpi [offset 0]]
     (define-values (size offset++) (ssh-bytes->uint32 bmpi offset))
-    (define end : Index (assert (+ size offset++) index?))
+    (define end : Natural (+ size offset++))
     (cond [(zero? size) (values 0 end)]
           [else (values (network-bytes->integer bmpi offset++ end) end)])))
 

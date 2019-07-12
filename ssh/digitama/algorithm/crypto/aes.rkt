@@ -115,8 +115,8 @@
       (cond [(not maybe-ciphertext) (values plaintext pstart pend)]
             [else (values maybe-ciphertext cstart0 (bytes-range-end maybe-ciphertext cstart0 cend0))]))
 
-    (let encrypt-block ([pidx : Nonnegative-Fixnum (assert pstart index?)]
-                        [cidx : Nonnegative-Fixnum (assert cstart index?)])
+    (let encrypt-block ([pidx : Natural pstart]
+                        [cidx : Natural cstart])
       (when (and (< pidx pend) (< cidx cend))
         (aes-block-encrypt plaintext pidx pend ciphertext cidx cend schedule state round)
         (encrypt-block (+ pidx aes-blocksize) (+ cidx aes-blocksize))))
@@ -138,8 +138,8 @@
       (cond [(not maybe-plaintext) (values ciphertext cstart cend)]
             [else (values maybe-plaintext pstart0 (bytes-range-end maybe-plaintext pstart0 pend0))]))
 
-    (let encrypt-block ([cidx : Nonnegative-Fixnum (assert cstart index?)]
-                        [pidx : Nonnegative-Fixnum (assert pstart index?)])
+    (let encrypt-block ([cidx : Natural cstart]
+                        [pidx : Natural pstart])
       (when (and (< cidx cend) (< pidx pend))
         (aes-block-decrypt ciphertext cidx cend plaintext pidx pend schedule state round)
         (encrypt-block (+ cidx aes-blocksize) (+ pidx aes-blocksize))))
@@ -164,8 +164,8 @@
       (cond [(not maybe-outtext) (values intext istart iend)]
             [else (values maybe-outtext ostart0 (bytes-range-end maybe-outtext ostart0 oend0))]))
 
-    (let crypt-block ([iidx : Nonnegative-Fixnum (assert istart index?)]
-                        [oidx : Nonnegative-Fixnum (assert ostart index?)])
+    (let crypt-block ([iidx : Natural istart]
+                      [oidx : Natural ostart])
       (when (and (< iidx iend) (< oidx oend))
         (aes-block-encrypt counter 0 aes-blocksize aes-k-iv 0 aes-blocksize schedule state round)
         (ctr-block-xor! intext iidx outtext oidx aes-k-iv aes-blocksize)

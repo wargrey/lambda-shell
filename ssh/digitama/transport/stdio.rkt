@@ -14,7 +14,8 @@
 ;;; NOTE
 ;; Racket logging facility is much powerful than usual logging facilities since,
 ;;  It is a many-to-many multiple dispatch mechansim, albeit only one-to-one dispatch is used here;
-;;  It is a primitive service provided by the Racket Virtual Machine directly and therefore is very efficient.
+;;  It is a primitive service provided by the Racket Virtual Machine directly and therefore is very efficient;
+;; and so on...
 ;;
 ;; That is the reason why the logging facility is chosen to work as the asynchronous IO
 ;;  between the transport layer and userland layers.

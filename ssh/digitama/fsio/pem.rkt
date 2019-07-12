@@ -21,9 +21,9 @@
 
           (let* ([data (base64-encode key-octets)]
                  [size (bytes-length data)])
-            (let write-base64-lines ([idx : Nonnegative-Fixnum 0])
+            (let write-base64-lines ([idx : Natural 0])
               (when (< idx size)
-                (define end : Nonnegative-Fixnum (+ idx (min (assert (- size idx) index?) pem-base64-line-size)))
+                (define end : Natural (+ idx (min (abs (- size idx)) pem-base64-line-size)))
                 
                 (write-bytes data /dev/keyout idx end)
                 (newline /dev/keyout)

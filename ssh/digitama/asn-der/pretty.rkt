@@ -15,7 +15,7 @@
     (define pad : Bytes (make-bytes inset #x20))
     (define fmt : String (string-append (string separator) "~a"))
 
-    (let print-constructed ([idx : Natural (assert start index?)]
+    (let print-constructed ([idx : Natural (assert start exact-nonnegative-integer?)]
                             [pads : Bytes (make-bytes indention #x20)]
                             [end : Index idxmax])
       (cond [(>= idx idxmax) (void)]
@@ -33,7 +33,7 @@
                     (cond [(and constructed?)
                            (newline /dev/stdout)
                            (print-constructed idx++ (bytes-append pad pads) content-end)]
-                          [else (let print-primitive ([content-idx : Nonnegative-Fixnum (assert idx++ index?)]
+                          [else (let print-primitive ([content-idx : Natural idx++]
                                                       [content-end : Index content-end]
                                                       [column-idx : Byte 0])
                                   (cond [(>= content-idx content-end)

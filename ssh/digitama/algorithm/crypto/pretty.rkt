@@ -10,7 +10,7 @@
   (lambda [words [start 0] [smart-end 0] #:port [/dev/stdout (current-output-port)] #:column [column 4] #:separator [separator #\space]]
     (define idxmax : Index (if (<= smart-end start) (vector-length words) (assert smart-end index?)))
     
-    (let print-words ([idx : Natural (assert start index?)]
+    (let print-words ([idx : Natural (max start 0)]
                       [column-idx : Index 0])
       (cond [(>= idx idxmax) (when (> column-idx 0) (newline /dev/stdout))]
             [else (let ([bstr (~r (vector-ref words idx) #:base 16 #:min-width 8 #:pad-string "0")])

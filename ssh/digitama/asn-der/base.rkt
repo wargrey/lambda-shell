@@ -54,11 +54,11 @@
                   (bytes-append (bytes (bitwise-ior (bytes-length bsize) #b10000000))
                                 bsize))])))
 
-(define asn-octets->length : (SSH-Bytes->Datum Index)
+(define asn-octets->length : (SSH-Bytes->Datum Natural)
   (lambda [blength [offset 0]]
     (define head-byte : Byte (bytes-ref blength offset))
     (cond [(< head-byte #b10000000) (values head-byte (+ offset 1))]
           [else (let* ([ssize (bitwise-and head-byte #b01111111)]
                        [idx0 (+ offset 1)]
                        [idxn (+ idx0 ssize)])
-                  (values (assert (network-bytes->natural blength idx0 idxn) index?) idxn))])))
+                  (values (network-bytes->natural blength idx0 idxn) idxn))])))

@@ -15,7 +15,7 @@
   (lambda [key message id-hash]
     (define mbits : Nonnegative-Fixnum (integer-length (rsa-private-key-n key)))
     (define k : Index (bits-bytes-length mbits))
-    (define embits : Index (assert (- mbits 1) index?))
+    (define embits : Natural (abs (- mbits 1)))
     (define em : Bytes (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-sign))
     (define m : Natural (assert (pkcs#1-octets->integer em) exact-nonnegative-integer?))
     (define s : Natural (pkcs#1-rsa-sign key m))
@@ -36,12 +36,12 @@
     (and (= k (- sig-end sig-off))
          (let* ([s (pkcs#1-octets->integer signature sig-off sig-end)]
                 [m (pkcs#1-rsa-verify modulus public-exponent s)]
-                [embits (assert (- mbits 1) index?)])
+                [embits (abs (- mbits 1))])
            (bytes=? (pkcs#1-v1.5-encode message embits (pkcs#1-hash-der id-hash) (pkcs#1-hash-method id-hash) rsa-verify)
                     (pkcs#1-integer->octets m k))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define pkcs#1-v1.5-encode : (-> Bytes Index Bytes (-> Bytes Bytes) Procedure Bytes)
+(define pkcs#1-v1.5-encode : (-> Bytes Natural Bytes (-> Bytes Bytes) Procedure Bytes)
   (let ([0x0001 (bytes #x00 #x01)]
         [0x00 (bytes #x00)])
     (lambda [message embits der-head hash src]
