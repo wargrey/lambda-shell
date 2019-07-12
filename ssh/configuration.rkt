@@ -35,4 +35,5 @@
    [userauth-retry : Index 20]
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   [disabled-channels : (Listof Symbol) null]))
+   [disabled-channels : (Listof Symbol) null]
+   [allowed-envs : (Listof Bytes) (list #"LC_ALL" #"LC_CTYPE")]))

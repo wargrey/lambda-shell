@@ -33,9 +33,10 @@
                             (number->string (ssh:msg:channel:open-sender msg) 16)
                             (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:request? msg)
-           (ssh-log-message 'debug "request the extension '~a' of channel[0x~a]"
+           (ssh-log-message 'debug "request the extension '~a' of channel[0x~a] (~a reply)"
                             (ssh:msg:channel:request-type msg)
-                            (number->string (ssh:msg:channel:request-recipient msg) 16))]
+                            (number->string (ssh:msg:channel:request-recipient msg) 16)
+                            (if (ssh:msg:channel:request-reply? msg) 'wants 'no))]
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "identify the channel[0x~a] with channel[0x~a]"
                             (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16)
@@ -50,9 +51,10 @@
                             (number->string (ssh:msg:channel:open-sender msg) 16)
                             (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:request? msg)
-           (ssh-log-message 'debug "request channel[0x~a] to prepare the extension '~a'"
+           (ssh-log-message 'debug "request channel[0x~a] for the extension '~a' (~a reply)"
                             (number->string (ssh:msg:channel:request-recipient msg) 16)
-                            (ssh:msg:channel:request-type msg))]
+                            (ssh:msg:channel:request-type msg)
+                            (if (ssh:msg:channel:request-reply? msg) 'wants 'no))]
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "the channel[0x~a] has been identified with channel[0x~a]"
                             (number->string (ssh:msg:channel:open:confirmation-sender msg) 16)

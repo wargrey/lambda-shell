@@ -25,7 +25,7 @@
   [SSH_MSG_CHANNEL_EXTENDED_DATA     95 ([recipient : Index] [type : (SSH-Symbol SSH-Channel-Data-Type) 'SSH-EXTENDED-DATA-STDERR] [body : Bytes])]
   [SSH_MSG_CHANNEL_EOF               96 ([recipient : Index])]
   [SSH_MSG_CHANNEL_CLOSE             97 ([recipient : Index])]
-  [SSH_MSG_CHANNEL_REQUEST           98 ([recipient : Index] [type : Symbol] [reply? : Boolean #true]) #:case type]
+  [SSH_MSG_CHANNEL_REQUEST           98 ([recipient : Index] [type : Symbol] [reply? : Boolean #false]) #:case type]
   [SSH_MSG_CHANNEL_SUCCESS           99 ([recipient : Index])]
   [SSH_MSG_CHANNEL_FAILURE          100 ([recipient : Index])])
 

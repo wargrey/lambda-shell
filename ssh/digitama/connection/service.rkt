@@ -72,6 +72,16 @@
              (values self response)]
 
             [(ssh:msg:channel:request? request)
-             (values self #false)]
+             (define rfc : SSH-Configuration (ssh-service-preference self))
+             (define self-id : Index (ssh:msg:channel:request-recipient request))
+             (define reply? : Boolean (ssh:msg:channel:request-reply? request))
+             (define maybe-chinfo : (Option #%channel) (hash-ref (ssh-connection-service-channels self) self-id (λ [] #false)))
+
+             (cond [(not maybe-chinfo) (values self #false)]
+                   [else (let*-values ([(channel) (#%channel-entity maybe-chinfo)]
+                                       [(channel++ response) (ssh-channel.response channel request (#%channel-remote-id maybe-chinfo) reply? rfc)])
+                           (unless (eq? channel channel++)
+                             (set-#%channel-entity! maybe-chinfo channel++))
+                           (values self (and reply? response)))])]
             
             [else (values self #false)]))))
