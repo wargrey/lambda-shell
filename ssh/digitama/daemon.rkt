@@ -48,12 +48,12 @@
       (ssh-shutdown sshd))))
 
 (define ssh-daemon-dispatch : (-> SSH-Port SSH-User (SSH-Nameof SSH-Service#) (SSH-Name-Listof* SSH-Service#) Void)
-  (lambda [sshc user 1st-srv all-services]
+  (lambda [sshc user 1st-λservice all-λservices]
     (define session : Bytes (ssh-port-session-identity sshc))
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
     (define-values (alive-services alive-evts)
-      (let ([1st-service ((cdr 1st-srv) user session rfc)])
-        (values (make-hasheq (list (cons (car 1st-srv) 1st-service)))
+      (let ([1st-service ((cdr 1st-λservice) user session rfc)])
+        (values (make-hasheq (list (cons (car 1st-λservice) 1st-service)))
                 (let ([empty-evt : (HashTable Symbol (Evtof (Pairof SSH-Service SSH-Message))) (make-hasheq)])
                   (ssh-datum-evts-set! empty-evt 1st-service)
                   empty-evt))))
@@ -82,7 +82,7 @@
                  (define service : Symbol (ssh:msg:service:request-name datum))
                  (define nth-service : (Option (Pairof Symbol SSH-Service-Constructor))
                    (and (not (hash-has-key? alive-services service))
-                        (assq (ssh:msg:service:request-name datum) all-services)))
+                        (assq (ssh:msg:service:request-name datum) all-λservices)))
                  
                  (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description service))]
                        [else (let ([construct (cdr nth-service)])

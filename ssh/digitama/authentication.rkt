@@ -31,12 +31,12 @@
             [else (let* ([username (ssh:msg:userauth:request-username datum)]
                          [service (ssh:msg:userauth:request-service datum)]
                          [method (ssh:msg:userauth:request-method datum)]
-                         [maybe-service (assq service services)]
-                         [maybe-method (assq method methods)])
+                         [maybe-λservice (assq service services)]
+                         [maybe-λmethod (assq method methods)])
                     (define result : (U False Void SSH-Userauth-Option SSH-Userauth)
-                      (cond [(not maybe-service) (ssh-port-reject-service sshc service)]
-                            [(not maybe-method) (ssh-write-auth-failure sshc methods)]
-                            [else (let* ([auth (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-method) auth-self)]
+                      (cond [(not maybe-λservice) (ssh-port-reject-service sshc service)]
+                            [(not maybe-λmethod) (ssh-write-auth-failure sshc methods)]
+                            [else (let* ([auth (userauth-choose-process method (ssh-port-session-identity sshc) (cdr maybe-λmethod) auth-self)]
                                          [response (with-handlers ([exn? (λ [[e : exn]] e)]) (ssh-userauth.response auth datum username service))])
                                     (cond [(eq? response #false) (ssh-write-auth-failure sshc methods)]
                                           [(ssh:msg:userauth:failure? response) (ssh-write-auth-failure sshc methods response) auth]
@@ -46,7 +46,7 @@
                                           [(ssh-message? response) (ssh-write-authentication-message sshc response) auth]
                                           [else (ssh-shutdown sshc 'SSH-DISCONNECT-RESERVED (exn-message response))]))]))
                     (define retry-- : Fixnum (if (or result (= limit 0)) retry (- retry 1)))
-                    (cond [(ssh-userauth-option? result) (cons (make-ssh-user username result) (assert maybe-service))]
+                    (cond [(ssh-userauth-option? result) (cons (make-ssh-user username result) (assert maybe-λservice))]
                           [(not (void? result))(authenticate (ssh-authentication-datum-evt sshc result) methods result retry--)]))]))))
 
 (define userauth-none : (-> SSH-Port (SSH-Name-Listof* SSH-Service#) Index SSH-Maybe-User)
