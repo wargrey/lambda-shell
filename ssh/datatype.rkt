@@ -12,7 +12,6 @@
 
 (require "digitama/datatype.rkt")
 
-(define-type SSH-BString Bytes)
 (define-type (SSH-Bytes n) Bytes)
 (define-type (SSH-Symbol ns) Symbol)
 (define-type (SSH-Name-Listof t) (Listof (Pairof Symbol (Option t))))
@@ -75,14 +74,14 @@
     (values (integer-bytes->integer bint #false #true offset end)
             end)))
 
-(define ssh-bstring-length : (-> SSH-BString Positive-Fixnum)
+(define ssh-bstring-length : (-> Bytes Positive-Fixnum)
   (lambda [bstr]
     (define bssize : Index (bytes-length bstr))
 
     (+ (ssh-uint32-length bssize)
        bssize)))
 
-(define ssh-bstring->bytes : (SSH-Datum->Bytes SSH-BString)
+(define ssh-bstring->bytes : (SSH-Datum->Bytes Bytes)
   (case-lambda
     [(bstr) (bytes-append (ssh-uint32->bytes (bytes-length bstr)) bstr)]
     [(bstr pool) (ssh-bstring->bytes bstr pool 0)]
@@ -91,7 +90,7 @@
                           (bytes-copy! pool offset++ bstr 0 bssize)
                           (+ offset++ bssize))]))
 
-(define ssh-bytes->bstring : (SSH-Bytes->Datum SSH-BString)
+(define ssh-bytes->bstring : (SSH-Bytes->Datum Bytes)
   (lambda [butf8 [offset 0]]
     (define-values (size offset++) (ssh-bytes->uint32 butf8 offset))
     (define end : Natural (+ size offset++))

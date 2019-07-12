@@ -16,7 +16,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-case-messages SSH-MSG-CHANNEL-OPEN
   ; https://tools.ietf.org/html/rfc4254#section-6.1
-  [SESSION         #:type 'session         ()])
+  [SESSION  #:type 'session  ()])
+
+(define-ssh-case-messages SSH-MSG-CHANNEL-REQUEST
+  ; https://tools.ietf.org/html/rfc4254#section-6.2
+  [PTY-REQ    #:type 'pty-req    ([TERM-value : String] [cols : Index] [rows : Index] [width : Index] [height : Index] [modes : Bytes])]
+  ; https://tools.ietf.org/html/rfc4254#section-6.4
+  [ENV        #:type 'env        ([name : Bytes] [value : Bytes])]
+  ; https://tools.ietf.org/html/rfc4254#section-6.5
+  [SHELL      #:type 'shell      ()]
+  [EXEC       #:type 'exec       ([command : String])]
+  [SUBSYSTEM  #:type 'subsystem  ([name : Symbol])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-session-channel : SSH-Channel-Constructor

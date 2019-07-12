@@ -19,7 +19,7 @@
 (define-ssh-shared-messages diffie-hellman-exchange
   ; https://www.rfc-editor.org/errata_search.php?rfc=4253
   [SSH_MSG_KEXDH_INIT                30 ([e : Integer])]
-  [SSH_MSG_KEXDH_REPLY               31 ([K-S : SSH-BString] [f : Integer] [s : SSH-BString])])
+  [SSH_MSG_KEXDH_REPLY               31 ([K-S : Bytes] [f : Integer] [s : Bytes])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|

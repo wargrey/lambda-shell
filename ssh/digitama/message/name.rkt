@@ -19,7 +19,10 @@
   (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) #px"[_-]" ":")))
 
 (define-for-syntax (ssh-symname <id>)
-  (format-id <id> "$~a" (syntax-e <id>)))
+  (define id (syntax-e <id>))
+
+  (cond [(symbol? id) (format-id <id> "$~a" id)]
+        [else (format-id <id> "$_")]))
 
 (define-for-syntax (ssh-symid <id>)
   (format-id <id> "#%~a" (syntax-e <id>)))

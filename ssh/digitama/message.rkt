@@ -52,16 +52,19 @@
     (list (format-id <field> "~a-~a" ssh:msg (syntax-e <field>))
           (ssh-datum-pipeline 'define-ssh-messages <FType>))))
 
-(define-for-syntax (ssh-make-nbytes->bytes <n>)
-  #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Natural)
-      (let ([end (+ offset #,(syntax-e <n>))])
-        (values (subbytes braw offset end) end))))
+(define-for-syntax (ssh-make-bytes->bytes <n>)
+  (define n (syntax-e <n>))
+
+  (cond [(not (byte? n)) #'ssh-values]
+        [else #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values Bytes Natural)
+                  (let ([end (+ offset #,n)])
+                    (values (subbytes braw offset end) end)))]))
 
 (define-for-syntax (ssh-make-ghost->bytes <T> <vs> <src>)
   (define vs (syntax->list <vs>))
 
-  (cond [(null? vs) (raise-syntax-error 'ssh-make-ghost->bytes "SSH-Void requires a constant value" <src>)]
-        [(> (length vs) 1) (raise-syntax-error 'ssh-make-ghost->bytes "SSH-Void requires only one constant value" <src> #false (cdr vs))])
+  (cond [(null? vs) (raise-syntax-error 'ssh-make-ghost->bytes "SSH-Void requires a constant value as the argument" <src>)]
+        [(> (length vs) 1) (raise-syntax-error 'ssh-make-ghost->bytes "SSH-Void requires only one constant value as the argument" <src> #false (cdr vs))])
   
   #`(λ [[braw : Bytes] [offset : Natural 0]] : (Values #,(syntax-e <T>) Natural)
       (values #,@(map syntax-e vs) offset)))
@@ -72,14 +75,13 @@
     [(Index)       (list #'values #'ssh-uint32->bytes  #'ssh-bytes->uint32  #'values #'ssh-uint32-length)]
     [(Natural)     (list #'values #'ssh-uint64->bytes  #'ssh-bytes->uint64  #'values #'ssh-uint64-length)]
     [(String)      (list #'values #'ssh-string->bytes  #'ssh-bytes->string  #'values #'ssh-string-length)]
-    [(SSH-BString) (list #'values #'ssh-bstring->bytes #'ssh-bytes->bstring #'values #'ssh-bstring-length)]
+    [(Bytes)       (list #'values #'ssh-bstring->bytes #'ssh-bytes->bstring #'values #'ssh-bstring-length)]
     [(Integer)     (list #'values #'ssh-mpint->bytes   #'ssh-bytes->mpint   #'values #'ssh-mpint-length)]
     [(Symbol)      (list #'values #'ssh-name->bytes    #'ssh-bytes->name    #'values #'ssh-name-length)]
-    [(Bytes)       (list #'values #'ssh-bytes->bytes   #'ssh-values         #'values #'bytes-length)]
-    [else (with-syntax* ([(TypeOf T v ...) (syntax-e <FType>)]
+    [else (with-syntax* ([(TypeOf T v ...) (let ([ft (syntax-e <FType>)]) (if (list? ft) ft (raise-syntax-error func "invalid SSH data type" <FType>)))]
                          [$type (ssh-symname #'T)])
             (case (syntax-e #'TypeOf)
-              [(SSH-Bytes)       (list #'values                #'ssh-bytes->bytes    (ssh-make-nbytes->bytes #'T)                  #'values #'bytes-length)]
+              [(SSH-Bytes)       (list #'values                #'ssh-bytes->bytes    (ssh-make-bytes->bytes #'T)                   #'values #'bytes-length)]
               [(SSH-Symbol)      (list #'$type                 #'ssh-uint32->bytes   #'ssh-bytes->uint32                           #'$type  #'ssh-uint32-length)]
               [(SSH-Name-Listof) (list #'ssh-names->namelist   #'ssh-namelist->bytes #'ssh-bytes->namelist                         #'$type  #'ssh-namelist-length)]
               [(SSH-Void)        (list #'values                #'ssh-ghost->bytes    (ssh-make-ghost->bytes #'T #'(v ...) <FType>) #'values #'ssh-ghost-length)]

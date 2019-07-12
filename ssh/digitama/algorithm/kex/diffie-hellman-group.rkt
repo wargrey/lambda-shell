@@ -22,7 +22,7 @@
   [SSH_MSG_KEX_DH_GEX_REQUEST        34 ([min : Index] [n : Index] [max : Index])]
   [SSH_MSG_KEX_DH_GEX_GROUP          31 ([p : Integer] [g : Integer])]
   [SSH_MSG_KEX_DH_GEX_INIT           32 ([e : Integer])]
-  [SSH_MSG_KEX_DH_GEX_REPLY          33 ([K-S : SSH-BString] [f : Integer] [s : SSH-BString])])
+  [SSH_MSG_KEX_DH_GEX_REPLY          33 ([K-S : Bytes] [f : Integer] [s : Bytes])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #|

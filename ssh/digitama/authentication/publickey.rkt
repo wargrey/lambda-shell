@@ -22,13 +22,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; https://tools.ietf.org/html/rfc4252#section-8
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST
-  [PUBLICKEY #:method 'publickey ([signed? : Boolean #false] [algorithm : Symbol] [key : SSH-BString]) #:case signed?])
+  [PUBLICKEY #:method 'publickey ([signed? : Boolean #false] [algorithm : Symbol] [key : Bytes]) #:case signed?])
 
 (define-ssh-case-messages SSH-MSG-USERAUTH-REQUEST-PUBLICKEY
-  [($)       #:signed? '#true ([signature : SSH-BString])])
+  [($)       #:signed? '#true ([signature : Bytes])])
 
 (define-ssh-shared-messages publickey
-  [SSH_MSG_USERAUTH_PK_OK 60 ([algorithm : Symbol] [key : SSH-BString])])
+  [SSH_MSG_USERAUTH_PK_OK 60 ([algorithm : Symbol] [key : Bytes])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-publickey-userauth : SSH-Userauth-Constructor
