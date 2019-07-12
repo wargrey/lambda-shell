@@ -101,7 +101,7 @@
              (values (struct-copy ssh-session-channel self
                                   [cols (ssh:msg:channel:request:window:change-cols request)] [rows (ssh:msg:channel:request:window:change-rows request)]
                                   [width (ssh:msg:channel:request:window:change-width request)] [height (ssh:msg:channel:request:window:change-width request)])
-                     (and reply? (make-ssh:msg:channel:success #:recipient partner-id)))]
+                     #false)]
             
             [else (values self #false)]))))
 
