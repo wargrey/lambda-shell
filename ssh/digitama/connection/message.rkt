@@ -27,15 +27,15 @@
 (define ssh-log-outgoing-message : (-> SSH-Message Void)
   (lambda [msg]
     (cond [(ssh:msg:channel:open? msg)
-           (ssh-log-message 'debug "request a ~a-window-sized '~a' as channel[0x~a] with maximum packet size ~a"
+           (ssh-log-message 'debug "open a ~a-window-sized '~a' as channel[0x~a] with packet capacity ~a"
                             (~size (ssh:msg:channel:open-window-size msg) #:precision 3)
                             (ssh:msg:channel:open-type msg)
                             (number->string (ssh:msg:channel:open-sender msg) 16)
-                            (~size (ssh:msg:channel:open-packet-upsize msg) #:precision 3))]
+                            (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:request? msg)
-           (ssh-log-message 'debug "request channel[0x~a] for extension '~a'"
-                            (number->string (ssh:msg:channel:request-recipient msg) 16)
-                            (ssh:msg:channel:request-type msg))]
+           (ssh-log-message 'debug "request the extension '~a' of channel[0x~a]"
+                            (ssh:msg:channel:request-type msg)
+                            (number->string (ssh:msg:channel:request-recipient msg) 16))]
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "identify the channel[0x~a] with channel[0x~a]"
                             (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16)
@@ -44,13 +44,13 @@
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:channel:open? msg)
-           (ssh-log-message 'debug "request for opening a ~a-window-sized '~a' as channel[~a] with maximum packet size ~a"
+           (ssh-log-message 'debug "try opening a ~a-window-sized '~a' as channel[~a] with packet capacity ~a"
                             (~size (ssh:msg:channel:open-window-size msg) #:precision 3)
                             (ssh:msg:channel:open-type msg)
                             (number->string (ssh:msg:channel:open-sender msg) 16)
-                            (~size (ssh:msg:channel:open-packet-upsize msg) #:precision 3))]
+                            (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:request? msg)
-           (ssh-log-message 'debug "request channel[0x~a] for extension '~a'"
+           (ssh-log-message 'debug "request channel[0x~a] to prepare the extension '~a'"
                             (number->string (ssh:msg:channel:request-recipient msg) 16)
                             (ssh:msg:channel:request-type msg))]
           [(ssh:msg:channel:open:confirmation? msg)

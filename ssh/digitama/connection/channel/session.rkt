@@ -20,8 +20,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-session-channel : SSH-Channel-Constructor
-  (lambda [name sender window-size packet-upsize msg rfc]
+  (lambda [name local-id remote-id window-size packet-upsize msg rfc]
     (with-asserts ([msg ssh:msg:channel:open:session?])
-      (make-ssh-channel #:name 'session
-                        #:local-id sender #:remote-id sender
+      (make-ssh-channel #:name name
+                        #:local-id local-id #:remote-id remote-id
                         #:window-size window-size #:packet-upsize packet-upsize))))

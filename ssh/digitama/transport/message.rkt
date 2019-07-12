@@ -108,8 +108,7 @@
 (define ssh-log-outgoing-message : (-> SSH-Message Void)
   (lambda [msg]
     (cond [(ssh:msg:debug? msg)
-           (when (ssh:msg:debug-display? msg)
-             (ssh-log-message 'debug "[DEBUG] ~a" (ssh:msg:debug-message msg) #:with-peer-name? #false))]
+           (ssh-log-message 'debug "[DEBUG] ~a" (ssh:msg:debug-message msg) #:with-peer-name? #false)]
           [(ssh:msg:disconnect? msg)
            (ssh-log-message #:with-peer-name? #false
                             'info "terminate the connection ~a because of ~a, details: ~a"
@@ -130,8 +129,7 @@
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:debug? msg)
-           (when (ssh:msg:debug-display? msg)
-             (ssh-log-message 'info "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg) #:with-peer-name? #false))]
+           (ssh-log-message 'info "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg) #:with-peer-name? #false)]
           [(ssh:msg:disconnect? msg)
            (ssh-log-message #:with-peer-name? #false
                             'info "~a has disconnected with the reason ~a(~a)" (current-peer-name)

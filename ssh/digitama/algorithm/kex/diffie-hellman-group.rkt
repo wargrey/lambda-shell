@@ -155,21 +155,20 @@
       (cond [(< n minbits) (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "the requested prime is too small: (~a < ~a)" n minbits)]
             [else (hash-ref dh-modp-groups n (λ [] (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "unable to find a ~a-bits-sized prime" n)))])
       (list n))]
-    [(self smallest preferred biggest)
+    [(self base preferred limit)
      (define minbits : Positive-Index (ssh-dhg-kex-minbits self))
 
-     (values
-      (cond [(not (<= smallest preferred biggest))
-             (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "invalid prime size range: (~a <= ~a <= ~a)" smallest preferred biggest)]
-            [(< biggest minbits)
-             (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "the requested prime is too small: (~a < ~a)" biggest minbits)]
-            [else (let ([n (max smallest minbits)])
-                    (or (hash-ref dh-modp-groups n (λ [] #false))
-                        (let seek : (U DH-MODP-Group SSH-Message) ([ns : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
-                          (cond [(null? ns) (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "unable to find a prime in range [~a, ~a]" n biggest)]
-                                [(<= n (car ns) biggest) (hash-ref dh-modp-groups (car ns))]
-                                [else (seek (cdr ns))]))))])
-      (list smallest preferred biggest))]))
+     (values (cond [(not (<= base preferred limit))
+                    (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "invalid prime size range: (~a <= ~a <= ~a)" base preferred limit)]
+                   [(< limit minbits)
+                    (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "the requested prime is too small: (~a < ~a)" limit minbits)]
+                   [else (let ([n (max base minbits)])
+                           (or (hash-ref dh-modp-groups n (λ [] #false))
+                               (let seek : (U DH-MODP-Group SSH-Message) ([ns : (Listof Index) (sort (hash-keys dh-modp-groups) <)])
+                                 (cond [(null? ns) (make-ssh:disconnect:key:exchange:failed #:source dh-group-seek "unable to find a prime in range [~a, ~a]" n limit)]
+                                       [(<= n (car ns) limit) (hash-ref dh-modp-groups (car ns))]
+                                       [else (seek (cdr ns))]))))])
+             (list base preferred limit))]))
 
 (define dhg-random : (-> Byte Integer Integer)
   (lambda [open-min p]

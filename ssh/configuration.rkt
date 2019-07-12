@@ -35,5 +35,4 @@
    [userauth-retry : Index 20]
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   [maximum-channel-window-size : Positive-Integer 4294967295 #| 2^32 - 1 |#]
    [disabled-channels : (Listof Symbol) null]))

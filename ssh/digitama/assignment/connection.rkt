@@ -15,7 +15,7 @@
    [SSH_OPEN_CONNECT_FAILED                             2]
    [SSH_OPEN_UNKNOWN_CHANNEL_TYPE                       3]
    [SSH_OPEN_RESOURCE_SHORTAGE                          4])
-  #:fallback SSH-OPEN-UNKNOWN-CHANNEL-TYPE)
+  #:fallback SSH-OPEN-CONNECT-FAILED)
 
 (define-ssh-symbols SSH-Channel-Data-Type #:as Index
   ; https://tools.ietf.org/html/rfc4250#section-4.4

@@ -14,7 +14,7 @@
 (define-type SSH-Service-Constructor (-> SSH-User Bytes SSH-Configuration SSH-Service))
 (define-type SSH-Service-Destructor (-> SSH-Service Void))
 
-(define-type SSH-Service-Response (-> SSH-Service Bytes SSH-Configuration (Values SSH-Service (U SSH-Message (Listof (U SSH-Message)) False))))
+(define-type SSH-Service-Response (-> SSH-Service Bytes (Values SSH-Service (U SSH-Message (Listof (U SSH-Message)) False))))
 (define-type SSH-Service-Datum-Evt (-> SSH-Service (Option (Evtof (Pairof SSH-Service SSH-Message)))))
 
 (define-object ssh-service : SSH-Service
