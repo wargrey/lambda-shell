@@ -6,6 +6,7 @@
  uint32    packet_sequence_number ([0, #xFFFFFFFF], never reset, cyclic, not sent over the wire)
  byte[n]   packet body (n = maximum packet_length, plaintext and/or ciphertext)
  byte[m]   packet mac (m = mac_length)
+ byte[t]   packet fault tolerance
 |#
 
 (define-type Maybe-Newkeys (U SSH-Parcel SSH-Newkeys))
@@ -31,12 +32,23 @@
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; NOTE
+; The fault tolerance size is designed for SSH-MSG-CHANNEL-DATA and SSH-MSG-CHANNEL-EXTENDED-DATA.
+;
+; RFC4254 does not make it clear that whether the 'maximum packet size' specifies the maximum size of
+;   the SSH-MSG-CHANNEL-DATA/SSH-MSG-CHANNEL-EXTENDED-DATA messages(a.k.a the payload of packet from
+;   the perspective of transport layer) or just the maximum size of the data carried by messages of
+;   those two kinds.
+;
+; It seems that OpenSSH interpretes it as the channel data capacity (with uint32 length).
+(define ssh-parcel-fault-tolerance-size : Byte 16)
+
 (define ssh-parcel-assess-size : (-> Natural Index Natural)
   (lambda [payload-capacity mac-length]
     (+ 4
-       4 1 payload-capacity
-       #xFF
-       mac-length)))
+       4 1 payload-capacity #xFF
+       mac-length
+       ssh-parcel-fault-tolerance-size)))
 
 (define make-ssh-parcel : (->* (Index Index) (Nonnegative-Fixnum) SSH-Parcel)
   (lambda [payload-capacity mac-length [sequence-start 0]]

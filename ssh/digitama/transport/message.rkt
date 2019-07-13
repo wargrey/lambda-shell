@@ -23,7 +23,7 @@
     (define parcel-entity : SSH-Parcel (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys)))
     (define outgoing-parcel : Bytes (ssh-parcel-outgoing parcel-entity))
     (define maybe-overload-parcel : (Option Bytes)
-      (and (not (ssh-check-outgoing-payload-size payload-length ($ssh-payload-capacity rfc)))
+      (and (not (ssh-check-outgoing-payload-size payload-length ($ssh-payload-capacity rfc) ssh-parcel-fault-tolerance-size))
            (let ([overload-parcel (make-bytes (ssh-parcel-assess-size payload-length (ssh-parcel-mac-capacity parcel-entity)))])
              (bytes-copy! overload-parcel 0 outgoing-parcel 0 ssh-packet-size-index)
              overload-parcel)))
