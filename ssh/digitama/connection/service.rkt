@@ -6,7 +6,7 @@
 
 (require "message.rkt")
 (require "channel.rkt")
-(require "channel/uuid.rkt")
+(require "chid.rkt")
 
 (require "../message.rkt")
 (require "../service.rkt")
@@ -29,7 +29,7 @@
    [partner : Index]
    [send-window : Index]
    [recv-window : Index]
-   [packet-capacity : Index])
+   [parcel : Bytes])
   #:type-name #%Channel
   #:mutable)
 
@@ -56,7 +56,46 @@
     (with-asserts ([self ssh-connection-service?])
       (define request : (Option SSH-Message) (ssh-filter-connection-message brequest))
       
-      (cond [(ssh:msg:channel:open? request)
+      (cond [(ssh:msg:channel:data? request)
+             (define id : Index (ssh:msg:channel:data-recipient request))
+             (define maybe-chinfo : (Option #%channel) (hash-ref (ssh-connection-service-channels self) id (λ [] #false)))
+
+             (cond [(not maybe-chinfo) (values self #false)]
+                   [else (let ([channel (#%channel-entity maybe-chinfo)]
+                               [partner (#%channel-partner maybe-chinfo)])
+                           (define-values (channel++ feedback) (ssh-channel.consume channel (ssh:msg:channel:data-octets request) partner))
+                           (unless (eq? channel channel++)
+                             (set-#%channel-entity! maybe-chinfo channel++))
+                           (values self feedback))])]
+            
+            [(ssh:msg:channel:extended:data? request)
+             (define id : Index (ssh:msg:channel:extended:data-recipient request))
+             (define maybe-chinfo : (Option #%channel) (hash-ref (ssh-connection-service-channels self) id (λ [] #false)))
+
+             (cond [(not maybe-chinfo) (values self #false)]
+                   [else (let ([channel (#%channel-entity maybe-chinfo)]
+                               [partner (#%channel-partner maybe-chinfo)])
+                           (define-values (channel++ feedback)
+                             (ssh-channel.consume channel
+                                                  (ssh:msg:channel:extended:data-octets request) (ssh:msg:channel:extended:data-type request)
+                                                  partner))
+                           (unless (eq? channel channel++)
+                             (set-#%channel-entity! maybe-chinfo channel++))
+                           (values self feedback))])]
+
+            [(ssh:msg:channel:eof? request)
+             (define id : Index (ssh:msg:channel:eof-recipient request))
+             (define maybe-chinfo : (Option #%channel) (hash-ref (ssh-connection-service-channels self) id (λ [] #false)))
+
+             (cond [(not maybe-chinfo) (values self #false)]
+                   [else (let ([channel (#%channel-entity maybe-chinfo)]
+                               [partner (#%channel-partner maybe-chinfo)])
+                           (define-values (channel++ feedback) (ssh-channel.consume channel eof partner))
+                           (unless (eq? channel channel++)
+                             (set-#%channel-entity! maybe-chinfo channel++))
+                           (values self feedback))])]
+
+            [(ssh:msg:channel:open? request)
              (define rfc : SSH-Configuration (ssh-service-preference self))
              (define type : Symbol (ssh:msg:channel:open-type request))
              (define partner : Index (ssh:msg:channel:open-sender request))
@@ -69,11 +108,12 @@
                      [(memq (car λchannel) ($ssh-disabled-channels rfc)) (make-ssh:open:administratively:prohibited partner)]
                      [else (with-handlers ([exn:fail:out-of-memory? (λ [[e : exn]] (make-ssh:open:resource:shortage #:source (cdr λchannel) partner (exn-message e)))])
                              (define self-id : Index (ssh-channel-eq-uuid request (ssh-connection-service-channels self)))
-                             (define maybe-channel : (U SSH-Channel SSH-Message) ((cdr λchannel) type request rfc))
+                             (define maybe-channel : (U SSH-Channel SSH-Message) ((cdr λchannel) type self-id request rfc))
                              (cond [(ssh-message? maybe-channel) maybe-channel]
                                    [else (let ([local-capacity (min ($ssh-payload-capacity rfc) remote-capacity)])
                                            (hash-set! (ssh-connection-service-channels self) self-id
-                                                      (#%channel maybe-channel self-id partner window-size window-size local-capacity))
+                                                      (#%channel maybe-channel self-id partner window-size window-size
+                                                                 (make-bytes local-capacity)))
                                            (make-ssh:msg:channel:open:confirmation #:recipient partner #:sender self-id
                                                                                    #:window-size window-size #:packet-capacity local-capacity))]))]))
              (values self response)]
@@ -116,7 +156,7 @@
                        [evts : (Listof (Evtof (Pairof SSH-Service SSH-Service-Reply))) null])
         (cond [(null? chinfos) (and (pair? evts) (apply choice-evt evts))]
               [else (let* ([chinfo (car chinfos)]
-                           [e (ssh-channel.datum-evt (#%channel-entity chinfo) (#%channel-partner chinfo))])
+                           [e (ssh-channel.datum-evt (#%channel-entity chinfo) (#%channel-parcel chinfo) (#%channel-partner chinfo))])
                       (cond [(and e) (filter-map (cdr chinfos) (cons (ssh-connection-wrap-evt self e chinfo) evts))]
                             [else (filter-map (cdr chinfos) evts)]))])))))
 

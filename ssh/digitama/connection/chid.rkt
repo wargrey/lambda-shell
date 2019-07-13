@@ -10,8 +10,9 @@
                                       [Any HashTableTop -> Index])
   (case-lambda
     [(object)
-     (assert (bitwise-ior (arithmetic-shift (random (arithmetic-shift 1 randbits)) bodybits)
-                          (bitwise-bit-field (eq-hash-code object) 0 bodybits))
+     (assert (let ([body (bitwise-bit-field (eq-hash-code object) 0 bodybits)]
+                   [rand (random (arithmetic-shift 1 randbits))])
+               (bitwise-ior (arithmetic-shift rand bodybits) body))
              index?)]
     [(object uuidbase)
      (let uuid ([composed-object : Any object])

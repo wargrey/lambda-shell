@@ -4,6 +4,7 @@
 
 (require racket/tcp)
 (require racket/port)
+(require racket/string)
 
 (require "transport/identification.rkt")
 (require "transport/message.rkt")
@@ -198,10 +199,10 @@
   (lambda [e /dev/sshout]
     (define eof-msg : SSH-MSG-DISCONNECT
       (make-ssh:disconnect:reserved #:source ssh-deliver-error "~a: ~a: ~a" (current-peer-name) (object-name e)
-                                    (call-with-output-string
-                                        (λ [[/dev/strout : Output-Port]]
-                                          (parameterize ([current-error-port /dev/strout])
-                                            ((error-display-handler) (exn-message e) e))))))
+                                    (string-trim (call-with-output-string
+                                                     (λ [[/dev/strout : Output-Port]]
+                                                       (parameterize ([current-error-port /dev/strout])
+                                                         ((error-display-handler) (exn-message e) e)))))))
 
     (ssh-log-message 'error #:with-peer-name? #false (ssh:msg:disconnect-description eof-msg))
     (ssh-stdout-propagate #:level 'error /dev/sshout eof-msg (ssh:msg:disconnect-description eof-msg))))
