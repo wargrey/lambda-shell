@@ -40,7 +40,9 @@
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "identify the channel[0x~a] with channel[0x~a]"
                             (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16)
-                            (number->string (ssh:msg:channel:open:confirmation-sender msg) 16))])))
+                            (number->string (ssh:msg:channel:open:confirmation-sender msg) 16))]
+          [(ssh:msg:channel:close? msg)
+           (ssh-log-message 'debug "notify channel[0x~a] to close" (ssh:msg:channel:close-recipient msg))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
@@ -58,4 +60,6 @@
           [(ssh:msg:channel:open:confirmation? msg)
            (ssh-log-message 'debug "the channel[0x~a] has been identified with channel[0x~a]"
                             (number->string (ssh:msg:channel:open:confirmation-sender msg) 16)
-                            (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16))])))
+                            (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16))]
+          [(ssh:msg:channel:close? msg)
+           (ssh-log-message 'debug "close the channel[0x~a]" (ssh:msg:channel:close-recipient msg))])))

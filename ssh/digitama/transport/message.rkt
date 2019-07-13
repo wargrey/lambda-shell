@@ -20,10 +20,11 @@
 (define ssh-write-message : (-> Output-Port SSH-Message SSH-Configuration Maybe-Newkeys Natural)
   (lambda [/dev/tcpout msg rfc newkeys]
     (define payload-length : Natural (ssh-message-length msg))
-    (define outgoing-parcel : Bytes (ssh-parcel-outgoing (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys))))
+    (define parcel-entity : SSH-Parcel (if (ssh-parcel? newkeys) newkeys (ssh-newkeys-parcel newkeys)))
+    (define outgoing-parcel : Bytes (ssh-parcel-outgoing parcel-entity))
     (define maybe-overload-parcel : (Option Bytes)
       (and (not (ssh-check-outgoing-payload-size payload-length ($ssh-payload-capacity rfc)))
-           (let ([overload-parcel (make-bytes (ssh-parcel-assess-size payload-length))])
+           (let ([overload-parcel (make-bytes (ssh-parcel-assess-size payload-length (ssh-parcel-mac-capacity parcel-entity)))])
              (bytes-copy! overload-parcel 0 outgoing-parcel 0 ssh-packet-size-index)
              overload-parcel)))
 

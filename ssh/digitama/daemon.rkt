@@ -29,38 +29,30 @@
       (when (ssh-port? sshc)
         (parameterize ([current-custodian (ssh-custodian sshc)])
           (serve sshc))))
-    
-    (parameterize ([current-custodian (ssh-custodian sshd)])
-      (define &sshcs : (Boxof (Listof Thread)) (box null))
 
+    (define root-custodian : Custodian (ssh-custodian sshd))
+    (parameterize ([current-custodian (make-custodian root-custodian)])
       (with-handlers ([exn:break? void])
         (let sync-accept-serve-loop ()
-          (define sshcs : (Listof Thread) (unbox &sshcs))
-          (define who : (U SSH-Listener Thread) (apply sync/enable-break (ssh-listener-evt sshd) sshcs))
-          
-          (set-box! &sshcs
-                    (cond [(thread? who) (remove who sshcs)]
-                          [else (cons (thread ssh-port-accept) sshcs)]))
+          (sync/enable-break (ssh-listener-evt sshd))
+          (thread ssh-port-accept)
           
           (sync-accept-serve-loop)))
-        
-      (thread-safe-kill (unbox &sshcs))
+
+      (thread-safe-shutdown (current-custodian) root-custodian)
       (ssh-shutdown sshd))))
 
 (define ssh-daemon-dispatch : (-> SSH-Port SSH-User (SSH-Nameof SSH-Service#) (SSH-Name-Listof* SSH-Service#) Void)
   (lambda [sshc user 1st-λservice all-λservices]
     (define session : Bytes (ssh-port-session-identity sshc))
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
-    (define-values (alive-services alive-evts)
-      (let ([1st-service ((cdr 1st-λservice) user session rfc)])
-        (values (make-hasheq (list (cons (car 1st-λservice) 1st-service)))
-                (let ([empty-evt : (HashTable Symbol (Evtof (Pairof SSH-Service SSH-Message))) (make-hasheq)])
-                  (ssh-datum-evts-set! empty-evt 1st-service)
-                  empty-evt))))
+    (define alive-services : (HashTable Symbol SSH-Service) (make-hasheq (list (cons (car 1st-λservice) ((cdr 1st-λservice) user session rfc)))))
     
     (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))])
       (let read-dispatch-serve-loop ()
-        (define datum : (U SSH-Datum (Pairof SSH-Service SSH-Message)) (apply sync/enable-break (ssh-port-datum-evt sshc) (hash-values alive-evts)))
+        (define datum : (U SSH-Datum (Pairof SSH-Service SSH-Service-Reply))
+          (apply sync/enable-break (ssh-port-datum-evt sshc)
+                 (ssh-datum-evts alive-services)))
 
         (unless (ssh-eof? datum)
           (cond [(bytes? datum)
@@ -72,10 +64,10 @@
                                              [(idmin idmax) (let ([r (ssh-service-range srv-state)]) (values (car r) (cdr r)))]
                                              [(log-outgoing-message) (ssh-service-log-outgoing srv-state)])
                                  (cond [(not (<= idmin mid idmax)) (dispatch (cdr services))]
-                                       [else (let-values ([(srv++ response) (ssh-service.response srv-state datum)])
-                                               (ssh-services-update! alive-services alive-evts srv++ srv-state)
-                                               (unless (not response)
-                                                 (for ([resp (if (list? response) (in-list response) (in-value response))])
+                                       [else (let-values ([(srv++ responses) (ssh-service.response srv-state datum)])
+                                               (ssh-services-update! alive-services srv++ srv-state)
+                                               (unless (not responses)
+                                                 (for ([resp (if (list? responses) (in-list responses) (in-value responses))])
                                                    (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]))]))]
                 
                 [(ssh:msg:service:request? datum)
@@ -87,12 +79,19 @@
                  (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description service))]
                        [else (let ([construct (cdr nth-service)])
                                (ssh-port-write sshc (make-ssh:msg:service:accept #:name service))
-                               (ssh-services-update! alive-services alive-evts (construct user session rfc) #false))])]
+                               (ssh-services-update! alive-services (construct user session rfc) #false))])]
 
                 [(pair? datum)
                  (define srv++ : SSH-Service (car datum))
-                 (ssh-services-update! alive-services alive-evts srv++ (hash-ref alive-services (ssh-service-name srv++) (λ [] #false)))
-                 (ssh-send-message sshc (cdr datum) srv++)]
+                 (define feedbacks : SSH-Service-Reply (cdr datum))
+                 
+                 (ssh-services-update! alive-services srv++ (hash-ref alive-services (ssh-service-name srv++) (λ [] #false)))
+
+                 (unless (not feedbacks)
+                   (let-values ([(idmin idmax) (let ([r (ssh-service-range srv++)]) (values (car r) (cdr r)))]
+                                [(log-outgoing-message) (ssh-service-log-outgoing srv++)])
+                     (for ([resp (if (list? feedbacks) (in-list feedbacks) (in-value feedbacks))])
+                       (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]
 
                 [else (ssh-port-write sshc (make-ssh:msg:unimplemented #:number (ssh-message-number datum)))])
 
@@ -104,28 +103,23 @@
     (ssh-port-wait sshc #:abandon? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-datum-evts-set! : (-> (HashTable Symbol (Evtof (Pairof SSH-Service SSH-Message))) SSH-Service Void)
-  (lambda [evts srv]
-    (define e (ssh-service.datum-evt srv))
+(define ssh-datum-evts : (-> (HashTable Symbol SSH-Service) (Listof (Evtof (Pairof SSH-Service SSH-Service-Reply))))
+  (lambda [services]
+    (let filter-map ([services : (Listof SSH-Service) (hash-values services)]
+                     [evts : (Listof (Evtof (Pairof SSH-Service SSH-Service-Reply))) null])
+      (cond [(null? services) evts]
+            [else (let ([e (ssh-service.datum-evt (car services))])
+                    (cond [(not e) (filter-map (cdr services) evts)]
+                          [else (filter-map (cdr services) (cons e evts))]))]))))
 
-    (unless (not e)
-      (hash-set! evts (ssh-service-name srv) e))))
-
-(define ssh-services-update! : (-> (HashTable Symbol SSH-Service) (HashTable Symbol (Evtof (Pairof SSH-Service SSH-Message))) SSH-Service (Option SSH-Service) Void)
-  (lambda [alive-services alive-evts srv++ srv]
+(define ssh-services-update! : (-> (HashTable Symbol SSH-Service) SSH-Service (Option SSH-Service) Void)
+  (lambda [alive-services srv++ srv]
     (unless (eq? srv++ srv)
-      (hash-set! alive-services (ssh-service-name srv++) srv++))
+      (hash-set! alive-services (ssh-service-name srv++) srv++))))
 
-    (ssh-datum-evts-set! alive-evts srv++)))
-
-(define ssh-send-message : (case-> [SSH-Port SSH-Message SSH-Service -> Void]
-                                   [SSH-Port SSH-Message (-> SSH-Message Void) Index Index -> Void])
-  (case-lambda
-    [(sshc msg srv)
-     (let ([range (ssh-service-range srv)])
-       (ssh-send-message sshc msg (ssh-service-log-outgoing srv) (car range) (cdr range)))]
-    [(sshc msg log-outgoing-message idmin idmax)
-     (if (<= idmin (ssh-message-number msg) idmax)
-         (void (log-outgoing-message msg)
-               (ssh-port-write sshc msg))
-         (ssh-port-ignore sshc msg))]))
+(define ssh-send-message : (-> SSH-Port SSH-Message (-> SSH-Message Void) Index Index Void)
+  (lambda [sshc msg log-outgoing-message idmin idmax]
+    (if (<= idmin (ssh-message-number msg) idmax)
+        (void (log-outgoing-message msg)
+              (ssh-port-write sshc msg))
+        (ssh-port-ignore sshc msg))))

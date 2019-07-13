@@ -179,6 +179,14 @@
             [(= size key-size) ΣK]
             [else (subbytes ΣK 0 key-size)]))))
 
+(define ssh-mac-capacity : (-> SSH-MSG-KEXINIT Index)
+  (lambda [kexinit]
+    (apply max
+           (map (λ [[name : (Pairof Symbol SSH-MAC#)]]
+                  (vector-ref (cdr name) 1))
+                (ssh-names-clean (append (ssh:msg:kexinit-c2s-macs kexinit)
+                                         (ssh:msg:kexinit-s2c-macs kexinit)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-deal-with-unexpected-message : (-> SSH-Message Procedure SSH-MSG-DISCONNECT)
   (lambda [msg func]

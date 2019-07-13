@@ -51,7 +51,7 @@
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
-             (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc)))
+             (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc) (ssh-mac-capacity kexinit)))
              (define peer : (U SSH-Identification SSH-MSG-DISCONNECT)
                (ssh-prompt #false
                            (λ [] (ssh-read-server-identification /dev/tcpin rfc))
@@ -70,7 +70,7 @@
   (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
-             (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc)))
+             (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc) (ssh-mac-capacity kexinit)))
              (define peer : (U SSH-Identification SSH-MSG-DISCONNECT)
                (ssh-prompt #false
                            (λ [] (ssh-read-client-identification /dev/tcpin rfc))
@@ -196,7 +196,14 @@
 
 (define ssh-deliver-error : (-> exn (SSH-Stdout Port) Void)
   (lambda [e /dev/sshout]
-    (define eof-msg : SSH-MSG-DISCONNECT (make-ssh:disconnect:reserved #:source ssh-deliver-error "~a: ~a: ~a" (current-peer-name) (object-name e) (exn-message e)))
+    (define eof-msg : SSH-MSG-DISCONNECT
+      (make-ssh:disconnect:reserved #:source ssh-deliver-error "~a: ~a: ~a" (current-peer-name) (object-name e)
+                                    (call-with-output-string
+                                        (λ [[/dev/strout : Output-Port]]
+                                          (parameterize ([current-error-port /dev/strout])
+                                            ((error-display-handler) (exn-message e) e))))))
+
+    (ssh-log-message 'error #:with-peer-name? #false (ssh:msg:disconnect-description eof-msg))
     (ssh-stdout-propagate #:level 'error /dev/sshout eof-msg (ssh:msg:disconnect-description eof-msg))))
 
 (define ssh-throw-disconnection : (->* (SSH-MSG-DISCONNECT) (#:level (Option Log-Level)) Nothing)

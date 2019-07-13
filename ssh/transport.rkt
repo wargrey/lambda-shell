@@ -170,7 +170,9 @@
          (ssh-shutdown self 'SSH-DISCONNECT-BY-APPLICATION reason)
          (ssh-shutdown self reason #false))]
     [(self reason description)
-     (thread-send (ssh-port-ghostcat self) (make-ssh:msg:disconnect #:reason reason #:description description))
+     (when (thread-running? (ssh-port-ghostcat self))
+       (thread-send (ssh-port-ghostcat self)
+                    (make-ssh:msg:disconnect #:reason reason #:description description)))
      (ssh-port-wait self #:abandon? #false)]))
 
 (define ssh-eof? : (-> Any Boolean : #:+ SSH-EOF)

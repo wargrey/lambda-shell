@@ -2,19 +2,20 @@
 
 (provide (all-defined-out))
 
+(require racket/string)
+
 (require "../channel.rkt")
 
 (require "../../message.rkt")
-(require "../../message/connection.rkt")
 (require "../../diagnostics.rkt")
 
-(require "../../../datatype.rkt")
 (require "../../../configuration.rkt")
 
 (require/typed racket/base
                [environment-variables-copy (-> Environment-Variables Environment-Variables)])
 
 ; `define-ssh-case-messages` requires this because of Racket's phase isolated compilation model
+(require "../../message/connection.rkt")
 (require (for-syntax "../../message/connection.rkt"))
 
 (define ssh-session-signals : (Listof Symbol)
@@ -43,8 +44,8 @@
   ; https://tools.ietf.org/html/rfc4254#section-6.9
   [SIGNAL         #:type 'signal         ([name #| without SIG |# : Symbol])]
   ; https://tools.ietf.org/html/rfc4254#section-6.10
-  [EXIT-STATUS    #:type 'exit-status    ([retcode : Index])]
-  [EXIT-SIGNAL    #:type 'exit-signal    ([name #| without SIG |# : Symbol] [core? : Boolean] [errmsg : String] [language : Symbol '||])])
+  [EXIT-STATUS    #:type 'exit-status    ([code : Index])]
+  [EXIT-SIGNAL    #:type 'exit-signal    ([name #| without SIG |# : Symbol] [core? : Boolean] [error-message : String] [language : Symbol '||])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct ssh-session-channel ssh-channel
@@ -52,7 +53,13 @@
    [rows : Index]
    [width : Index]
    [height : Index]
-   [modes : Bytes])
+   [modes : Bytes]
+
+   [command : Path-String]
+   [program : (Option Subprocess)]
+   [outin : Input-Port]
+   [errin : Input-Port]
+   [stdout : Output-Port])
   #:type-name SSH-Session-Channel)
 
 (define make-ssh-session-channel : SSH-Channel-Constructor
@@ -60,50 +67,91 @@
     (with-asserts ([msg ssh:msg:channel:open:session?])
       (ssh-session-channel (super-ssh-channel #:name name
                                               #:envariables (environment-variables-copy (current-environment-variables)) #:custodian (make-custodian)
-                                              #:response ssh-session-channel-response)
-                           0 0 0 0 #""))))
+                                              #:response ssh-session-response #:datum-evt ssh-session-datum-evt
+                                              #:destruct ssh-session-destruct)
+                           0 0 0 0 #""
+                           "" #false (current-input-port) (current-input-port) (current-output-port)))))
+
+(define ssh-session-destruct : SSH-Channel-Destructor
+  (lambda [self]
+    (with-asserts ([self ssh-session-channel?])
+      (define program : (Option Subprocess) (ssh-session-channel-program self))
+
+      (unless (not program)
+        (subprocess-kill program #true)
+        (subprocess-wait program))
+      
+      (ssh-channel-shutdown-custodian self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-session-channel-response : SSH-Channel-Response
-  (lambda [self request partner-id reply? rfc]
+(define ssh-session-response : SSH-Channel-Response
+  (lambda [self request rfc]
     (with-asserts ([self ssh-session-channel?])
-      (cond [(ssh:msg:channel:request:shell? request)
-             (parameterize ([current-environment-variables (ssh-channel-envariables self)])
-               (values self (and reply? (make-ssh:msg:channel:failure #:recipient partner-id))))]
+      (cond [(ssh:msg:channel:request:exec? request)
+             (define command : (Listof String) (string-split (ssh:msg:channel:request:exec-command request)))
+
+             (cond [(null? command) (values self #false)]
+                   [else (let ([program (find-executable-path (car command))])
+                           (cond [(not program) (values self #false)]
+                                 [else (ssh-session-exec self program (cdr command))]))])]
+
+            [(ssh:msg:channel:request:shell? request)
+             (parameterize ([current-environment-variables (ssh-channel-envariables self)]
+                            [current-custodian (ssh-channel-custodian self)])
+               (values self #false))]
 
             [(ssh:msg:channel:request:env? request)
              (define name : Bytes (ssh:msg:channel:request:env-name request))
-             (define okay? : Boolean
-               (and (member name ($ssh-allowed-envs rfc))
-                    (ssh-session-putevn (ssh-channel-envariables self)
-                                        (ssh:msg:channel:request:env-name request)
-                                        (ssh:msg:channel:request:env-value request))))
-
+             
              (values self
-                     (and reply?
-                          (if (not okay?)
-                              (make-ssh:msg:channel:success #:recipient partner-id)
-                              (make-ssh:msg:channel:failure #:recipient partner-id))))]
+                     (and (member name ($ssh-allowed-envs rfc))
+                          (ssh-session-putevn (ssh-channel-envariables self)
+                                              (ssh:msg:channel:request:env-name request)
+                                              (ssh:msg:channel:request:env-value request))))]
 
             [(ssh:msg:channel:request:pty:req? request)
              (define okay? : Boolean
                (ssh-session-putevn (ssh-channel-envariables self)
                                    #"TERM" (ssh:msg:channel:request:pty:req-TERM request)))
 
-             (cond [(not okay?) (values self (make-ssh:msg:channel:failure #:recipient partner-id))]
+             (cond [(not okay?) (values self #false)]
                    [else (values (struct-copy ssh-session-channel self
                                               [modes (ssh:msg:channel:request:pty:req-modes request)]
                                               [cols (ssh:msg:channel:request:pty:req-cols request)] [rows (ssh:msg:channel:request:pty:req-rows request)]
                                               [width (ssh:msg:channel:request:pty:req-width request)] [height (ssh:msg:channel:request:pty:req-width request)])
-                                 (and reply? (make-ssh:msg:channel:success #:recipient partner-id)))])]
+                                 #true)])]
             
             [(ssh:msg:channel:request:window:change? request)
              (values (struct-copy ssh-session-channel self
                                   [cols (ssh:msg:channel:request:window:change-cols request)] [rows (ssh:msg:channel:request:window:change-rows request)]
                                   [width (ssh:msg:channel:request:window:change-width request)] [height (ssh:msg:channel:request:window:change-width request)])
-                     #false)]
+                     #true)]
+
+            [(ssh:msg:channel:request:exit:status? request)
+             (ssh-log-message 'debug "remote program(~a) has terminated with exit code ~a"
+                              (ssh-session-channel-command self)
+                              (ssh:msg:channel:request:exit:status-code request))
+             
+             (values self #true)]
+            
+            [(ssh:msg:channel:request:exit:signal? request)
+             (ssh-log-message 'debug "remote program(~a) has terminated due to signal SIG~a ~a core dumpped, details: ~a"
+                              (ssh-session-channel-command self)
+                              (ssh:msg:channel:request:exit:signal-name request)
+                              (if (ssh:msg:channel:request:exit:signal-core? request) 'with 'without)
+                              (ssh:msg:channel:request:exit:signal-error-message request))
+             
+             (values self #true)]
             
             [else (values self #false)]))))
+
+(define ssh-session-datum-evt : SSH-Channel-Datum-Evt
+  (lambda [self partner]
+    (with-asserts ([self ssh-session-channel?])
+      (define program : (Option Subprocess) (ssh-session-channel-program self))
+
+      (and program
+           (choice-evt (wrap-evt program (λ [[p : Subprocess]] (ssh-session-exit-status self program partner))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-session-putevn : (-> Environment-Variables Bytes Bytes Boolean)
@@ -112,3 +160,29 @@
     
     (ssh-log-message 'debug "SET ~a=~a (~a)" name value (if (not okay?) 'failure 'success))
     okay?))
+
+(define ssh-session-exec : (-> SSH-Session-Channel Path (Listof String) (Values SSH-Channel Boolean))
+  (lambda [self program-path args]
+    (cond [(ssh-session-channel-program self) (values self #false)]
+          [else (parameterize ([subprocess-group-enabled #true]
+                               [current-subprocess-custodian-mode 'kill]
+                               [current-environment-variables (ssh-channel-envariables self)]
+                               [current-custodian (ssh-channel-custodian self)])
+                  (define-values (child /dev/outin /dev/stdout /dev/errin) (apply subprocess #false #false #false "program-path" args))
+
+                  (ssh-log-message 'debug "exec ~a ~a" program-path (string-join args " "))
+                  
+                  (values (struct-copy ssh-session-channel self [command program-path]
+                                       [program child] [outin /dev/outin] [stdout /dev/stdout] [errin /dev/errin])
+                          #true))])))
+
+(define ssh-session-exit-status : (-> SSH-Session-Channel Subprocess Index (Pairof SSH-Channel SSH-Channel-Reply))
+  (lambda [self program partner]
+    (define status (subprocess-status program))
+
+    (ssh-log-message 'debug "program(~a) has terminated with exit code ~a" (ssh-session-channel-command self) status)
+
+    (cond [(not (index? status)) (cons self #false)] ; still running, albeit this should not happen
+          [else (cons (struct-copy ssh-session-channel self [program #false])
+                      (list (make-ssh:msg:channel:request:exit:status #:recipient partner #:reply? #false #:code status)
+                            (make-ssh:msg:channel:close #:recipient partner)))])))

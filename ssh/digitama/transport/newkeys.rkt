@@ -12,7 +12,8 @@
 
 (struct ssh-parcel
   ([incoming : Bytes]
-   [outgoing : Bytes])
+   [outgoing : Bytes]
+   [mac-capacity : Index])
   #:type-name SSH-Parcel)
 
 (struct ssh-newkeys
@@ -30,15 +31,16 @@
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-parcel-assess-size : (-> Natural Natural)
-  (lambda [payload-capacity]
+(define ssh-parcel-assess-size : (-> Natural Index Natural)
+  (lambda [payload-capacity mac-length]
     (+ 4
        4 1 payload-capacity
-       #xFF)))
+       #xFF
+       mac-length)))
 
-(define make-ssh-parcel : (->* (Index) (Nonnegative-Fixnum) SSH-Parcel)
-  (lambda [payload-capacity [sequence-start 0]]
-    (define parcel-size : Natural (ssh-parcel-assess-size payload-capacity))
+(define make-ssh-parcel : (->* (Index Index) (Nonnegative-Fixnum) SSH-Parcel)
+  (lambda [payload-capacity mac-length [sequence-start 0]]
+    (define parcel-size : Natural (ssh-parcel-assess-size payload-capacity mac-length))
     (define outgoing : Bytes (make-bytes parcel-size))
     (define incoming : Bytes (make-bytes parcel-size))
 
@@ -47,7 +49,7 @@
 
     ; TODO: if random parcels are needed?
     
-    (ssh-parcel incoming outgoing)))
+    (ssh-parcel incoming outgoing mac-length)))
 
 (define ssh-parcel-action-on-rekexed : (-> SSH-Parcel Void)
   (lambda [self]

@@ -41,9 +41,7 @@
 
     (ssh-read-bytes! /dev/tcpin parcel ssh-packet-payload-index packet-end ssh-read-plain-packet)
     (network-natural-bytes++ parcel 0 ssh-packet-size-index)
-
     (ssh-pretty-print-packet 'ssh-read-raw-packet parcel packet-end 8 debug-level #:cipher? #false)
-    
     (values (+ ssh-packet-payload-index payload-length) (+ packet-length 4))))
 
 (define ssh-read-cipher-packet : (-> Input-Port Bytes Index Byte
@@ -65,24 +63,23 @@
 
     (ssh-read-bytes! /dev/tcpin parcel head-block-end packet-end ssh-read-cipher-packet)
     (ssh-pretty-print-packet 'ssh-read-cipher-packet parcel packet-end blocksize debug-level head-block-end)
-    (decrypt! parcel head-block-end packet-end)
-    
-    (define checksum : Bytes (mac parcel 0 packet-end))
-    (define mac-length : Index (bytes-length checksum))
 
-    (when (> mac-length 0)
-      (define digest (make-bytes mac-length))
+    (when (> packet-end head-block-end)
+      (decrypt! parcel head-block-end packet-end))
+    
+    (let* ([checksum (mac parcel 0 packet-end)]
+           [mac-length : Index (bytes-length checksum)])
+      (when (> mac-length 0)
+        (define digest (make-bytes mac-length))
 
-      (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
-
-      (unless (bytes=? checksum digest)
-        (ssh-collapse (make-ssh:disconnect:mac:error #:source ssh-read-cipher-packet "corrupted packet"))))
+        (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
+        
+        (unless (bytes=? checksum digest)
+          (ssh-collapse (make-ssh:disconnect:mac:error #:source ssh-read-cipher-packet "corrupted packet"))))
     
-    (network-natural-bytes++ parcel 0 ssh-packet-size-index)
-    
-    (ssh-pretty-print-packet 'ssh-read-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false #:2nd? #true)
-    
-    (values (+ ssh-packet-payload-index payload-length) (+ packet-length mac-length 4))))
+      (network-natural-bytes++ parcel 0 ssh-packet-size-index)
+      (ssh-pretty-print-packet 'ssh-read-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false #:2nd? #true)
+      (values (+ ssh-packet-payload-index payload-length) (+ packet-length mac-length 4)))))
 
 (define ssh-write-plain-packet : (-> Output-Port Bytes Natural (Option Log-Level) Index)
   (lambda [/dev/tcpout parcel payload-length debug-level]
