@@ -34,6 +34,10 @@
            (ssh-log-message 'debug "sent ~a extended data to channel[0x~a]"
                             (~size (bytes-length (ssh:msg:channel:extended:data-octets msg)) #:precision 3)
                             (number->string (ssh:msg:channel:extended:data-recipient msg) 16))]
+          [(ssh:msg:channel:window:adjust? msg)
+           (ssh-log-message 'debug "adjust the incoming window sized by ~a for channel[0x~a]"
+                            (~size (ssh:msg:channel:window:adjust-increment msg) #:precision 3)
+                            (number->string (ssh:msg:channel:window:adjust-recipient msg) 16))]
           [(ssh:msg:channel:open? msg)
            (ssh-log-message 'debug "open a ~a-window-sized '~a' as channel[0x~a] with packet capacity ~a"
                             (~size (ssh:msg:channel:open-window-size msg) #:precision 3)
@@ -41,7 +45,7 @@
                             (number->string (ssh:msg:channel:open-sender msg) 16)
                             (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:open:confirmation? msg)
-           (ssh-log-message 'debug "identify the channel[0x~a] with channel[0x~a] over a ~a-sized packet"
+           (ssh-log-message 'debug "identify the channel[0x~a] with channel[0x~a], employing a ~a-sized packet"
                             (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16)
                             (number->string (ssh:msg:channel:open:confirmation-sender msg) 16)
                             (~size (ssh:msg:channel:open:confirmation-packet-capacity msg) #:precision 3))]
@@ -65,6 +69,10 @@
            (ssh-log-message 'debug "received ~a extended data for channel[0x~a]"
                             (~size (bytes-length (ssh:msg:channel:extended:data-octets msg)) #:precision 3)
                             (number->string (ssh:msg:channel:extended:data-recipient msg) 16))]
+          [(ssh:msg:channel:window:adjust? msg)
+           (ssh-log-message 'debug "the outgoing window size of channel[0x~a] has increamented by ~a"
+                            (number->string (ssh:msg:channel:window:adjust-recipient msg) 16)
+                            (~size (ssh:msg:channel:window:adjust-increment msg) #:precision 3))]
           [(ssh:msg:channel:open? msg)
            (ssh-log-message 'debug "try opening a ~a-window-sized '~a' as channel[~a] with packet capacity ~a"
                             (~size (ssh:msg:channel:open-window-size msg) #:precision 3)

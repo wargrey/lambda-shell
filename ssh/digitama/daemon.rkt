@@ -46,7 +46,9 @@
   (lambda [sshc user 1st-λservice all-λservices]
     (define session : Bytes (ssh-port-session-identity sshc))
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
-    (define alive-services : (HashTable Symbol SSH-Service) (make-hasheq (list (cons (car 1st-λservice) ((cdr 1st-λservice) user session rfc)))))
+    (define alive-services : (HashTable Symbol SSH-Service)
+      (make-hasheq (list (cons (car 1st-λservice)
+                               ((cdr 1st-λservice) (car 1st-λservice) user session rfc)))))
     
     (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))])
       (let read-dispatch-serve-loop ()
@@ -79,7 +81,7 @@
                  (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description service))]
                        [else (let ([construct (cdr nth-service)])
                                (ssh-port-write sshc (make-ssh:msg:service:accept #:name service))
-                               (ssh-services-update! alive-services (construct user session rfc) #false))])]
+                               (ssh-services-update! alive-services (construct (car nth-service) user session rfc) #false))])]
 
                 [(pair? datum)
                  (define srv++ : SSH-Service (car datum))
@@ -99,8 +101,9 @@
 
     (for ([service (in-hash-values alive-services)])
       (ssh-service.destruct service))
-    
-    (ssh-port-wait sshc #:abandon? #true)))
+
+    (ssh-port-wait sshc #:abandon? #true)
+    (ssh-log-message 'debug "Good Bye!")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-datum-evts : (-> (HashTable Symbol SSH-Service) (Listof (Evtof (Pairof SSH-Service SSH-Service-Reply))))
@@ -119,6 +122,7 @@
 
 (define ssh-send-message : (-> SSH-Port SSH-Message (-> SSH-Message Void) Index Index Void)
   (lambda [sshc msg log-outgoing-message idmin idmax]
+    ; TODO: should be the transport layer messages allowed?
     (if (<= idmin (ssh-message-number msg) idmax)
         (void (log-outgoing-message msg)
               (ssh-port-write sshc msg))

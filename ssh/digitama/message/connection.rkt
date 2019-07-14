@@ -20,7 +20,7 @@
                                          [reason : (SSH-Symbol SSH-Channel-Failure-Reason)]
                                          [description : String (symbol->string reason)]
                                          [language : Symbol '||])]
-  [SSH_MSG_CHANNEL_WINDOW_ADJUST     93 ([recipient : Index] [addsize : Index])]
+  [SSH_MSG_CHANNEL_WINDOW_ADJUST     93 ([recipient : Index] [increment : Index])]
   [SSH_MSG_CHANNEL_DATA              94 ([recipient : Index] [octets : Bytes])]
   [SSH_MSG_CHANNEL_EXTENDED_DATA     95 ([recipient : Index] [type : (SSH-Symbol SSH-Channel-Data-Type) 'SSH-EXTENDED-DATA-STDERR] [octets : Bytes])]
   [SSH_MSG_CHANNEL_EOF               96 ([recipient : Index])]

@@ -40,7 +40,7 @@
   ; https://tools.ietf.org/html/rfc4254#section-6.5
   [SHELL          #:type 'shell          ()]
   [EXEC           #:type 'exec           ([command : String])]
-  [SUBSYSTEM      #:type 'subsystem      ([name : Symbol]) #:case name]
+  [SUBSYSTEM      #:type 'subsystem      ([name : Symbol])]
   ; https://tools.ietf.org/html/rfc4254#section-6.9
   [SIGNAL         #:type 'signal         ([name #| without SIG |# : Symbol])]
   ; https://tools.ietf.org/html/rfc4254#section-6.10

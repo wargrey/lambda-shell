@@ -349,6 +349,11 @@
     (define-values (message end-index) (ssh-bytes->message bmsg offset #:group group))
     message))
 
+(define ssh-bytes-uint32-car : (->* (Bytes) (Index) Index)
+  (lambda [bmsg [offset 0]]
+    (define-values (u32 _) (ssh-bytes->uint32 bmsg (+ offset 1)))
+    u32))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-bytes->shared-message-database : (HashTable Symbol (HashTable Index Unsafe-SSH-Bytes->Message)) (make-hasheq))
 (define ssh-bytes->case-message-database : (HashTable Symbol (cons Index (HashTable Any Unsafe-SSH-Bytes->Message))) (make-hasheq))

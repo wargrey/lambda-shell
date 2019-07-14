@@ -35,5 +35,8 @@
    [userauth-retry : Index 20]
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   [disabled-channels : (Listof Symbol) null]
+   [channel-packet-capacity : Index 32768] ; 32KB
+   [channel-initial-window-size : Index 2097152] ; 2MB
+   
+   [disabled-channel-types : (Listof Symbol) null]
    [allowed-envs : (Listof Bytes) (list #"LC_ALL" #"LC_CTYPE")]))

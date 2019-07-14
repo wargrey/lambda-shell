@@ -12,6 +12,7 @@
 (require raco/command-name)
 
 (require digimon/collection)
+(require digimon/echo)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-target-port (make-parameter 2222))
@@ -34,7 +35,12 @@
      argument-list
      flag-table
      (λ [!voids]
-       (with-logging-to-port (current-output-port)
+       (with-intercepted-logging
+           (λ [log] (case (vector-ref log 0)
+                      [(info)    (echof "~a~n" #:fgcolor 'green  (vector-ref log 1))]
+                      [(warning) (echof "~a~n" #:fgcolor 'yellow (vector-ref log 1))]
+                      [(error)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
+                      [else      (echof "~a~n" #:fgcolor 'gray   (vector-ref log 1))]))
          (λ [] (ssh-daemon (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level #false))))
          'debug))
      '()

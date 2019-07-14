@@ -22,8 +22,8 @@
           [SSH-Channel Bytes Symbol Index -> (Values SSH-Channel SSH-Channel-Reply)]))
 
 (define-object ssh-channel : SSH-Channel
-  ([type : Symbol]
-   [id : Index]
+  ([id : Index]
+   [type : Symbol]
    [envariables : Environment-Variables]
    [custodian : Custodian])
   ([response : SSH-Channel-Response]

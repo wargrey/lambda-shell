@@ -13,7 +13,7 @@
 (define-type SSH-Service-Reply (U SSH-Message (Listof SSH-Message) False))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-Service-Constructor (-> SSH-User Bytes SSH-Configuration SSH-Service))
+(define-type SSH-Service-Constructor (-> Symbol SSH-User Bytes SSH-Configuration SSH-Service))
 (define-type SSH-Service-Destructor (-> SSH-Service Void))
 
 (define-type SSH-Service-Response (-> SSH-Service Bytes (Values SSH-Service SSH-Service-Reply)))

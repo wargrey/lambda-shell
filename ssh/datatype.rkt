@@ -20,7 +20,7 @@
 
 (unsafe-require/typed racket/base
                       [integer-length (-> Integer Index)]
-                      [integer-bytes->integer (-> Bytes Boolean Boolean Natural Natural Index)])
+                      [(integer-bytes->integer integer-bytes->uint32) (-> Bytes Boolean Boolean Natural Natural Index)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-boolean-length : (-> Any One)
@@ -53,7 +53,7 @@
 (define ssh-bytes->uint32 : (SSH-Bytes->Datum Index)
   (lambda [bint [offset 0]]
     (define end : Natural (+ offset 4))
-    (values (integer-bytes->integer bint #false #true offset end)
+    (values (integer-bytes->uint32 bint #false #true offset end)
             end)))
 
 (define ssh-uint64-length : (-> Any 8)
