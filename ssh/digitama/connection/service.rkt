@@ -226,24 +226,33 @@
     (define partner : (Option Index) (ssh-channel-incoming-partner chport))
     (define traffic : Natural (ssh-bstring-length octets))
     (define incoming-upwindow : Index (ssh-channel-port-incoming-upwindow chport))
-    (define incoming-window : Integer (- (ssh-channel-port-incoming-window chport) traffic))
+    (define incoming-window : Index (ssh-channel-port-incoming-window chport))
+    (define incoming-window-- : Integer (- incoming-window traffic))
     (define channel-capacity : Natural (ssh-bstring-length (ssh-channel-port-parcel chport)))
+    (define self-str : String (number->string (ssh-channel-id (ssh-channel-port-entity chport)) 16))
     
-    (cond [(not (and partner (< traffic channel-capacity) (index? incoming-window))) (values #false #false)]
-          [else (let* ([consumption (- incoming-upwindow incoming-window)]
-                       [self-str (number->string (ssh-channel-id (ssh-channel-port-entity chport)) 16)])
+    (cond [(not partner)
+           (ssh-log-message 'warning "Channel[0x~a]: waiting for the confirmation" self-str)
+           (values #false #false)]
+          [(> traffic (+ channel-capacity (ssh-bstring-length #""))) ; stupid OpenSSH
+           (ssh-log-message 'warning "Channel[0x~a]: packet is too big: ~a > ~a" self-str (~size traffic) (~size channel-capacity))
+           (values #false #false)]
+          [(not (index? incoming-window--))
+           (ssh-log-message 'warning "Channel[0x~a]: the incoming window is too small: ~a < ~a" self-str (~size incoming-window #:precision '(= 6)) (~size traffic))
+           (values #false #false)]
+          [else (let ([consumption (- incoming-upwindow incoming-window--)])
                   ; see `channel-check-window` in channels.c of OpenSSH
                   (set-ssh-channel-port-incoming-traffic! chport (+ (ssh-channel-port-incoming-traffic chport) traffic))
                   (if (and (index? consumption)
                            (or (> consumption (* channel-capacity 4))
-                               (< incoming-window (/ incoming-upwindow 4))))
+                               (< incoming-window-- (/ incoming-upwindow 4))))
                       (let ([incoming-str (~size incoming-upwindow)])
                         (set-ssh-channel-port-incoming-window! chport incoming-upwindow)
                         (ssh-log-message 'debug "Channel[0x~a]: the incoming window is incremented to ~a after ~a consumed"
                                          self-str incoming-str (~size (ssh-channel-port-incoming-traffic chport)))
                         (values partner (make-ssh:msg:channel:window:adjust #:recipient partner #:increment consumption)))
-                      (let ([incoming-str (~size incoming-window #:precision '(= 6))])
-                        (set-ssh-channel-port-incoming-window! chport incoming-window)
+                      (let ([incoming-str (~size incoming-window-- #:precision '(= 6))])
+                        (set-ssh-channel-port-incoming-window! chport incoming-window--)
                         (ssh-log-message 'debug "Channel[0x~a]: the incoming window is decremented to ~a by ~a"
                                          self-str incoming-str (~size consumption))
                         (values partner #false))))])))
