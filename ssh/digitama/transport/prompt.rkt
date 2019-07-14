@@ -4,6 +4,7 @@
 
 (require "stdio.rkt")
 
+(require "../diagnostics.rkt")
 (require "../message/transport.rkt")
 
 (require typed/racket/unsafe)
@@ -31,6 +32,11 @@
               [else (λ [[eof-msg : SSH-MSG-DISCONNECT]] : Void
                       (ssh-stdout-propagate at-collapse eof-msg))])))))
 
-(define ssh-collapse : (-> SSH-MSG-DISCONNECT Nothing)
-  (lambda [msg]
+(define ssh-collapse : (->* (SSH-MSG-DISCONNECT) ((Option Log-Level)) Nothing)
+  (lambda [msg [level #false]]
+    (unless (not level)
+      (ssh-log-message #:with-peer-name? #false #:data msg
+                       level "terminate the connection ~a because of ~a, details: ~a"
+                       (current-peer-name) (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg)))
+    
     (abort-current-continuation (default-ssh-transport-prompt) msg)))

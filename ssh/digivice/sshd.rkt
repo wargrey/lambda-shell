@@ -40,6 +40,7 @@
                       [(info)    (echof "~a~n" #:fgcolor 'green  (vector-ref log 1))]
                       [(warning) (echof "~a~n" #:fgcolor 'yellow (vector-ref log 1))]
                       [(error)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
+                      [(fatal)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
                       [else      (echof "~a~n" #:fgcolor 'gray   (vector-ref log 1))]))
          (λ [] (ssh-daemon (ssh-listen (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level #false))))
          'debug))

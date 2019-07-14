@@ -30,13 +30,13 @@
 (define ssh-packet-payload-index : 9 9)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-read-plain-packet : (-> Input-Port Bytes Index (Option Log-Level) (Values Positive-Fixnum Positive-Fixnum))
-  (lambda [/dev/tcpin parcel payload-capacity debug-level]
+(define ssh-read-plain-packet : (-> Input-Port Bytes Index Byte (Option Log-Level) (Values Positive-Fixnum Positive-Fixnum))
+  (lambda [/dev/tcpin parcel payload-capacity fault-tolerance debug-level]
     (ssh-read-bytes! /dev/tcpin parcel ssh-packet-size-index ssh-packet-payload-index ssh-read-plain-packet)
 
     (define-values (packet-length _) (ssh-bytes->uint32 parcel ssh-packet-size-index))
     (define padding-length : Byte (bytes-ref parcel ssh-packet-padding-size-index))
-    (define payload-length : Index (ssh-incoming-payload-size packet-length padding-length payload-capacity ssh-read-plain-packet))
+    (define payload-length : Index (ssh-incoming-payload-size packet-length padding-length payload-capacity fault-tolerance ssh-read-plain-packet))
     (define packet-end : Positive-Fixnum (+ ssh-packet-padding-size-index packet-length))
 
     (ssh-read-bytes! /dev/tcpin parcel ssh-packet-payload-index packet-end ssh-read-plain-packet)
@@ -44,11 +44,11 @@
     (ssh-pretty-print-packet 'ssh-read-raw-packet parcel packet-end 8 debug-level #:cipher? #false)
     (values (+ ssh-packet-payload-index payload-length) (+ packet-length 4))))
 
-(define ssh-read-cipher-packet : (-> Input-Port Bytes Index Byte
+(define ssh-read-cipher-packet : (-> Input-Port Bytes Index Byte Byte
                                      (Option (-> Bytes Bytes)) (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index) (->* (Bytes) (Natural Natural) Bytes)
                                      (Option Log-Level)
                                      (Values Positive-Fixnum Positive-Fixnum))
-  (lambda [/dev/tcpin parcel payload-capacity cipher-blocksize maybe-deflate decrypt! mac debug-level]
+  (lambda [/dev/tcpin parcel payload-capacity fault-tolerance cipher-blocksize maybe-deflate decrypt! mac debug-level]
     (define blocksize : Byte (max cipher-blocksize 8))
     (define head-block-end : Index (+ ssh-packet-size-index blocksize))
     
@@ -58,7 +58,7 @@
     
     (define-values (packet-length _) (ssh-bytes->uint32 parcel ssh-packet-size-index))
     (define padding-length : Byte (bytes-ref parcel ssh-packet-padding-size-index))
-    (define payload-length : Index (ssh-incoming-payload-size packet-length padding-length payload-capacity ssh-read-cipher-packet))
+    (define payload-length : Index (ssh-incoming-payload-size packet-length padding-length payload-capacity fault-tolerance ssh-read-cipher-packet))
     (define packet-end : Positive-Fixnum (+ ssh-packet-padding-size-index packet-length))
 
     (ssh-read-bytes! /dev/tcpin parcel head-block-end packet-end ssh-read-cipher-packet)
@@ -75,7 +75,7 @@
         (ssh-read-bytes! /dev/tcpin digest 0 mac-length ssh-read-cipher-packet)
         
         (unless (bytes=? checksum digest)
-          (ssh-collapse (make-ssh:disconnect:mac:error #:source ssh-read-cipher-packet "corrupted packet"))))
+          (ssh-collapse (make-ssh:disconnect:mac:error #:source ssh-read-cipher-packet "corrupted packet") 'fatal)))
     
       (network-natural-bytes++ parcel 0 ssh-packet-size-index)
       (ssh-pretty-print-packet 'ssh-read-cipher-packet:plain parcel packet-end blocksize debug-level #:digest checksum #:cipher? #false #:2nd? #true)
@@ -144,15 +144,16 @@
         (not (ssh-log-message 'warning "packet may overload based on local preference(~a > ~a + ~a), nonetheless, the peer may hold a much larger capacity"
                               (~size payload-length #:precision 3) (~size payload-capacity) fault-tolerance)))))
 
-(define ssh-incoming-payload-size : (-> Index Byte Index Procedure Index)
-  (lambda [packet-length padding-length payload-capacity fsrc]
+(define ssh-incoming-payload-size : (-> Index Byte Index Byte Procedure Index)
+  (lambda [packet-length padding-length payload-capacity fault-tolerance fsrc]
     (define payload-length : Fixnum (- packet-length (+ padding-length 1)))
     
-    (cond [(< payload-length 0)
-           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "invalid payload length: ~a" (~size payload-length #:precision 3)))]
-          [(> payload-length payload-capacity)
-           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "packet overlength: ~a > ~a"
-                                                             (~size payload-length #:precision 3) (~size payload-capacity #:precision 3)))]
+    (cond [(not (index? payload-length))
+           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "invalid payload length: ~a" (~size payload-length #:precision 3)) 'fatal)]
+          [(> payload-length (+ payload-capacity fault-tolerance))
+           (ssh-collapse (make-ssh:disconnect:protocol:error #:source fsrc "packet is too big: ~a > ~a"
+                                                             (~size payload-length #:precision 3) (~size payload-capacity #:precision 3))
+                         'fatal)]
           [else payload-length])))
 
 (define ssh-pretty-print-packet : (->* (Symbol Bytes Natural Byte (Option Log-Level)) (Index #:digest Bytes #:cipher? Boolean #:2nd? Boolean) Void)

@@ -97,7 +97,10 @@
 
                 [else (ssh-port-write sshc (make-ssh:msg:unimplemented #:number (ssh-message-number datum)))])
 
-          (read-dispatch-serve-loop))))
+          (read-dispatch-serve-loop))
+
+        (when (ssh:msg:disconnect? datum)
+          (ssh-log-message 'debug (ssh:msg:disconnect-description datum)))))
 
     (for ([service (in-hash-values alive-services)])
       (ssh-service.destruct service))
