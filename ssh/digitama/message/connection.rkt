@@ -30,5 +30,5 @@
   [SSH_MSG_CHANNEL_FAILURE          100 ([recipient : Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define SSH:MSG:REQUEST:SUCCESS : SSH-MSG-REQUEST-SUCCESS (make-ssh:msg:request:success))
-(define SSH:MSG:REQUEST:FAILURE : SSH-MSG-REQUEST-FAILURE (make-ssh:msg:request:failure))
+(define SSH:REQUEST:SUCCESS : SSH-MSG-REQUEST-SUCCESS (make-ssh:msg:request:success))
+(define SSH:REQUEST:FAILURE : SSH-MSG-REQUEST-FAILURE (make-ssh:msg:request:failure))

@@ -77,12 +77,20 @@
                (ssh-log-message 'debug "denied, methods that can continue: ~a"
                                 (ssh-names->namelist (ssh:msg:userauth:failure-methods msg))))]
           [(ssh:msg:userauth:banner? msg)
-           (ssh-log-message 'debug #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))])))
+           (ssh-log-message 'debug #:with-peer-name? #false "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
+          [(ssh:msg:userauth:request? msg)
+           (ssh-log-message 'debug "identify '~a' for service '~a' with method '~a'"
+                            (ssh:msg:userauth:request-username msg) (ssh:msg:userauth:request-service msg) (ssh:msg:userauth:request-method msg))])))
 
 (define ssh-log-incoming-message : (-> SSH-Message Void)
   (lambda [msg]
     (cond [(ssh:msg:userauth:banner? msg)
            (ssh-log-message #:with-peer-name? #false 'warning "[USER BANNER]~n~a" (ssh:msg:userauth:banner-message msg))]
           [(ssh:msg:userauth:request? msg)
-           (ssh-log-message 'debug "'~a' requests authentication with method '~a'"
-                            (ssh:msg:userauth:request-username msg) (ssh:msg:userauth:request-method msg))])))
+           (ssh-log-message 'debug "'~a' requests the authentication for service '~a' with method '~a'"
+                            (ssh:msg:userauth:request-username msg) (ssh:msg:userauth:request-service msg) (ssh:msg:userauth:request-method msg))]
+          [(ssh:msg:userauth:failure? msg)
+           (if (ssh:msg:userauth:failure-partial-success? msg)
+               (ssh-log-message 'debug "needs more information, continue")
+               (ssh-log-message 'debug "refused, methods available to retrials: ~a"
+                                (ssh-names->namelist (ssh:msg:userauth:failure-methods msg))))])))

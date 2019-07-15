@@ -12,6 +12,8 @@
 (require digimon/collection)
 (require digimon/echo)
 
+(require "scp/application.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-target-port (make-parameter 22))
 
@@ -41,7 +43,7 @@
                       [(error)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
                       [(fatal)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
                       [else      (echof "~a~n" #:fgcolor 'gray   (vector-ref log 1))]))
-         (λ [] (ssh-connect hostname (ssh-target-port)))
+         (λ [] (scp (ssh-connect hostname (ssh-target-port))))
          'debug)))
      '("hostname")
      (compose1 exit display --help)

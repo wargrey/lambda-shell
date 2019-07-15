@@ -243,9 +243,7 @@
           [else (let ([consumption (- incoming-upwindow incoming-window--)])
                   ; see `channel-check-window` in channels.c of OpenSSH
                   (set-ssh-channel-port-incoming-traffic! chport (+ (ssh-channel-port-incoming-traffic chport) traffic))
-                  (if (and (index? consumption)
-                           (or (> consumption (* channel-capacity 4))
-                               (< incoming-window-- (/ incoming-upwindow 4))))
+                  (if (and (< incoming-window-- (* channel-capacity 2)) (index? consumption))
                       (let ([incoming-str (~size incoming-upwindow)])
                         (set-ssh-channel-port-incoming-window! chport incoming-upwindow)
                         (ssh-log-message 'debug "Channel[0x~a]: the incoming window is incremented to ~a after ~a consumed"

@@ -8,6 +8,7 @@
 
 (require "digitama/authentication.rkt")
 (require "digitama/authentication/message.rkt")
+(require "digitama/message/authentication.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")
@@ -18,13 +19,17 @@
 (require "digitama/assignment/authentication.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-user-request : (->* (SSH-Port Symbol) (Symbol) (U SSH-EOF True))
-  (lambda [sshd username [service 'ssh-connection]]
-    (let authenticate ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshd #false)])
+(define ssh-user-identify : (-> SSH-Port Symbol
+                                [#:service Symbol] [#:services (SSH-Name-Listof* SSH-Service#)] [#:methods (SSH-Name-Listof* SSH-Authentication#)]
+                                (U SSH-EOF SSH-Service#))
+  (lambda [sshc username #:service [service 'ssh-connection] #:services [services (ssh-registered-services)] #:methods [all-methods (ssh-authentication-methods)]]
+    (ssh-write-authentication-message sshc (make-ssh:msg:userauth:request #:username username #:service service #:method 'none))
+    
+    (let identify ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)])
       (define datum (sync/enable-break datum-evt))
       
       (cond [(ssh-eof? datum) datum]
-            [else (authenticate (ssh-authentication-datum-evt sshd #false))]))))
+            [else (identify (ssh-authentication-datum-evt sshc #false))]))))
 
 (define ssh-user-authenticate : (-> SSH-Port [#:services (SSH-Name-Listof* SSH-Service#)] [#:methods (SSH-Name-Listof* SSH-Authentication#)] SSH-Maybe-User)
   (lambda [sshc #:services [services (ssh-registered-services)] #:methods [all-methods (ssh-authentication-methods)]]

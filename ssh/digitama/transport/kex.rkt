@@ -68,6 +68,7 @@
           (let-values ([(kex hostkey c2s s2c) (values (car algorithms) (cadr algorithms) (caddr algorithms) (cadddr algorithms))])
             (define HASH : (-> Bytes Bytes) (vector-ref kex 1))
             (define minbits : Positive-Index ($ssh-minimum-key-bits rfc))
+            (define &secrets : (Boxof (Option (Pairof Integer Bytes))) (box #false))
 
             (define-values (kex-self req)
               (ssh-kex.request ((vector-ref kex 0) Vc Vs (ssh:msg:kexinit->bytes self-kexinit) Is
@@ -79,7 +80,11 @@
                                    (let-values ([(kex-self result) (ssh-kex.verify kex-self msg)])
                                      (and result
                                           (cond [(not (pair? result)) (cons kex-self result)]
-                                                [else (ssh-kex-done oldkeys (car result) (cdr result) HASH c2s s2c rfc #false)]))))
+                                                [else (set-box! &secrets result) (cons kex-self SSH:NEWKEYS)]))))
+                              (and (ssh:msg:newkeys? msg)
+                                   (let ([secrets (unbox &secrets)])
+                                     (and (pair? secrets)
+                                          (ssh-kex-done oldkeys (car secrets) (cdr secrets) HASH c2s s2c rfc #false))))
                               (cons kex-self (ssh-deal-with-unexpected-message msg ssh-kex/client)))))
                   req))))))
   

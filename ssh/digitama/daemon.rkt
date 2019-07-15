@@ -85,14 +85,14 @@
 
                 [(pair? datum)
                  (define srv++ : SSH-Service (car datum))
-                 (define feedbacks : SSH-Service-Reply (cdr datum))
+                 (define requests : SSH-Service-Reply (cdr datum))
                  
                  (ssh-services-update! alive-services srv++ (hash-ref alive-services (ssh-service-name srv++) (λ [] #false)))
 
-                 (unless (not feedbacks)
+                 (unless (not requests)
                    (let-values ([(idmin idmax) (let ([r (ssh-service-range srv++)]) (values (car r) (cdr r)))]
                                 [(log-outgoing-message) (ssh-service-log-outgoing srv++)])
-                     (for ([resp (if (list? feedbacks) (in-list feedbacks) (in-value feedbacks))])
+                     (for ([resp (if (list? requests) (in-list requests) (in-value requests))])
                        (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]
 
                 [else (ssh-port-write sshc (make-ssh:msg:unimplemented #:number (ssh-message-number datum)))])

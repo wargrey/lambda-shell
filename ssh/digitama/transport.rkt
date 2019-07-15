@@ -53,12 +53,14 @@
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
              (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc) (ssh-mac-capacity kexinit)))
+
+             (ssh-write-text /dev/tcpout identification)
+             
              (define peer : (U SSH-Identification SSH-MSG-DISCONNECT)
                (ssh-prompt #false
                            (λ [] (ssh-read-server-identification /dev/tcpin rfc))
                            (λ [[eof-msg : SSH-MSG-DISCONNECT]] eof-msg)))
 
-             (ssh-write-text /dev/tcpout identification)
              (ssh-stdout-propagate /dev/sshout peer)
 
              (if (ssh-message? peer)
@@ -72,12 +74,14 @@
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc) (ssh-mac-capacity kexinit)))
+
+             (ssh-write-text /dev/tcpout identification)
+
              (define peer : (U SSH-Identification SSH-MSG-DISCONNECT)
                (ssh-prompt #false
                            (λ [] (ssh-read-client-identification /dev/tcpin rfc))
                            (λ [[eof-msg : SSH-MSG-DISCONNECT]] eof-msg)))
 
-             (ssh-write-text /dev/tcpout identification)
              (ssh-stdout-propagate /dev/sshout peer)
 
              (if (ssh-message? peer)
@@ -124,7 +128,8 @@
                         (let ([session : Bytes (ssh-newkeys-identity maybe-newkeys)])
                           (when (ssh-parcel? newkeys) ; the first key exchange, tell client the session identity
                             (ssh-stdout-propagate /dev/sshout session))
-                          (ssh-write-message /dev/tcpout SSH:NEWKEYS rfc newkeys)
+                          (unless (not server?) ; client's SSH:NEWKESY is sent during the process
+                            (ssh-write-message /dev/tcpout SSH:NEWKEYS rfc newkeys))
                           (let send-inflights ([inflights : (Listof SSH-Message) (if (list? sthgilfni) (reverse sthgilfni) null)]
                                                [flights-outgoing : Integer 0])
                             (cond [(null? inflights) (ghostcat-loop #false #false kexinit maybe-newkeys #false 0 flights-outgoing authenticated)]
@@ -139,7 +144,7 @@
                                     (and kex-self (ssh-write-message /dev/tcpout (cdr maybe-kex.req) rfc newkeys))
                                     (or kex-self (cdr maybe-kex.req)))]))
                     (cond [(ssh-message? maybe-kex-ing) #| kex failed |# (ssh-write-message /dev/tcpout maybe-kex-ing rfc newkeys) (ghostcat-step)]
-                          [else (ghostcat-loop (car maybe-kex-ing) (cdr maybe-kex-ing) kexinit newkeys (or sthgilfni null) incoming++ outgoing authenticated)])]
+                          [else (ghostcat-loop (car maybe-kex-ing) (cdr maybe-kex-ing) kexinit newkeys (or sthgilfni null) 0 0 authenticated)])]
                    
                    [(ssh:msg:service:request? msg)
                     (define service : Symbol (ssh:msg:service:request-name msg))
@@ -157,7 +162,8 @@
                  (let ([traffic (ssh-write-message /dev/tcpout datum rfc newkeys)])
                    (if (ssh:msg:kexinit? datum)
                        (ghostcat-loop rekex rekexing datum newkeys null #|we have sent kexinit|# 0 0 authenticated)
-                       (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) (or authenticated (ssh:msg:userauth:success? datum)))))
+                       (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic)
+                                      (or authenticated (and server? (ssh:msg:userauth:success? datum))))))
                  (if (ssh-kex-transparent-message? datum)
                      (let ([traffic (ssh-write-message /dev/tcpout datum rfc newkeys)])
                        (ghostcat-loop rekex rekexing kexinit newkeys sthgilfni incoming (+ outgoing traffic) authenticated))
