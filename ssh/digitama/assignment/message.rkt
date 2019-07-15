@@ -14,3 +14,5 @@
 
 (define-ssh-message-range generic          1  19   Transport layer generic (e.g., disconnect, ignore, debug, etc.))
 (define-ssh-message-range kex             30  49   Key exchange method specific (numbers can be reused for different authentication methods))
+
+(define-ssh-message-range userauth        60  79   User authentication method specific (numbers can be reused for different authentication methods))

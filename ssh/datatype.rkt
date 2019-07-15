@@ -200,6 +200,16 @@
                     (cond [(cdr name) (filter (cons name names) rest)]
                           [else (filter names rest)]))]))))
 
+(define ssh-names-intersect : (All (a) (-> (SSH-Name-Listof* a) (SSH-Name-Listof a) (SSH-Name-Listof* a)))
+  (lambda [expected-names given-names]
+    (let filter ([seman : (SSH-Name-Listof* a) null]
+                 [names : (SSH-Name-Listof* a) expected-names])
+      (cond [(null? names) (reverse seman)]
+            [else (let ([name (car names)]
+                        [rest (cdr names)])
+                    (cond [(assq (car name) given-names) (filter (cons name seman) rest)]
+                          [else (filter seman rest)]))]))))
+
 (define ssh-names-remove : (All (a) (-> Symbol (SSH-Name-Listof* a) (SSH-Name-Listof* a)))
   (lambda [n namebase]
     (let filter ([names : (SSH-Name-Listof* a) null]

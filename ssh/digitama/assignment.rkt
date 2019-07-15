@@ -57,7 +57,7 @@
                 (define &id : (Boxof (Listof (Pairof Symbol SSH-Type))) (box null))
                 
                 (define id : (case-> [-> (Listof (Pairof Symbol SSH-Type))]
-                                     [-> Boolean (Listof (Pairof Symbol SSH-Type))]
+                                     [Boolean -> (Listof (Pairof Symbol SSH-Type))]
                                      [(Listof Symbol) -> (Listof (Pairof Symbol SSH-Type))]
                                      [(Listof Symbol) Boolean -> (Listof (Pairof Symbol SSH-Type))])
                   (case-lambda

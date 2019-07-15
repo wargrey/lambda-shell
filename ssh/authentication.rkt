@@ -2,13 +2,11 @@
 
 ;;; https://tools.ietf.org/html/rfc4252
 
-(provide (all-defined-out) SSH-Maybe-User)
+(provide (all-defined-out) SSH-Maybe-User SSH-Maybe-Service)
 
 (require racket/port)
 
 (require "digitama/authentication.rkt")
-(require "digitama/authentication/message.rkt")
-(require "digitama/message/authentication.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")
@@ -19,17 +17,17 @@
 (require "digitama/assignment/authentication.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-user-identify : (-> SSH-Port Symbol
-                                [#:service Symbol] [#:services (SSH-Name-Listof* SSH-Service#)] [#:methods (SSH-Name-Listof* SSH-Authentication#)]
-                                (U SSH-EOF SSH-Service#))
-  (lambda [sshc username #:service [service 'ssh-connection] #:services [services (ssh-registered-services)] #:methods [all-methods (ssh-authentication-methods)]]
-    (ssh-write-authentication-message sshc (make-ssh:msg:userauth:request #:username username #:service service #:method 'none))
-    
-    (let identify ([datum-evt : (Evtof SSH-Datum) (ssh-authentication-datum-evt sshc #false)])
-      (define datum (sync/enable-break datum-evt))
+(define ssh-user-identify : (->* (SSH-Port Symbol)
+                                 (Symbol #:services (SSH-Name-Listof* SSH-Service#) #:methods (SSH-Name-Listof* SSH-Authentication#))
+                                 SSH-Maybe-Service)
+  (lambda [sshd username [service 'ssh-connection] #:services [services (ssh-registered-services)] #:methods [all-methods (ssh-authentication-methods)]]
+    (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))])
+      (define maybe-service : (Option (SSH-Nameof SSH-Service#)) (assq service services))
       
-      (cond [(ssh-eof? datum) datum]
-            [else (identify (ssh-authentication-datum-evt sshc #false))]))))
+      (cond [(not maybe-service) (ssh-shutdown sshd 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (format "service '~a' not configured in local machine" service))]
+            [else (let ([maybe-identified (userauth-identify sshd username service all-methods)])
+                    (cond [(boolean? maybe-identified) maybe-service]
+                          [else maybe-identified]))]))))
 
 (define ssh-user-authenticate : (-> SSH-Port [#:services (SSH-Name-Listof* SSH-Service#)] [#:methods (SSH-Name-Listof* SSH-Authentication#)] SSH-Maybe-User)
   (lambda [sshc #:services [services (ssh-registered-services)] #:methods [all-methods (ssh-authentication-methods)]]

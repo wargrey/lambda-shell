@@ -32,16 +32,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-publickey-userauth : SSH-Userauth-Constructor
-  (lambda [session]
-    (make-ssh-userauth #:session session #:name 'publickey
+  (lambda [name session server?]
+    (make-ssh-userauth #:session session #:name name
                        #:request ssh-publickey-request
                        #:response ssh-publickey-response)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-publickey-request : SSH-Userauth-Request
   (lambda [self username service response]
-    response
-    (make-ssh:msg:userauth:request #:username username #:service service #:method 'publickey)))
+    (values self #false)))
 
 (define ssh-publickey-response : SSH-Userauth-Response
   (lambda [self request username service]
@@ -50,7 +49,7 @@
         (let ([.authorized-keys (build-path (expand-user-path (format "~~~a/.ssh/authorized_keys" username)))])
           (and (file-exists? .authorized-keys)
                (read-authorized-keys* .authorized-keys))))
-    
+      
       (and authorized-keys
            (ssh:msg:userauth:request:publickey? request)
            (let* ([keytype (ssh:msg:userauth:request:publickey-algorithm request)]

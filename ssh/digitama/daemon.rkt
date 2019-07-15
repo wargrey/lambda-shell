@@ -50,7 +50,7 @@
       (make-hasheq (list (cons (car 1st-λservice)
                                ((cdr 1st-λservice) (car 1st-λservice) user session rfc)))))
     
-    (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))])
+    (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
       (let read-dispatch-serve-loop ()
         (define datum : (U SSH-Datum (Pairof SSH-Service SSH-Service-Reply))
           (apply sync/enable-break (ssh-port-datum-evt sshc)

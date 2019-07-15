@@ -42,7 +42,8 @@
     (parameterize ([current-peer-name (ssh-port-peer-name sshc)]
                    [current-custodian (ssh-custodian sshc)])
       (define maybe-user : SSH-Maybe-User
-        (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
+        (with-handlers ([exn:break? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))]
+                        [exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-BY_APPLICATION (exn-message e)))])
           (authenticate services)))
         
       (when (pair? maybe-user)
