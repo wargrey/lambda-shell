@@ -26,7 +26,18 @@
 (define-type SSH-Kex-Process (-> SSH-Kex SSH-Message (U (Pairof SSH-Kex SSH-Message) SSH-Newkeys)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys String String Bytes (U (Pairof SSH-Kex SSH-Kex-Process) SSH-Message))
+(define ssh-key-exchange : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration (U SSH-Parcel SSH-Newkeys) String String Bytes Boolean Output-Port
+                               (U (Pairof SSH-Kex SSH-Kex-Process) SSH-MSG-DISCONNECT))
+  (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Ip server? /dev/tcpout]
+    (cond [(and server?) (ssh-kex/server self-kexinit peer-kexinit rfc oldkeys Vc Vs Ip)]
+          [else (let* ([maybe-kex.req (ssh-kex/client self-kexinit peer-kexinit rfc oldkeys Vc Vs Ip)]
+                       [kex-self (car maybe-kex.req)])
+                  (cond [(not kex-self) (cdr maybe-kex.req)]
+                        [(ssh-parcel? oldkeys) (ssh-write-plain-message /dev/tcpout (cdr maybe-kex.req) rfc oldkeys) kex-self]
+                        [else (ssh-write-cipher-message /dev/tcpout (cdr maybe-kex.req) rfc oldkeys) kex-self]))])))
+
+(define ssh-kex/server : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration (U SSH-Parcel SSH-Newkeys) String String Bytes
+                             (U (Pairof SSH-Kex SSH-Kex-Process) SSH-MSG-DISCONNECT))
   (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Ic]
     (ssh-log-kexinit self-kexinit "local server" 'debug)
     (ssh-log-kexinit peer-kexinit "peer client" 'debug)
@@ -55,8 +66,8 @@
                                (ssh-kex-done oldkeys (car secrets) (cdr secrets) HASH c2s s2c rfc #true))))
                    (cons kex-self (ssh-deal-with-unexpected-message msg ssh-kex/server))))))))))
 
-(define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration Maybe-Newkeys String String Bytes
-                             (Pairof (Option (Pairof SSH-Kex SSH-Kex-Process)) SSH-Message))
+(define ssh-kex/client : (-> SSH-MSG-KEXINIT SSH-MSG-KEXINIT SSH-Configuration (U SSH-Parcel SSH-Newkeys) String String Bytes
+                             (U (Pairof False SSH-MSG-DISCONNECT) (Pairof (Pairof SSH-Kex SSH-Kex-Process) SSH-Message)))
   (lambda [self-kexinit peer-kexinit rfc oldkeys Vc Vs Is]
     (ssh-log-kexinit self-kexinit "local client" 'debug)
     (ssh-log-kexinit peer-kexinit "peer server" 'debug)
@@ -88,8 +99,8 @@
                               (cons kex-self (ssh-deal-with-unexpected-message msg ssh-kex/client)))))
                   req))))))
   
-(define ssh-kex-done : (-> Maybe-Newkeys Integer Bytes (-> Bytes Bytes)
-                           SSH-Transport-Algorithms SSH-Transport-Algorithms SSH-Configuration Boolean SSH-Newkeys)
+(define ssh-kex-done : (-> (U SSH-Parcel SSH-Newkeys) Integer Bytes (-> Bytes Bytes) SSH-Transport-Algorithms SSH-Transport-Algorithms SSH-Configuration Boolean
+                           SSH-Newkeys)
   (lambda [maybe-oldkeys shared-secret H HASH c2s s2c rfc server?]
     (define K : Bytes (ssh-mpint->bytes shared-secret))
     (define-values (session-id parcel)

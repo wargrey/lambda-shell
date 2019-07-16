@@ -138,7 +138,7 @@
 
 (define ssh-port-ignore : (-> SSH-Port Any Void)
   (lambda [self payload]
-    (ssh-port-write self (make-ssh:msg:ignore #:data (format "~s" payload)))))
+    (ssh-port-write self (ssh-ignore-message payload))))
 
 (define ssh-port-request-service : (-> SSH-Port Symbol Void)
   (lambda [self service]

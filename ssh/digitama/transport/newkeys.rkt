@@ -9,8 +9,6 @@
  byte[t]   packet fault tolerance
 |#
 
-(define-type Maybe-Newkeys (U SSH-Parcel SSH-Newkeys))
-
 (struct ssh-parcel
   ([incoming : Bytes]
    [outgoing : Bytes]

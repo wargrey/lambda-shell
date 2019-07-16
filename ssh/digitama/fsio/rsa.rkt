@@ -12,9 +12,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-rsa : (-> (U Input-Port Path-String) (Option RSA-Private-Key))
   (lambda [/dev/rsain]
-    (define-values (key-octets rsa?) (pem-read /dev/rsain #:label 'RSA-Private-Key))
+    (define-values (key-octets BEGIN END) (pem-read /dev/rsain))
 
-    (and rsa? (unsafe-bytes->rsa-private-key* key-octets))))
+    (and (eq? BEGIN END)
+         (pem-label-equal? '|RSA PRIVATE KEY| BEGIN)
+         (unsafe-bytes->rsa-private-key* key-octets))))
 
 (define write-rsa : (-> RSA-Private-Key (U Output-Port Path-String) Void)
   (lambda [key /dev/rsaout]
@@ -22,12 +24,14 @@
 
 (define read-rsa-pub : (-> (U Input-Port Path-String) (Option RSA-Public-Key))
   (lambda [/dev/rsain]
-    (define-values (key-octets rsa?) (pem-read /dev/rsain #:label 'RSA-Public-Key))
+    (define-values (key-octets BEGIN END) (pem-read /dev/rsain))
 
     (asn-pretty-print #:separator #\: #:column 24
                       key-octets)
 
-    (and rsa? (unsafe-bytes->rsa-public-key* key-octets))))
+    (and (eq? BEGIN END)
+         (pem-label-equal? '|RSA PUBLIC KEY| BEGIN)
+         (unsafe-bytes->rsa-public-key* key-octets))))
 
 (define write-rsa-pub : (-> (U RSA-Private-Key RSA-Public-Key) (U Output-Port Path-String) Void)
   (lambda [key /dev/rsaout]

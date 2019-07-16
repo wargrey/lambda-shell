@@ -8,7 +8,6 @@
 (require "exception.rkt")
 
 (require "../authentication/user.rkt")
-(require "../algorithm/fingerprint.rkt")
 
 (require "../assignment.rkt")
 (require "../../datatype.rkt")
@@ -16,40 +15,40 @@
 (define ssh-multiple-options : (Listof Symbol) (list 'environment 'permitlisten 'permitopen))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct authorized-key
-  ([type : Symbol]
+(struct ssh-authorized-key
+  ([src : Path]
+   [type : Symbol]
    [raw : Bytes]
-   [fingerprint : String]
    [comment : (Option String)]
    [options : (Option SSH-Userauth-Option)])
-  #:constructor-name make-authorized-key
-  #:type-name Authorized-Key
+  #:constructor-name make-ssh-authorized-key
+  #:type-name SSH-Authorized-Key
   #:transparent)
 
-(define-file-reader read-authorized-keys #:+ (Immutable-HashTable Symbol (Listof Authorized-Key))
-  (lambda [/dev/keyin]
-    (define syek : (Listof Authorized-Key)
-      (for/fold ([syek : (Listof Authorized-Key) null])
-                ([key (in-port ssh-read-key-line /dev/keyin)])
+(define-file-reader read-authorized-keys #:+ (Immutable-HashTable Symbol (Listof SSH-Authorized-Key))
+  (lambda [/dev/keyin src]
+    (define syek : (Listof SSH-Authorized-Key)
+      (for/fold ([syek : (Listof SSH-Authorized-Key) null])
+                ([key (in-port (λ [[/dev/stdin : Input-Port]] (ssh-read-key-line /dev/stdin src)) /dev/keyin)])
         (if (exn? key) syek (cons key syek))))
     
-    (for/fold ([keys : (Immutable-HashTable Symbol (Listof Authorized-Key)) (make-immutable-hasheq)])
-              ([key : Authorized-Key (in-list syek)])
-      (hash-set keys (authorized-key-type key)
-                (cons key (hash-ref keys (authorized-key-type key)
+    (for/fold ([keys : (Immutable-HashTable Symbol (Listof SSH-Authorized-Key)) (make-immutable-hasheq)])
+              ([key : SSH-Authorized-Key (in-list syek)])
+      (hash-set keys (ssh-authorized-key-type key)
+                (cons key (hash-ref keys (ssh-authorized-key-type key)
                                     (λ [] null)))))))
 
-(define authorized-key-ref : (-> (Immutable-HashTable Symbol (Listof Authorized-Key)) Symbol Bytes (Option Authorized-Key))
+(define authorized-key-ref : (-> (Immutable-HashTable Symbol (Listof SSH-Authorized-Key)) Symbol Bytes (Option SSH-Authorized-Key))
   (lambda [key-database keytype key]
-    (let ref ([keys : (Listof Authorized-Key) (hash-ref key-database keytype (λ [] null))])
+    (let ref ([keys : (Listof SSH-Authorized-Key) (hash-ref key-database keytype (λ [] null))])
       (and (pair? keys)
            (let ([k (car keys)])
-             (or (and (bytes=? (authorized-key-raw k) key) k)
+             (or (and (bytes=? (ssh-authorized-key-raw k) key) k)
                  (ref (cdr keys))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-read-key-line : (-> Input-Port (U Authorized-Key EOF exn))
-  (lambda [/dev/keyin]
+(define ssh-read-key-line : (-> Input-Port Path (U SSH-Authorized-Key EOF exn))
+  (lambda [/dev/keyin src]
     (define public-keytypes : (Listof Symbol) (ssh-names->namelist (ssh-hostkey-algorithms)))
     (with-handlers ([exn:ssh:fsio? (λ [[e : exn:ssh:fsio]] (read-line /dev/keyin) e)])
       (let readline ([type : Symbol '||]
@@ -58,10 +57,8 @@
                      [option : (Option SSH-Userauth-Option) #false]
                      [this-char : (Option Char) #\space])
         (cond [(or (not this-char) (eq? this-char #\newline))
-               (cond [(not key) (if (eq? this-char #\newline) (ssh-read-key-line /dev/keyin) eof)]
-                     [else (make-authorized-key type (base64-decode key)
-                                                (ssh-key-fingerprint type key #:hash sha256-bytes #:digest base64-encode)
-                                                comment option)])]
+               (cond [(not key) (if (eq? this-char #\newline) (ssh-read-key-line /dev/keyin src) eof)]
+                     [else (make-ssh-authorized-key src type (base64-decode key) comment option)])]
               [(eq? type '||)
                (let-values ([(token maybe-char) (ssh-read-key-token /dev/keyin #\= #\space #\,)])
                  (define maybe-type : Symbol (string->symbol (string-downcase token)))

@@ -9,13 +9,12 @@
 (require "authentication/user.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type SSH-Userauth-Constructor (-> Symbol Bytes Boolean SSH-Userauth))
+(define-type SSH-Userauth-Constructor (-> Symbol Boolean SSH-Userauth))
 
-(define-type SSH-Userauth-Request (-> SSH-Userauth Symbol Symbol (U SSH-Message Boolean) (Values SSH-Userauth (Option SSH-Message))))
-(define-type SSH-Userauth-Response (-> SSH-Userauth SSH-Message Symbol Symbol (U SSH-Message SSH-Userauth-Option Boolean)))
+(define-type SSH-Userauth-Request (-> SSH-Userauth Symbol Symbol (U SSH-Message Boolean) Bytes (Values SSH-Userauth (Option SSH-Message))))
+(define-type SSH-Userauth-Response (-> SSH-Userauth SSH-Message Symbol Symbol Bytes (U SSH-Message SSH-Userauth-Option Boolean)))
 
 (define-object ssh-userauth : SSH-Userauth
-  ([session : Bytes]
-   [name : Symbol])
+  ([name : Symbol])
   ([request : SSH-Userauth-Request]
    [response : SSH-Userauth-Response]))

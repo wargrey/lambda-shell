@@ -22,7 +22,7 @@
 
 (struct ssh-user
   ([name : Symbol]
-   [option : SSH-Userauth-Option])
+   [option : (Option SSH-Userauth-Option)])
   #:type-name SSH-User
   #:constructor-name make-ssh-user
   #:transparent)

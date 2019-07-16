@@ -16,6 +16,7 @@
 (require "../../../datatype.rkt")
 
 (define ssh-rsa-keyname : Symbol 'ssh-rsa)
+(define ssh-ras-default-hash : PKCS#1-Hash pkcs#1-id-sha256)
 
 (struct ssh-rsa-hostkey ssh-hostkey
   ([private-key : RSA-Private-Key])
@@ -30,7 +31,8 @@
                      id-rsa))
         (assert (read-rsa id-rsa) rsa-private-key?)))
 
-    (ssh-rsa-hostkey (super-ssh-hostkey #:name ssh-rsa-keyname #:hash hash-algorithm
+    (ssh-rsa-hostkey (super-ssh-hostkey #:name ssh-rsa-keyname ; not effected by hash algorithm
+                                        #:hash hash-algorithm
                                         #:make-public-key ssh-rsa-public-key
                                         #:sign ssh-rsa-sign)
                      key)))
@@ -61,14 +63,18 @@
                   [(n offset) (ssh-bytes->mpint key offset)])
       (make-rsa-public-key #:e e #:n n))))
 
-(define rsa-make-signature : (-> RSA-Private-Key Bytes PKCS#1-Hash Bytes)
-  (lambda [key message hash]
-    (define keytype : Symbol
-      (cond [(eq? hash pkcs#1-id-sha256) 'rsa-sha2-256]
-            [else ssh-rsa-keyname]))
+(define rsa-keytype-name : (->* () ((Option PKCS#1-Hash)) Symbol)
+  (lambda [[maybe-hash #false]]
+    (define hash : PKCS#1-Hash (or maybe-hash ssh-ras-default-hash))
+    (cond [(eq? hash pkcs#1-id-sha256) 'rsa-sha2-256]
+          [else ssh-rsa-keyname])))
+
+(define rsa-make-signature : (->* (RSA-Private-Key Bytes) (PKCS#1-Hash) Bytes)
+  (lambda [key message [hash #false]]
+    (define keytype : Symbol (rsa-keytype-name hash))
     
     (bytes-append (ssh-name->bytes keytype)
-                  (ssh-bstring->bytes (rsa-sign key message hash)))))
+                  (ssh-bstring->bytes (rsa-sign key message (or hash ssh-ras-default-hash))))))
 
 (define rsa-bytes->signature-offset : (-> Bytes (Values Symbol Natural))
   (lambda [sig]
