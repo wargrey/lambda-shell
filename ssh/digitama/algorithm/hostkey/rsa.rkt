@@ -15,6 +15,9 @@
 
 (require "../../../datatype.rkt")
 
+;; WARNING
+; the keyname of public key is always the `ssh-rsa-keyname` since it will not be affected by hash algorithm
+; the keyname of the signature is detected by the hash algorithm
 (define ssh-rsa-keyname : Symbol 'ssh-rsa)
 (define ssh-ras-default-hash : PKCS#1-Hash pkcs#1-id-sha256)
 
@@ -31,7 +34,7 @@
                      id-rsa))
         (assert (read-rsa id-rsa) rsa-private-key?)))
 
-    (ssh-rsa-hostkey (super-ssh-hostkey #:name ssh-rsa-keyname ; not effected by hash algorithm
+    (ssh-rsa-hostkey (super-ssh-hostkey #:name ssh-rsa-keyname
                                         #:hash hash-algorithm
                                         #:make-public-key ssh-rsa-public-key
                                         #:sign ssh-rsa-sign)
@@ -63,20 +66,17 @@
                   [(n offset) (ssh-bytes->mpint key offset)])
       (make-rsa-public-key #:e e #:n n))))
 
-(define rsa-keytype-name : (->* () ((Option PKCS#1-Hash)) Symbol)
-  (lambda [[maybe-hash #false]]
-    (define hash : PKCS#1-Hash (or maybe-hash ssh-ras-default-hash))
-    (cond [(eq? hash pkcs#1-id-sha256) 'rsa-sha2-256]
-          [else ssh-rsa-keyname])))
-
 (define rsa-make-signature : (->* (RSA-Private-Key Bytes) (PKCS#1-Hash) Bytes)
-  (lambda [key message [hash #false]]
-    (define keytype : Symbol (rsa-keytype-name hash))
+  (lambda [key message [maybe-hash #false]]
+    (define hash : PKCS#1-Hash (or maybe-hash ssh-ras-default-hash))
+    (define keytype : Symbol
+      (cond [(eq? hash pkcs#1-id-sha256) 'rsa-sha2-256]
+            [else ssh-rsa-keyname]))
     
     (bytes-append (ssh-name->bytes keytype)
-                  (ssh-bstring->bytes (rsa-sign key message (or hash ssh-ras-default-hash))))))
+                  (ssh-bstring->bytes (rsa-sign key message hash)))))
 
-(define rsa-bytes->signature-offset : (-> Bytes (Values Symbol Natural))
+(define rsa-bytes-signature-info : (-> Bytes (Values Symbol Natural))
   (lambda [sig]
     (define-values (algorithm offset) (ssh-bytes->name sig))
     

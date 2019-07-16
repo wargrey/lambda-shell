@@ -93,14 +93,14 @@
                   (if (not (ssh:msg:userauth:request:publickey$? request))
                       (and (ssh-log-message 'debug "accepted ~a, continue to verify" (ssh-fingerprint keytype rawkey))
                            (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey))
-                      (let ([message (ssh-signature-message session request)]
-                            [signature (ssh:msg:userauth:request:publickey$-signature request)])
-                        (and (case keytype
+                      (let*-values ([(message) (ssh-signature-message session request)]
+                                    [(signature) (ssh:msg:userauth:request:publickey$-signature request)]
+                                    [(algname sigoff) (rsa-bytes-signature-info signature)])
+                        (and (case algname
                                [(ssh-rsa rsa-sha2-256)
-                                (let-values ([(pubkey) (rsa-bytes->public-key (ssh-authorized-key-raw athkey))]
-                                             [(algname sigoff) (rsa-bytes->signature-offset signature)])
-                                  (and (eq? keytype algname)
-                                       (ssh-rsa-verify pubkey message signature sigoff keytype)
+                                (let-values ([(pubkey) (rsa-bytes->public-key (ssh-authorized-key-raw athkey))])
+                                  (and (eq? keytype ssh-rsa-keyname)
+                                       (ssh-rsa-verify pubkey message signature sigoff algname)
                                        (ssh-log-message 'debug "verified ~a" (ssh-fingerprint keytype rawkey))))]
                                [else #false])
                              (or (ssh-authorized-key-options athkey) #true))))))))))
@@ -123,6 +123,6 @@
                     [(|RSA PRIVATE KEY|)
                      (define key : RSA-Private-Key (unsafe-bytes->rsa-private-key* (pem-key-raw (car all-keys))))
                      (select-keys (cdr all-keys)
-                                  (cons (list (rsa-keytype-name) (rsa-make-public-key key) (pem-key-src (car all-keys)) key)
+                                  (cons (list ssh-rsa-keyname (rsa-make-public-key key) (pem-key-src (car all-keys)) key)
                                         syek))]
                     [else (select-keys (cdr all-keys) syek)])]))))

@@ -155,7 +155,7 @@
                             (ssh:msg:unimplemented-number msg) (current-peer-name))]
           [(ssh:msg:service:request? msg)
            (ssh-log-message #:with-peer-name? #false
-                            'info "request service '~a' from ~a"
+                            'info "request service '~a' provided by ~a"
                             (ssh:msg:service:request-name msg) (current-peer-name))]
           [(ssh:msg:service:accept? msg)
            (ssh-log-message #:with-peer-name? #false

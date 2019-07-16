@@ -214,7 +214,7 @@
     ; Besides, you don't want to follow the first kexing with just another one.
     (let userauth : (values Natural Natural) ([incoming-traffic : Natural 0]
                                               [outgoing-traffic : Natural 0]
-                                              [auth-accepted? : Boolean #false])
+                                              [authenticating? : Boolean #false])
       (define datum : Any (sync/enable-break /dev/sshin /dev/tcpin))
       
       (cond [(tcp-port? datum)
@@ -222,16 +222,16 @@
              (define incoming++ : Natural (+ incoming-traffic traffic))
 
              (cond [(not msg)
-                    (if (and auth-accepted? (ssh-authentication-payload? payload))
+                    (if (and authenticating? (ssh-authentication-payload? payload))
                         (and (ssh-stdout-propagate /dev/sshout payload)
                              (if (and (not server?) (= (ssh-message-payload-number payload) (ssh-message-number SSH:USERAUTH:SUCCESS)))
                                  (values incoming++ outgoing-traffic)
-                                 (userauth incoming++ outgoing-traffic auth-accepted?)))
+                                 (userauth incoming++ outgoing-traffic authenticating?)))
                         (userauth incoming++
                                   (+ (ssh-write-cipher-message /dev/tcpout (ssh-ignore-message payload) rfc newkeys) outgoing-traffic)
-                                  auth-accepted?))]
+                                  authenticating?))]
                    
-                   [(ssh-ignored-incoming-message? msg) (userauth incoming++ outgoing-traffic auth-accepted?)]
+                   [(ssh-ignored-incoming-message? msg) (userauth incoming++ outgoing-traffic authenticating?)]
                    
                    [(ssh:msg:service:request? msg)
                     (define service : Symbol (ssh:msg:service:request-name msg))
@@ -243,22 +243,22 @@
 
                    [(ssh:msg:service:accept? msg)
                     (define service : Symbol (ssh:msg:service:accept-name msg))
-                    (cond [(and (not server?) (eq? service 'ssh-userauth)) (userauth incoming++ outgoing-traffic #true)]
-                          [else (userauth incoming++ outgoing-traffic auth-accepted?)])]
+                    (cond [(not (and (not server?) (eq? service 'ssh-userauth))) (userauth incoming++ outgoing-traffic authenticating?)]
+                          [else (ssh-stdout-propagate /dev/sshout msg) (userauth incoming++ outgoing-traffic #true)])]
 
                    [else (userauth incoming++
                                    (+ (ssh-write-cipher-message /dev/tcpout (ssh-ignore-message msg) rfc newkeys) outgoing-traffic)
-                                   auth-accepted?)])]
+                                   authenticating?)])]
             
             [(or (ssh-generic-message? datum) (ssh-authentication-message? datum))
              (define outgoing++ : Natural (+ (ssh-write-cipher-message /dev/tcpout datum rfc newkeys) outgoing-traffic))
-             (cond [(and server? auth-accepted? (ssh:msg:userauth:success? datum)) (values incoming-traffic outgoing++)]
-                   [else (userauth incoming-traffic outgoing++ auth-accepted?)])]
+             (cond [(and server? authenticating? (ssh:msg:userauth:success? datum)) (values incoming-traffic outgoing++)]
+                   [else (userauth incoming-traffic outgoing++ authenticating?)])]
             
             [else ; please no joking at this moment
              (userauth incoming-traffic
                        (+ (ssh-write-cipher-message /dev/tcpout (ssh-ignore-message datum) rfc newkeys) outgoing-traffic)
-                       auth-accepted?)]))))
+                       authenticating?)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-service-accept-message : (-> Symbol SSH-MSG-SERVICE-ACCEPT)

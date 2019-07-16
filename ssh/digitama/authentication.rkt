@@ -42,6 +42,9 @@
                           [(and maybe-auth (assq (ssh-userauth-name maybe-auth) retry-methods)) (do-request maybe-auth partial-success? retry-methods)]
                           [else (do-request #false #false retry-methods)]))]))
 
+    (ssh-port-request-service sshd 'ssh-userauth)
+    (sync/enable-break (ssh-authentication-datum-evt sshd #false))
+    
     (ssh-write-authentication-message sshd (make-ssh:msg:userauth:request #:username username #:service service #:method 'none))
     (do-identify #false all-methods)))
 
