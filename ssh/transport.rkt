@@ -140,9 +140,16 @@
   (lambda [self payload]
     (ssh-port-write self (ssh-ignore-message payload))))
 
-(define ssh-port-request-service : (-> SSH-Port Symbol Void)
-  (lambda [self service]
-    (ssh-port-write self (make-ssh:msg:service:request #:name service))))
+(define ssh-port-request-service : (-> SSH-Port Symbol [#:wait? Boolean] Void)
+  (lambda [self service #:wait? [wait? #true]]
+    (ssh-port-write self (make-ssh:msg:service:request #:name service))
+
+    (unless (not wait?)
+      (let wait ()
+        (define datum : SSH-Datum (ssh-port-read self))
+        (unless (and (ssh:msg:service:accept? datum)
+                     (eq? (ssh:msg:service:accept-name datum) service))
+          (wait))))))
 
 (define ssh-port-reject-service : (-> SSH-Port Symbol Void)
   (lambda [self service]
