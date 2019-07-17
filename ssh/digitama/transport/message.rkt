@@ -193,8 +193,3 @@
            (ssh-log-message #:with-peer-name? #false
                             'info "~a accepts the request for service '~a'"
                             (current-peer-name) (ssh:msg:service:accept-name msg))])))
-
-(define ssh-transport-MB/s : (-> Nonnegative-Fixnum Flonum Flonum)
-  (lambda [traffic timespan]
-    (/ (real->double-flonum traffic)
-       (* timespan 1024.0 1.024))))

@@ -79,7 +79,8 @@ These test cases are defined in @~cite[AES].
  (define key-schedule256 (aes-key-schedule aes-key256 8 '0x706c631e))]
 
 @tamer-action[
- (define state (make-state-array-from-bytes 4 4 (symb0x->octets aes-plaintext)))
+ (define state (make-aes-state-array))
+ (aes-state-array-copy-from-bytes! state (symb0x->octets aes-plaintext))
  (aes-key-schedule-rotate! key-schedule128)
  (aes-add-round-key state key-schedule128 0)
  (aes-round-step state key-schedule128 1)
@@ -204,7 +205,7 @@ These test cases are defined in @~cite[HMAC-SHA].
        (define state-array-pict
          (let ([/dev/stdout (open-output-string '/dev/stdout)])
            (lambda [state]
-             (state-array-pretty-print state #:port /dev/stdout)
+             (state-array-pretty-print state 4 4 #:port /dev/stdout)
 
              (let ([octets (string-split (bytes->string/latin-1 (get-output-bytes /dev/stdout #true)))])
                (pict:frame (pict:inset (pict:table 4 (map pict:text octets) pict:cc-superimpose pict:cc-superimpose 8 8)
@@ -243,7 +244,7 @@ These test cases are defined in @~cite[HMAC-SHA].
          (lambda [state schedule start [space 3]]
            (define Sin (state-array-pict state))
 
-           (state-array-add-round-key! state schedule start)
+           (aes-state-array-add-round-key! state schedule start)
            
            (pict:hc-append sbox-gapsize
                            (cond [(= space 0) Sin]
@@ -257,7 +258,7 @@ These test cases are defined in @~cite[HMAC-SHA].
          (lambda [state schedule round]
            (define Sin (state-array-pict state))
            
-           (state-array-substitute! state aes-substitute-box)
+           (aes-state-array-substitute! state aes-substitute-box)
            (define Ssub (state-array-pict state))
 
            (aes-left-shift-rows! state)
@@ -270,7 +271,7 @@ These test cases are defined in @~cite[HMAC-SHA].
          (lambda [state schedule round]
            (define Sin (state-array-pict state))
            
-           (state-array-substitute! state aes-substitute-box)
+           (aes-state-array-substitute! state aes-substitute-box)
            (define Ssub (state-array-pict state))
 
            (aes-left-shift-rows! state)
