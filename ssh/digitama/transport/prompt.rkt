@@ -2,9 +2,10 @@
 
 (provide (all-defined-out))
 
-(require "stdio.rkt")
+(require "../stdio.rkt")
 
 (require "../diagnostics.rkt")
+
 (require "../message/transport.rkt")
 
 (require typed/racket/unsafe)

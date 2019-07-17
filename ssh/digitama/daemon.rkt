@@ -4,15 +4,15 @@
 
 (require digimon/thread)
 
-(require "../transport.rkt")
-(require "../datatype.rkt")
-(require "../configuration.rkt")
-
 (require "service.rkt")
 (require "message.rkt")
 (require "assignment.rkt")
 (require "transport.rkt")
 (require "diagnostics.rkt")
+
+(require "../transport.rkt")
+(require "../datatype.rkt")
+(require "../configuration.rkt")
 
 (require "message/transport.rkt")
 (require "authentication/user.rkt")

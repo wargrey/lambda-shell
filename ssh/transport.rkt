@@ -12,10 +12,9 @@
 (require "message.rkt")
 (require "configuration.rkt")
 
-(require "digitama/transport.rkt")
+(require "digitama/stdio.rkt")
 (require "digitama/diagnostics.rkt")
-
-(require "digitama/transport/stdio.rkt")
+(require "digitama/transport.rkt")
 (require "digitama/transport/identification.rkt")
 (require "digitama/message/transport.rkt")
 
@@ -48,14 +47,14 @@
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
           (define server-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
 
-          (cond [(ssh-message? server-id) (ssh-throw-disconnection server-id #:level #false)]
-                [else (ssh-log-message 'debug #:with-peer-name? #false
-                                       "server[~a] identification string: ~a" server-name (ssh-identification-raw server-id))])
+          (if (ssh-message? server-id)
+              (ssh-throw-disconnection server-id #:level #false)
+              (thread-send sshc (ssh-log-message 'debug #:with-peer-name? #false "server[~a] identification string: ~a"
+                                                 server-name (ssh-identification-raw server-id))))
 
-          (thread-send sshc #true)
           (let ([session (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
             (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
-                [else (ssh-port sshc-custodian rfc logger server-name session sshc /dev/sshin)])))))))
+                  [else (ssh-port sshc-custodian rfc logger server-name session sshc /dev/sshin)])))))))
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:client-custodian Custodian #:logger Logger
@@ -100,11 +99,11 @@
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
 
-          (cond [(ssh-message? client-id) (ssh-throw-disconnection client-id #:level #false)]
-                [else (ssh-log-message 'debug #:with-peer-name? #false
-                                       "client[~a] identification string: ~a" client-name (ssh-identification-raw client-id))])
+          (if (ssh-message? client-id)
+              (ssh-throw-disconnection client-id #:level #false)
+              (thread-send sshd (ssh-log-message 'debug #:with-peer-name? #false "client[~a] identification string: ~a"
+                                                 client-name (ssh-identification-raw client-id))))
 
-          (thread-send sshd #true)
           (let ([session (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
             (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
                   [else (ssh-port sshd-custodian rfc (current-logger) client-name session sshd /dev/sshin)])))))))

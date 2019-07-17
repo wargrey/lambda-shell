@@ -6,18 +6,18 @@
 (require racket/port)
 (require racket/string)
 
+(require "stdio.rkt")
+(require "diagnostics.rkt")
+
 (require "transport/identification.rkt")
 (require "transport/message.rkt")
 (require "transport/kex.rkt")
 (require "transport/newkeys.rkt")
 (require "transport/prompt.rkt")
-(require "transport/stdio.rkt")
 
 (require "message/transport.rkt")
 (require "message/authentication.rkt")
 (require "message/disconnection.rkt")
-
-(require "diagnostics.rkt")
 
 (require "../kex.rkt")
 (require "../message.rkt")
@@ -267,7 +267,7 @@
 
 (define ssh-ignore-message : (-> Any SSH-MSG-IGNORE)
   (lambda [payload]
-    (make-ssh:msg:ignore #:data (format "~s" payload))))
+    (make-ssh:msg:ignore #:data (if (bytes? payload) payload (string->bytes/utf-8 (format "~s" payload))))))
 
 (define ssh-unimplemented-message : (-> (U Bytes SSH-Message) SSH-MSG-UNIMPLEMENTED)
   (lambda [msg]

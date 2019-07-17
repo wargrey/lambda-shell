@@ -27,9 +27,14 @@
     (define-values (rows cols) (state-array-size s))
     (define-values (base ~byte) (if (not base2) (values 16 byte->hex-string) (values 2 byte->bin-string)))
     
-    (for* ([r (in-range rows)]
-           [c (in-range cols)])
-        (fprintf /dev/stdout "~a" (~byte (state-array-ref s r c)))
-      
-        (cond [(= c (sub1 cols)) (newline /dev/stdout)]
-              [else (fprintf /dev/stdout "~a" separator)]))))
+    (let rloop ([r : Index 0])
+      (when (< r rows)
+        (let cloop ([c : Index 0])
+          (when (< c cols)
+            (fprintf /dev/stdout "~a" (~byte (state-array-ref s r c)))
+            
+            (cond [(= c (sub1 cols)) (newline /dev/stdout)]
+                  [else (fprintf /dev/stdout "~a" separator)])
+            
+            (cloop (+ c 1))))
+        (rloop (+ r 1))))))
