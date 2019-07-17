@@ -71,10 +71,13 @@
                                 (let* ([key (cadddr (car rest-keys))]
                                        [pre-request (make-ssh:msg:userauth:request:publickey$ #:username username #:service service #:algorithm type #:key pubkey)]
                                        [message (ssh-signature-message session pre-request)])
-                                  (ssh-log-message 'debug "~a is accepted, sign and send public key: ~a" src (ssh-fingerprint type pubkey))
+                                  (define signature : Bytes
+                                    (cond [(rsa-private-key? key) (rsa-make-signature key message)]
+                                          [else #| dead code |# #""]))
+                                  (define-values (sign-algname sigoff) (ssh-bytes->name signature))
+                                  (ssh-log-message 'debug "~a is accepted, use '~a' to sign and send public key: ~a" src sign-algname (ssh-fingerprint type pubkey))
                                   (struct-copy ssh:msg:userauth:request:publickey$ pre-request
-                                               [signature (cond [(rsa-private-key? key) (rsa-make-signature key message)]
-                                                                [else #| dead code |# #""])])))))]))))
+                                               [signature signature])))))]))))
 
 (define ssh-publickey-response : SSH-Userauth-Response
   (lambda [self request username service session]
@@ -95,13 +98,13 @@
                            (make-ssh:msg:userauth:pk:ok #:algorithm keytype #:key rawkey))
                       (let*-values ([(message) (ssh-signature-message session request)]
                                     [(signature) (ssh:msg:userauth:request:publickey$-signature request)]
-                                    [(algname sigoff) (rsa-bytes-signature-info signature)])
-                        (and (case algname
+                                    [(sigalg-name sigoff) (rsa-bytes-signature-info signature)])
+                        (and (case sigalg-name
                                [(ssh-rsa rsa-sha2-256)
                                 (let-values ([(pubkey) (rsa-bytes->public-key (ssh-authorized-key-raw athkey))])
                                   (and (eq? keytype ssh-rsa-keyname)
-                                       (ssh-rsa-verify pubkey message signature sigoff algname)
-                                       (ssh-log-message 'debug "verified ~a" (ssh-fingerprint keytype rawkey))))]
+                                       (ssh-rsa-verify pubkey message signature sigoff sigalg-name)
+                                       (ssh-log-message 'debug "verified ~a, signed with '~a'" (ssh-fingerprint keytype rawkey) sigalg-name)))]
                                [else #false])
                              (or (ssh-authorized-key-options athkey) #true))))))))))
 
@@ -123,6 +126,5 @@
                     [(|RSA PRIVATE KEY|)
                      (define key : RSA-Private-Key (unsafe-bytes->rsa-private-key* (pem-key-raw (car all-keys))))
                      (select-keys (cdr all-keys)
-                                  (cons (list ssh-rsa-keyname (rsa-make-public-key key) (pem-key-src (car all-keys)) key)
-                                        syek))]
+                                  (cons (list ssh-rsa-keyname (rsa-make-public-key key) (pem-key-src (car all-keys)) key) syek))]
                     [else (select-keys (cdr all-keys) syek)])]))))
