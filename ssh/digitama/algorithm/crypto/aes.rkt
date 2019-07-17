@@ -38,6 +38,28 @@
          (aes-state-array-set! state 2 c (byte+ (byte* #x0d s0c) (byte* #x09 s1c) (byte* #x0e s2c) (byte* #x0b s3c)))
          (aes-state-array-set! state 3 c (byte+ (byte* #x0b s0c) (byte* #x0d s1c) (byte* #x09 s2c) (byte* #x0e s3c))))]))
 
+(define-syntax (aes-step stx)
+  (syntax-case stx []
+    [(_ state aes-substitute-box schedule widx #:encrypt)
+     #'(begin (aes-state-array-substitute! state aes-substitute-box)
+              (aes-left-shift-rows! state)
+
+              (aes-mix-columns! state 0 #:encrypt)
+              (aes-mix-columns! state 1 #:encrypt)
+              (aes-mix-columns! state 2 #:encrypt)
+              (aes-mix-columns! state 3 #:encrypt)
+        
+              (aes-state-array-add-round-key! state schedule widx))]
+    [(_ state aes-inverse-substitute-box schedule widx #:decrypt)
+     #'(begin (aes-state-array-substitute! state aes-inverse-substitute-box)
+              (aes-right-shift-rows! state)
+              (aes-state-array-add-round-key! state schedule widx)
+              
+              (aes-mix-columns! state 0 #:decrypt)
+              (aes-mix-columns! state 1 #:decrypt)
+              (aes-mix-columns! state 2 #:decrypt)
+              (aes-mix-columns! state 3 #:decrypt))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; TODO: padding the plaintext if its length is not the multiple of the block size
 (define aes-cipher : (-> Bytes (Values (-> Bytes Bytes) (-> Bytes Bytes)))
@@ -99,7 +121,7 @@
               (aes-crypt-ctr! ciphertext decrypt-ctr key-schedule state Nr cstart cend maybe-plaintext pstart pend AES-K-IV)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-encrypt : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte) (Natural Natural) Bytes)
+(define aes-encrypt : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte) (Natural Natural) Bytes)
   (lambda [plaintext schedule state round [pstart 0] [pend0 0]]
     (define pend : Index (bytes-range-end plaintext pstart pend0))
     (define ciphertext : Bytes (make-bytes (aes-ciphertext-size (- pend pstart))))
@@ -107,7 +129,7 @@
     (aes-encrypt! plaintext schedule state round pstart pend ciphertext)
     ciphertext))
 
-(define aes-encrypt! : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
+(define aes-encrypt! : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
   (lambda [plaintext schedule state round [pstart 0] [pend0 0] [maybe-ciphertext #false] [cstart0 0] [cend0 0]]
     (define pend : Index (bytes-range-end plaintext pstart pend0))
     (define-values (ciphertext cstart cend)
@@ -122,7 +144,7 @@
 
     cend))
 
-(define aes-decrypt : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte) (Natural Natural) Bytes)
+(define aes-decrypt : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte) (Natural Natural) Bytes)
   (lambda [ciphertext schedule state round [cstart 0] [cend0 0]]
     (define cend : Index (bytes-range-end ciphertext cstart cend0))
     (define plaintext : Bytes (make-bytes (- cend cstart)))
@@ -130,7 +152,7 @@
     (aes-decrypt! ciphertext schedule state round cstart cend plaintext)
     plaintext))
 
-(define aes-decrypt! : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
+(define aes-decrypt! : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte) (Natural Natural (Option Bytes) Natural Natural) Index)
   (lambda [ciphertext schedule state round [cstart 0] [cend0 0] [maybe-plaintext #false] [pstart0 0] [pend0 0]]
     (define cend : Index (bytes-range-end ciphertext cstart cend0))
     (define-values (plaintext pstart pend)
@@ -147,7 +169,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; NOTE: CTR does not require a decryption algorithm
-(define aes-crypt-ctr : (->* (Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte) (Natural Natural Bytes) Bytes)
+(define aes-crypt-ctr : (->* (Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte) (Natural Natural Bytes) Bytes)
   (lambda [text counter schedule state round [tstart 0] [tend0 0] [aes-k-iv (make-bytes aes-blocksize)]]
     (define tend : Index (bytes-range-end text tstart tend0))
     (define result : Bytes (make-bytes (aes-ciphertext-size (- tend tstart))))
@@ -155,7 +177,7 @@
     (aes-crypt-ctr! text counter schedule state round tstart tend result 0 0 aes-k-iv)
     result))
 
-(define aes-crypt-ctr! : (->* (Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte) (Natural Natural (Option Bytes) Natural Natural Bytes) Index)
+(define aes-crypt-ctr! : (->* (Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte) (Natural Natural (Option Bytes) Natural Natural Bytes) Index)
   (lambda [intext counter schedule state round [istart 0] [iend0 0] [maybe-outtext #false] [ostart0 0] [oend0 0] [aes-k-iv (make-bytes aes-blocksize)]]
     (define iend : Index (bytes-range-end intext istart iend0))
     (define-values (outtext ostart oend)
@@ -166,7 +188,7 @@
     oend))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-block-ctr : (-> Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte Natural Index Bytes Natural Index Bytes Void)
+(define aes-block-ctr : (-> Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte Natural Index Bytes Natural Index Bytes Void)
   (lambda [intext counter schedule state round istart iend outtext ostart oend aes-k-iv]
     (let crypt-block ([iidx : Natural istart]
                       [oidx : Natural ostart])
@@ -176,25 +198,26 @@
         (network-natural-bytes++ counter)
         (crypt-block (+ iidx aes-blocksize) (+ oidx aes-blocksize))))))
 
-(define aes-block-encrypt : (-> Bytes Index Index Bytes Index Index (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte Void)
+(define aes-block-encrypt : (-> Bytes Index Index Bytes Index Index (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte Void)
   (lambda [plainblock pstart pend cipherblock cstart cend schedule state round]
     (define last-round-idx : Index (* aes-Nb round))
     
     (aes-state-array-copy-from-bytes! state plainblock pstart pend)
-    (aes-state-array-add-round-key! state schedule 0)
+    (aes-state-array-add-round-key! state schedule 00)
+    
+    (aes-step state aes-substitute-box schedule 04 #:encrypt)
+    (aes-step state aes-substitute-box schedule 08 #:encrypt)
+    (aes-step state aes-substitute-box schedule 12 #:encrypt)
+    (aes-step state aes-substitute-box schedule 16 #:encrypt)
+    (aes-step state aes-substitute-box schedule 20 #:encrypt)
+    (aes-step state aes-substitute-box schedule 24 #:encrypt)
+    (aes-step state aes-substitute-box schedule 28 #:encrypt)
+    (aes-step state aes-substitute-box schedule 32 #:encrypt)
+    (aes-step state aes-substitute-box schedule 36 #:encrypt)
 
-    (let encrypt ([widx : Nonnegative-Fixnum aes-Nb])
+    (let encrypt ([widx : Nonnegative-Fixnum 40])
       (when (< widx last-round-idx)
-        (aes-state-array-substitute! state aes-substitute-box)
-        (aes-left-shift-rows! state)
-
-        (aes-mix-columns! state 0 #:encrypt)
-        (aes-mix-columns! state 1 #:encrypt)
-        (aes-mix-columns! state 2 #:encrypt)
-        (aes-mix-columns! state 3 #:encrypt)
-        
-        (aes-state-array-add-round-key! state schedule widx)
-        
+        (aes-step state aes-substitute-box schedule widx #:encrypt)
         (encrypt (+ widx aes-Nb))))
 
     (aes-state-array-substitute! state aes-substitute-box)
@@ -203,7 +226,7 @@
     
     (aes-state-array-copy-to-bytes! state cipherblock cstart)))
 
-(define aes-block-decrypt : (-> Bytes Index Index Bytes Index Index (Vectorof Nonnegative-Fixnum) (State-Array 4 4)Byte Void)
+(define aes-block-decrypt : (-> Bytes Index Index Bytes Index Index (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Byte Void)
   (lambda [cipherblock cstart cend plaintext pstart pend schedule state round]
     (define last-round-idx : Index (* aes-Nb round))
     
@@ -211,17 +234,19 @@
     (aes-state-array-add-round-key! state schedule last-round-idx)
 
     (let encrypt ([widx : Fixnum (- last-round-idx aes-Nb)])
-      (when (> widx 0)
-        (aes-state-array-substitute! state aes-inverse-substitute-box)
-        (aes-right-shift-rows! state)
-        (aes-state-array-add-round-key! state schedule widx)
-
-        (aes-mix-columns! state 0 #:decrypt)
-        (aes-mix-columns! state 1 #:decrypt)
-        (aes-mix-columns! state 2 #:decrypt)
-        (aes-mix-columns! state 3 #:decrypt)
-        
+      (when (>= widx 40)
+        (aes-step state aes-inverse-substitute-box schedule widx #:decrypt)
         (encrypt (- widx aes-Nb))))
+
+    (aes-step state aes-inverse-substitute-box schedule 36 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 32 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 28 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 24 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 20 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 16 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 12 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 08 #:decrypt)
+    (aes-step state aes-inverse-substitute-box schedule 04 #:decrypt)
 
     (aes-state-array-substitute! state aes-inverse-substitute-box)
     (aes-right-shift-rows! state)
@@ -304,17 +329,19 @@
   (lambda [Nk]
     (assert (+ Nk 6) byte?)))
 
-(define aes-left-shift-rows! : (-> (State-Array 4 4)Void)
+(define aes-left-shift-rows! : (-> (State-Array 4 4) Void)
   (lambda [state]
     (aes-state-array-left-shift-word! state 1 0 08)
     (aes-state-array-left-shift-word! state 2 0 16)
-    (aes-state-array-left-shift-word! state 3 0 24)))
+    (aes-state-array-left-shift-word! state 3 0 24)
+    (void)))
 
-(define aes-right-shift-rows! : (-> (State-Array 4 4)Void)
+(define aes-right-shift-rows! : (-> (State-Array 4 4) Void)
   (lambda [state]
     (aes-state-array-right-shift-word! state 1 0 08)
     (aes-state-array-right-shift-word! state 2 0 16)
-    (aes-state-array-right-shift-word! state 3 0 24)))
+    (aes-state-array-right-shift-word! state 3 0 24)
+    (void)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-substitute+rotate-word : (-> Nonnegative-Fixnum Bytes Byte Nonnegative-Fixnum)
@@ -324,16 +351,16 @@
     (define w2 : Byte (unsafe-fxand (unsafe-fxrshift temp 08) #xFF))
     (define w3 : Byte (unsafe-fxand temp #xFF))
 
-    (bitwise-ior (unsafe-fxlshift (bitwise-xor (unsafe-bytes-ref s-box w1) rc) 24)
+    (bitwise-ior (unsafe-fxlshift (unsafe-fxxor (unsafe-bytes-ref s-box w1) rc) 24)
                  (unsafe-fxlshift (unsafe-bytes-ref s-box w2) 16)
                  (unsafe-fxlshift (unsafe-bytes-ref s-box w3) 08)
                  (unsafe-bytes-ref s-box w0))))
 
 (define aes-substitute-word : (-> Nonnegative-Fixnum Bytes Nonnegative-Fixnum)
   (lambda [temp s-box]
-    (define w0 : Byte (unsafe-fxand (arithmetic-shift temp -24) #xFF))
-    (define w1 : Byte (unsafe-fxand (arithmetic-shift temp -16) #xFF))
-    (define w2 : Byte (unsafe-fxand (arithmetic-shift temp -08) #xFF))
+    (define w0 : Byte (unsafe-fxand (unsafe-fxrshift temp 24) #xFF))
+    (define w1 : Byte (unsafe-fxand (unsafe-fxrshift temp 16) #xFF))
+    (define w2 : Byte (unsafe-fxand (unsafe-fxrshift temp 08) #xFF))
     (define w3 : Byte (unsafe-fxand temp #xFF))
 
     (bitwise-ior (unsafe-fxlshift (unsafe-bytes-ref s-box w0) 24)

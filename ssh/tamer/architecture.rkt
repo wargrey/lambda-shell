@@ -244,7 +244,7 @@ These test cases are defined in @~cite[HMAC-SHA].
          (lambda [state schedule start [space 3]]
            (define Sin (state-array-pict state))
 
-           (aes-state-array-add-round-key! state schedule start)
+           (aes-state-add-round-key! state schedule start)
            
            (pict:hc-append sbox-gapsize
                            (cond [(= space 0) Sin]

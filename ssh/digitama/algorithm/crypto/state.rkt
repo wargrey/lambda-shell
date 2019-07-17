@@ -33,7 +33,16 @@
                     [state-array-add-round-key! (format-id #'state-array "~a-add-round-key!" (syntax-e #'state-array))]
                     [state-array-substitute! (format-id #'state-array "~a-substitute!" (syntax-e #'state-array))]
                     [state-array-left-shift-word! (format-id #'state-array "~a-left-shift-word!" (syntax-e #'state-array))]
-                    [state-array-right-shift-word! (format-id #'state-array "~a-right-shift-word!" (syntax-e #'state-array))])
+                    [state-array-right-shift-word! (format-id #'state-array "~a-right-shift-word!" (syntax-e #'state-array))]
+                    [([r-idx r*Nb r*Nb+4] ...) (for/list ([r (in-range (syntax-e #'rows))])
+                                                 (define s-idx (* r (syntax-e #'Nb)))
+                                                 (list (datum->syntax #'rows r)
+                                                       (datum->syntax #'rows s-idx)
+                                                       (datum->syntax #'rows (+ s-idx 4))))]
+                    [([bs-idx r*Nb+c] ...) (for/list ([bs (in-range (syntax-e #'blocksize))])
+                                                        (define-values (c r)  (quotient/remainder bs (syntax-e #'rows)))
+                                                        (list (datum->syntax #'blocksize bs)
+                                                              (datum->syntax #'blocksize (+ c (* r (syntax-e #'Nb))))))])
        #'(begin (define id-Nb : Nb Nb)
                 (define id-blocksize : blocksize blocksize)
 
@@ -47,72 +56,61 @@
                     (define padding : Fixnum (- (+ start blocksize) end))
                     (define maxidx : Fixnum (if (> padding 0) (- blocksize padding) blocksize))
                     
-                    (when (> padding 0)
-                      (bytes-fill! s padding))
-                    
-                    (let copy-in ([idx : Nonnegative-Fixnum 0])
-                      (when (< idx maxidx)
-                        (define c : Fixnum (unsafe-fxquotient idx rows))
-                        (define r : Byte (unsafe-fxremainder idx rows))
-        
-                        (unsafe-bytes-set! s (unsafe-fx+ c (* Nb r)) (unsafe-bytes-ref in (unsafe-fx+ idx start)))
-                        (copy-in (unsafe-fx+ idx 1))))))
+                    (if (> padding 0)
+                        (void (bytes-fill! s padding)
+                              (let copy-in ([idx : Nonnegative-Fixnum 0])
+                                (when (< idx maxidx)
+                                  (define c : Fixnum (unsafe-fxquotient idx rows))
+                                  (define r : Byte (unsafe-fxremainder idx rows))
+                                  
+                                  (unsafe-bytes-set! s (unsafe-fx+ c (* Nb r)) (unsafe-bytes-ref in (unsafe-fx+ idx start)))
+                                  (copy-in (unsafe-fx+ idx 1)))))
+                        (void (unsafe-bytes-set! s r*Nb+c (unsafe-bytes-ref in (unsafe-fx+ bs-idx start)))
+                              ...))))
 
                 (define state-array-copy-to-bytes! : (-> (State-Array rows Nb) Bytes Index Void)
                   (lambda [s out start]
-                    (let copy-out ([idx : Nonnegative-Fixnum 0])
-                      (when (< idx blocksize)
-                        (define c : Fixnum (unsafe-fxquotient idx rows))
-                        (define r : Byte (unsafe-fxremainder idx rows))
-                        
-                        (unsafe-bytes-set! out (unsafe-fx+ idx start) (unsafe-bytes-ref s (unsafe-fx+ c (* Nb r))))
-                        (copy-out (unsafe-fx+ idx 1))))))
+                    (unsafe-bytes-set! out (unsafe-fx+ bs-idx start) (unsafe-bytes-ref s r*Nb+c))
+                    ...))
 
-                (define state-array-set! : (-> (State-Array rows Nb) Byte Byte Byte Void)
-                  (lambda [s r c v]
-                    (unsafe-bytes-set! s (+ c (* Nb r)) v)))
+                (define-syntax (state-array-set! stx)
+                  (syntax-case stx []
+                    [(_ s r c v) #'(unsafe-bytes-set! s (+ c (* Nb r)) v)]))
                 
-                (define state-array-ref : (-> State-Array Byte Byte Byte)
-                  (lambda [s r c]
-                    (unsafe-bytes-ref s (+ c (* Nb r)))))
+                (define-syntax (state-array-ref stx)
+                  (syntax-case stx []
+                    [(_ s r c) #'(unsafe-bytes-ref s (+ c (* Nb r)))]))
 
-                (define state-array-add-round-key! : (-> (State-Array rows Nb) (Vectorof Nonnegative-Fixnum) Nonnegative-Fixnum Void)
-                  (lambda [s rotated-schedule start]
-                    (let add-round-key ([r : Index 0])
-                      (when (< r rows)
-                        (define s-idx : Index (unsafe-fx* Nb r))
-                        (define self : Index (integer-bytes->uint32 s #false #true s-idx (unsafe-fx+ s-idx 4)))
-                        (define keyv : Nonnegative-Fixnum (unsafe-vector-ref rotated-schedule (unsafe-fx+ r start)))
-                        
-                        (integer->integer-bytes (bitwise-xor self keyv) 4 #false #true s s-idx)
-                        
-                        (add-round-key (+ r 1))))))
-
+                ;; WARNING
+                ; This is not a generic function, it only works when Nb = 4,
+                ; But it is also easy to generalization in the future
+                (define-syntax (state-array-add-round-key! stx)
+                  (syntax-case stx []
+                    [(_ s rotated-schedule start)
+                     #'(begin (let ([self (integer-bytes->uint32 s #false #true r*Nb r*Nb+4)]
+                                    [keyv (unsafe-vector-ref rotated-schedule (unsafe-fx+ r-idx start))])
+                                (integer->integer-bytes (bitwise-xor self keyv) 4 #false #true s r*Nb))
+                              ...)]))
+                
                 (define state-array-substitute! : (-> (State-Array rows Nb) Bytes Void)
                   (lambda [s s-box]
-                    (let substitute ([idx : Nonnegative-Fixnum 0])
-                      (when (< idx blocksize)
-                        (unsafe-bytes-set! s idx (unsafe-bytes-ref s-box (unsafe-bytes-ref s idx)))
-                        (substitute (+ idx 1))))))
+                    (unsafe-bytes-set! s bs-idx (unsafe-bytes-ref s-box (unsafe-bytes-ref s bs-idx)))
+                    ...))
 
-                (define state-array-left-shift-word! : (-> (State-Array rows Nb) Byte Byte Byte Void)
-                  (lambda [s r wc bits]
-                    (define idx : Nonnegative-Fixnum (+ (* wc 4) (* rows r)))
-                    (define v : Index (integer-bytes->uint32 s #false #true idx (unsafe-fx+ idx 4)))
-                    
-                    (integer->integer-bytes (unsafe-fxxor (unsafe-fxand (unsafe-fxlshift v bits) #xFFFFFFFF)
-                                                          (unsafe-fxrshift v (- 32 bits)))
-                                            4 #false #true s idx)
-                    
-                    (void)))
+                (define-syntax (state-array-left-shift-word! stx)
+                  (syntax-case stx []
+                    [(_ s r wc bits)
+                     #'(let* ([idx (+ (* wc 4) (* rows r))]
+                              [v (integer-bytes->uint32 s #false #true idx (unsafe-fx+ idx 4))])           
+                         (integer->integer-bytes (unsafe-fxxor (unsafe-fxand (unsafe-fxlshift v bits) #xFFFFFFFF)
+                                                               (unsafe-fxrshift v (- 32 bits)))
+                                                 4 #false #true s idx))]))
                 
-                (define state-array-right-shift-word! : (-> (State-Array rows Nb) Byte Byte Byte Void)
-                  (lambda [s r wc bits]
-                    (define idx : Nonnegative-Fixnum (+ (* wc 4) (* rows r)))
-                    (define v : Index (integer-bytes->uint32 s #false #true idx (unsafe-fx+ idx 4)))
-                    
-                    (integer->integer-bytes (unsafe-fxxor (unsafe-fxrshift v bits)
-                                                          (unsafe-fxand (unsafe-fxlshift v (- 32 bits)) #xFFFFFFFF))
-                                            4 #false #true s idx)
-                    
-                    (void)))))]))
+                (define-syntax (state-array-right-shift-word! stx)
+                  (syntax-case stx []
+                    [(_ s r wc bits)
+                     #'(let* ([idx (+ (* wc 4) (* rows r))]
+                              [v (integer-bytes->uint32 s #false #true idx (unsafe-fx+ idx 4))])
+                         (integer->integer-bytes (unsafe-fxxor (unsafe-fxrshift v bits)
+                                                               (unsafe-fxand (unsafe-fxlshift v (- 32 bits)) #xFFFFFFFF))
+                                                 4 #false #true s idx))]))))]))
