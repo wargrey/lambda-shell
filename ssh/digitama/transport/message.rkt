@@ -19,6 +19,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-write-plain-message : (-> Output-Port SSH-Message SSH-Configuration SSH-Parcel Natural)
   (lambda [/dev/tcpout msg rfc parcel]
+    (define time0 : Flonum (current-inexact-milliseconds))
     (define payload-length : Natural (ssh-message-length msg))
     (define outgoing-parcel : Bytes (ssh-parcel-outgoing parcel))
     (define maybe-overload-parcel : (Option Bytes) (ssh-pre-write-message outgoing-parcel payload-length rfc (ssh-parcel-mac-capacity parcel)))
@@ -28,18 +29,20 @@
         (ssh-message->bytes msg parcel ssh-packet-payload-index)
         (ssh-write-plain-packet /dev/tcpout parcel payload-length ($ssh-pretty-log-packet-level rfc))))
     
-    (ssh-post-write-message outgoing-parcel msg traffic maybe-overload-parcel)))
+    (ssh-post-write-message outgoing-parcel msg traffic time0 maybe-overload-parcel)))
 
 (define ssh-read-plain-transport-message : (-> Input-Port SSH-Configuration SSH-Parcel (Option Symbol) (Values (Option SSH-Message) Bytes Natural))
   (lambda [/dev/tcpin rfc parcel group]
+    (define time0 : Flonum (current-inexact-milliseconds))
     (define incoming : Bytes (ssh-parcel-incoming parcel))
     (define-values (payload-end traffic)
       (ssh-read-plain-packet /dev/tcpin incoming ($ssh-payload-capacity rfc) ssh-parcel-fault-tolerance-size ($ssh-pretty-log-packet-level rfc)))
     
-    (ssh-post-read-transport-message incoming payload-end traffic rfc group)))
+    (ssh-post-read-transport-message incoming payload-end traffic time0 rfc group)))
 
 (define ssh-write-cipher-message : (-> Output-Port SSH-Message SSH-Configuration SSH-Newkeys Natural)
   (lambda [/dev/tcpout msg rfc newkeys]
+    (define time0 : Flonum (current-inexact-milliseconds))
     (define parcel : SSH-Parcel (ssh-newkeys-parcel newkeys))
     (define payload-length : Natural (ssh-message-length msg))
     (define outgoing-parcel : Bytes (ssh-parcel-outgoing parcel))
@@ -52,10 +55,11 @@
                                  (ssh-newkeys-encrypt newkeys) (ssh-newkeys-encrypt-block-size newkeys) (ssh-newkeys-mac-generate newkeys)
                                  ($ssh-pretty-log-packet-level rfc))))
 
-    (ssh-post-write-message outgoing-parcel msg traffic maybe-overload-parcel)))
+    (ssh-post-write-message outgoing-parcel msg traffic time0 maybe-overload-parcel)))
 
 (define ssh-read-cipher-transport-message : (-> Input-Port SSH-Configuration SSH-Newkeys (Option Symbol) (Values (Option SSH-Message) Bytes Natural))
   (lambda [/dev/tcpin rfc newkeys group]
+    (define time0 : Flonum (current-inexact-milliseconds))
     (define incoming : Bytes (ssh-parcel-incoming (ssh-newkeys-parcel newkeys)))
     (define-values (payload-end traffic)
       (ssh-read-cipher-packet /dev/tcpin incoming
@@ -63,7 +67,7 @@
                               (ssh-newkeys-deflate newkeys) (ssh-newkeys-decrypt newkeys) (ssh-newkeys-mac-verify newkeys)
                               ($ssh-pretty-log-packet-level rfc)))
     
-    (ssh-post-read-transport-message incoming payload-end traffic rfc group)))
+    (ssh-post-read-transport-message incoming payload-end traffic time0 rfc group)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-pre-write-message : (-> Bytes Natural SSH-Configuration Index (Option Bytes))
@@ -76,14 +80,17 @@
     
     maybe-overload-parcel))
 
-(define ssh-post-write-message : (-> Bytes SSH-Message Nonnegative-Fixnum (Option Bytes) Nonnegative-Fixnum)
-  (lambda [outgoing-parcel msg traffic maybe-overloaded-parcel]
+(define ssh-post-write-message : (-> Bytes SSH-Message Nonnegative-Fixnum Flonum (Option Bytes) Nonnegative-Fixnum)
+  (lambda [outgoing-parcel msg traffic time0 maybe-overloaded-parcel]
     (unless (not maybe-overloaded-parcel)
       ; the new sequence number is required
       ; the content of the overload parcel can also be used as the 'random' padding for following message 
       (bytes-copy! outgoing-parcel 0 maybe-overloaded-parcel 0 (bytes-length outgoing-parcel)))
+
+    (let* ([timespan (- (current-inexact-milliseconds) time0)])
+      (ssh-log-message 'debug "sent message ~a[~a] (~a, ~ams)" (ssh-message-name msg) (ssh-message-number msg)
+                       (~size traffic #:precision 3) (~r timespan #:precision 6)))
     
-    (ssh-log-message 'debug "sent message ~a[~a] (~a)" (ssh-message-name msg) (ssh-message-number msg) (~size traffic #:precision 3))
     (ssh-log-outgoing-message msg)
 
     (when (ssh:msg:disconnect? msg)
@@ -91,15 +98,19 @@
 
     traffic))
 
-(define ssh-post-read-transport-message : (-> Bytes Positive-Fixnum Nonnegative-Fixnum SSH-Configuration (Option Symbol)
+(define ssh-post-read-transport-message : (-> Bytes Positive-Fixnum Nonnegative-Fixnum Flonum SSH-Configuration (Option Symbol)
                                               (Values (Option SSH-Message) Bytes Nonnegative-Fixnum))
-  (lambda [incoming-parcel payload-end traffic rfc group]
+  (lambda [incoming-parcel payload-end traffic time0 rfc group]
     (define msg-id : Byte (ssh-message-payload-number incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:group group))
+    (define clocktime : Flonum (- (current-inexact-milliseconds) time0))
+    (define strtime : String (~r clocktime #:precision '(= 6)))
 
-    (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a)" msg-id (~size traffic #:precision 3))]
-          [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a)"
-                                 (ssh-message-name maybe-trans-msg) msg-id (~size traffic #:precision 3))])
+    (let* ([timespan (- (current-inexact-milliseconds) time0)]
+           [ms (~r timespan #:precision 6)])
+      (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a, ~ams)" msg-id (~size traffic #:precision 3) ms)]
+            [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a, ~ams)" (ssh-message-name maybe-trans-msg) msg-id
+                                   (~size traffic #:precision 3) ms)]))
     
     (unless (not maybe-trans-msg)
       (ssh-log-incoming-message maybe-trans-msg)
@@ -182,3 +193,8 @@
            (ssh-log-message #:with-peer-name? #false
                             'info "~a accepts the request for service '~a'"
                             (current-peer-name) (ssh:msg:service:accept-name msg))])))
+
+(define ssh-transport-MB/s : (-> Nonnegative-Fixnum Flonum Flonum)
+  (lambda [traffic timespan]
+    (/ (real->double-flonum traffic)
+       (* timespan 1024.0 1.024))))

@@ -118,7 +118,7 @@
           [blocksize (max 8 cipher-blocksize)])
       (ssh-pretty-print-packet 'ssh-write-cipher-packet:plain parcel packet-end blocksize debug-level #:digest digest #:cipher? #false #:2nd? #true)
 
-      (encrypt! parcel ssh-packet-size-index packet-end) ; encrypting skipping the sequence number
+      (encrypt! parcel ssh-packet-size-index packet-end) ; encrypting skips the sequence number
       (ssh-pretty-print-packet 'ssh-write-cipher-packet parcel packet-end blocksize debug-level)
       
       (let ([sent (+ (write-bytes parcel /dev/tcpout ssh-packet-size-index packet-end) (write-bytes digest /dev/tcpout))])
