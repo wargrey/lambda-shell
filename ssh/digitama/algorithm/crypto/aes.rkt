@@ -14,6 +14,7 @@
 
 (require (for-syntax racket/base))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-state-array aes 4 4)
 
 (define-syntax (aes-mix-columns! stx)
@@ -179,22 +180,31 @@
 (define aes-crypt-ctr! : (->* (Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index) (Natural Natural (Option Bytes) Natural Natural Bytes) Index)
   (lambda [intext counter schedule state Nr-lidx [istart 0] [iend0 0] [maybe-outtext #false] [ostart0 0] [oend0 0] [aes-k-iv (make-bytes aes-blocksize)]]
     (define iend : Index (bytes-range-end intext istart iend0))
-    (define-values (outtext ostart oend)
-      (cond [(not maybe-outtext) (values intext istart iend)]
-            [else (values maybe-outtext ostart0 (bytes-range-end maybe-outtext ostart0 oend0))]))
 
-    (aes-block-ctr intext counter schedule state Nr-lidx istart iend outtext ostart aes-k-iv)
-    oend))
+    ;; NOTE: this optimization does not make sense
+    (cond [(not maybe-outtext) (aes-block-ctr intext counter schedule state Nr-lidx istart iend aes-k-iv) iend]
+          [else (let ([oend (bytes-range-end maybe-outtext ostart0 oend0)])
+                  (aes-block-ctr intext counter schedule state Nr-lidx istart iend maybe-outtext ostart0 aes-k-iv)
+                  oend)])))
 
-(define aes-block-ctr : (-> Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index Natural Index Bytes Natural Bytes Void)
-  (lambda [intext counter schedule state Nr-lidx istart iend outtext ostart aes-k-iv]
-    (let crypt-block ([iidx : Natural istart]
-                      [oidx : Nonnegative-Fixnum (assert ostart fixnum?)])
-      (when (< iidx iend)
-        (aes-block-encrypt counter 0 aes-blocksize aes-k-iv 0 schedule state Nr-lidx)
-        (aes-ctr-block-xor! intext iidx outtext oidx aes-k-iv)
-        (network-natural-bytes++ counter)
-        (crypt-block (+ iidx aes-blocksize) (unsafe-fx+ oidx aes-blocksize))))))
+(define aes-block-ctr : (case-> [Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index Natural Index Bytes Natural Bytes -> Void]
+                                [Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index Natural Index Bytes -> Void])
+  (case-lambda
+    [(intext counter schedule state Nr-lidx istart iend outtext ostart aes-k-iv)
+     (let crypt-block ([iidx : Nonnegative-Fixnum (assert istart fixnum?)]
+                       [oidx : Nonnegative-Fixnum (assert ostart fixnum?)])
+       (when (< iidx iend)
+         (aes-block-encrypt counter 0 aes-blocksize aes-k-iv 0 schedule state Nr-lidx)
+         (aes-ctr-block-xor! intext iidx outtext oidx aes-k-iv)
+         (network-natural-bytes++ counter)
+         (crypt-block (+ iidx aes-blocksize) (unsafe-fx+ oidx aes-blocksize))))]
+    [(intext counter schedule state Nr-lidx istart iend aes-k-iv)
+     (let crypt-block ([iidx : Nonnegative-Fixnum (assert istart fixnum?)])
+       (when (< iidx iend)
+         (aes-block-encrypt counter 0 aes-blocksize aes-k-iv 0 schedule state Nr-lidx)
+         (aes-ctr-block-xor! intext iidx intext iidx aes-k-iv)
+         (network-natural-bytes++ counter)
+         (crypt-block (+ iidx aes-blocksize))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-block-encrypt : (-> Bytes Index Index Bytes Nonnegative-Fixnum (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index Void)
