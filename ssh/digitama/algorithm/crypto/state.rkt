@@ -68,7 +68,7 @@
                         (void (unsafe-bytes-set! s r*Nb+c (unsafe-bytes-ref in (unsafe-fx+ bs-idx start)))
                               ...))))
 
-                (define state-array-copy-to-bytes! : (-> (State-Array rows Nb) Bytes Index Void)
+                (define state-array-copy-to-bytes! : (-> (State-Array rows Nb) Bytes Nonnegative-Fixnum Void)
                   (lambda [s out start]
                     (unsafe-bytes-set! out (unsafe-fx+ bs-idx start) (unsafe-bytes-ref s r*Nb+c))
                     ...))
