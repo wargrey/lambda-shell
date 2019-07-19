@@ -16,10 +16,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-connection-application : SSH-Application-Constructor
   (lambda [name session]
-    (ssh-connection-application (super-ssh-application #:name name #:session session
-                                                       #:range ssh-connection-range #:log-outgoing ssh-log-outgoing-message
+    (ssh-connection-application (super-ssh-application #:name name #:session session #:range ssh-connection-range
                                                        #:guard ssh-connection-guard #:deliver ssh-connection-deliver
-                                                       #:datum-evt ssh-connection-datum-evt
                                                        #:destruct ssh-connection-destruct)
                                 (make-hasheq))))
 
@@ -40,8 +38,3 @@
       (let ([response (ssh-filter-connection-message bresponse)])
         (and response
              (ssh-chport-filter (ssh-connection-application-ports self) response rfc))))))
-
-(define ssh-connection-datum-evt : SSH-Application-Datum-Evt
-  (lambda [self rfc]
-    (with-asserts ([self ssh-connection-application?])
-      (ssh-chport-datum-evt (ssh-connection-application-ports self)))))

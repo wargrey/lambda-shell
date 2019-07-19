@@ -25,9 +25,29 @@
            (make-ssh-session sshd maybe-application)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-session-datum-evt : (-> SSH-Session (Evtof Any))
+  (lambda [self]
+    (ssh-stdin-evt (ssh-session-appin self))))
+
+(define ssh-session-read : (-> SSH-Session Any)
+  (lambda [self]
+    (sync/enable-break (ssh-session-datum-evt self))))
+
 (define ssh-session-write : (-> SSH-Session Any Void)
   (lambda [self datum]
     (thread-send (ssh-session-ghostcat self) datum)))
+
+(define ssh-session-request-service : (-> SSH-Session Symbol [#:wait? Boolean] Void)
+  (lambda [self service #:wait? [wait? #true]]
+    (ssh-session-write self (make-ssh:msg:service:request #:name service))
+
+    (unless (not wait?)
+      (sync/enable-break (ssh-session-service-ready-evt self))
+      (void))))
+
+(define ssh-session-service-ready-evt : (-> SSH-Session (Evtof Symbol))
+  (lambda [self]
+    ((inst ssh-stdin-evt Symbol) (ssh-session-srvin self))))
 
 (define ssh-session-debug : (->* (SSH-Session Any) (Boolean) Void)
   (lambda [self payload [display? #false]]

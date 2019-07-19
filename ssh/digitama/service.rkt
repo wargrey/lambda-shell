@@ -23,8 +23,7 @@
   ([name : Symbol]
    [user : SSH-User]
    [session : Bytes]
-   [range : (Pairof Index Index)]
-   [log-outgoing : (-> SSH-Message Void)])
+   [range : (Pairof Index Index)])
   ([response : SSH-Service-Response]
    [push-evt : SSH-Service-Push-Evt ssh-service-no-evt]
    [destruct : SSH-Service-Destructor void]))
@@ -34,17 +33,15 @@
 (define-type SSH-Application-Destructor (-> SSH-Application Void))
 
 (define-type SSH-Application-Guard (-> SSH-Application SSH-Message SSH-Configuration SSH-Service-Layer-Reply))
-(define-type SSH-Application-Deliver (-> SSH-Application Bytes SSH-Configuration SSH-Service-Layer-Reply))
+(define-type SSH-Application-Deliver (-> SSH-Application Bytes SSH-Configuration (U SSH-Service-Layer-Reply (Boxof Any))))
 (define-type SSH-Application-Datum-Evt (-> SSH-Application SSH-Configuration (Option (Evtof SSH-Service-Layer-Reply))))
 
 (define-object ssh-application : SSH-Application
   ([name : Symbol]
    [session : Bytes]
-   [range : (Pairof Index Index)]
-   [log-outgoing : (-> SSH-Message Void)])
+   [range : (Pairof Index Index)])
   ([guard : SSH-Application-Guard]
    [deliver : SSH-Application-Deliver]
-   [datum-evt : SSH-Application-Datum-Evt]
    [destruct : SSH-Application-Destructor void]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -211,6 +211,9 @@
           [(pair? pending-data)
            (set-ssh-spot-pending-data! chport (append (ssh-spot-pending-data chport) pending-data))])
 
+    (cond [(ssh-message? outgoing-replies) (ssh-log-outgoing-message outgoing-replies)]
+          [(list? outgoing-replies) (for-each ssh-log-outgoing-message outgoing-replies)])
+    
     outgoing-replies))
 
 (define ssh-chport-check-outgoing-parcel! : (-> SSH-Spot SSH-Message (Values (Option SSH-Message) (Listof SSH-Message) Boolean))

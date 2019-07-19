@@ -10,3 +10,5 @@
 
 ;; register builtin assignments for channels
 (require "digitama/assignment/channel.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

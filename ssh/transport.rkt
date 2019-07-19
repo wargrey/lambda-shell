@@ -40,9 +40,10 @@
 
       (parameterize ([current-peer-name server-name])
         (define-values (/dev/sshin /dev/sshout) (make-ssh-stdio server-name))
+        (define-values (/dev/srvin /dev/srvout) (make-ssh-stdio server-name))
         (define identification : String (ssh-identification-string rfc))
         (ssh-log-message 'debug "local identification string: ~a" identification)       
-        (define sshc : Thread (sshc-ghostcat /dev/sshout identification hostname port kexinit rfc))
+        (define sshc : Thread (sshc-ghostcat /dev/sshout /dev/srvout identification hostname port kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshc-custodian) (raise e))])
           (define server-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-connect))
@@ -54,7 +55,8 @@
 
           (let ([session (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
             (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
-                  [else (ssh-port sshc-custodian rfc logger server-name session sshc /dev/sshin)])))))))
+                  [else (ssh-port sshc-custodian rfc logger server-name session sshc
+                                  /dev/sshin /dev/srvin)])))))))
 
 (define ssh-listen : (->* (Natural)
                           (Index #:custodian Custodian #:client-custodian Custodian #:logger Logger
@@ -93,8 +95,9 @@
       
       (parameterize ([current-peer-name client-name])
         (define-values (/dev/sshin /dev/sshout) (make-ssh-stdio client-name))
+        (define-values (/dev/srvin /dev/srvout) (make-ssh-stdio client-name))
         (define kexinit : SSH-MSG-KEXINIT  (ssh-listener-kexinit listener))
-        (define sshd : Thread (sshd-ghostcat /dev/sshout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
+        (define sshd : Thread (sshd-ghostcat /dev/sshout /dev/srvout (ssh-listener-identification listener) /dev/tcpin /dev/tcpout kexinit rfc))
         
         (with-handlers ([exn? (λ [[e : exn]] (custodian-shutdown-all sshd-custodian) (raise e))])
           (define client-id : (U SSH-Identification SSH-MSG-DISCONNECT) (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) ssh-identification? ssh-accept))
@@ -106,7 +109,8 @@
 
           (let ([session (ssh-pull-datum /dev/sshin ($ssh-timeout rfc) bytes? ssh-connect)])
             (cond [(ssh-message? session) (ssh-throw-disconnection session #:level #false)]
-                  [else (ssh-port sshd-custodian rfc (current-logger) client-name session sshd /dev/sshin)])))))))
+                  [else (ssh-port sshd-custodian rfc (current-logger) client-name session sshd
+                                  /dev/sshin /dev/srvin)])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-listener-evt : (-> SSH-Listener (Evtof SSH-Listener))
@@ -144,11 +148,13 @@
     (ssh-port-write self (make-ssh:msg:service:request #:name service))
 
     (unless (not wait?)
-      (let wait ()
-        (define datum : SSH-Datum (ssh-port-read self))
-        (unless (and (ssh:msg:service:accept? datum)
-                     (eq? (ssh:msg:service:accept-name datum) service))
-          (wait))))))
+      (sync/enable-break (ssh-port-service-accept-evt self))
+      (void))))
+
+(define ssh-port-service-accept-evt : (-> SSH-Port (Evtof Symbol))
+  (lambda [self]
+    (wrap-evt ((inst ssh-stdin-evt SSH-MSG-SERVICE-ACCEPT) (ssh-port-srvin self))
+              (λ [[msg : SSH-MSG-SERVICE-ACCEPT]] (ssh:msg:service:accept-name msg)))))
 
 (define ssh-port-reject-service : (-> SSH-Port Symbol Void)
   (lambda [self service]

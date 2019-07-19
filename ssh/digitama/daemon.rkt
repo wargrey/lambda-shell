@@ -72,13 +72,12 @@
                            (let dispatch ([services (hash-values alive-services)])
                              (cond [(null? services) (ssh-port-write sshc (make-ssh:msg:unimplemented #:number mid))]
                                    [else (let*-values ([(service) (car services)]
-                                                       [(idmin idmax) (let ([r (ssh-service-range service)]) (values (car r) (cdr r)))]
-                                                       [(log-outgoing-message) (ssh-service-log-outgoing service)])
+                                                       [(idmin idmax) (let ([r (ssh-service-range service)]) (values (car r) (cdr r)))])
                                            (cond [(not (<= idmin mid idmax)) (dispatch (cdr services))]
                                                  [else (let ([responses (ssh-service.response service datum rfc)])
                                                          (unless (not responses)
                                                            (for ([resp (if (list? responses) (in-list responses) (in-value responses))])
-                                                             (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]))]))]
+                                                             (ssh-send-message sshc resp idmin idmax))))]))]))]
                           
                           [(ssh:msg:service:request? datum)
                            (define name : Symbol (ssh:msg:service:request-name datum))
@@ -102,10 +101,9 @@
                 : (-> SSH-Service SSH-Service-Layer-Reply Void)
                 (λ [srv requests]
                   (unless (not requests)
-                    (let-values ([(idmin idmax) (let ([r (ssh-service-range srv)]) (values (car r) (cdr r)))]
-                                 [(log-outgoing-message) (ssh-service-log-outgoing srv)])
+                    (let-values ([(idmin idmax) (let ([r (ssh-service-range srv)]) (values (car r) (cdr r)))])
                       (for ([resp (if (list? requests) (in-list requests) (in-value requests))])
-                        (ssh-send-message sshc resp log-outgoing-message idmin idmax))))
+                        (ssh-send-message sshc resp idmin idmax))))
 
                   (sync-dispatch-response-feedback-loop))])
         
@@ -118,10 +116,9 @@
     (ssh-log-message 'debug "bye!")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-send-message : (-> SSH-Port SSH-Message (-> SSH-Message Void) Index Index Void)
-  (lambda [sshc msg log-outgoing-message idmin idmax]
+(define ssh-send-message : (-> SSH-Port SSH-Message Index Index Void)
+  (lambda [sshc msg idmin idmax]
     ; TODO: should be the transport layer messages allowed?
     (if (<= idmin (ssh-message-number msg) idmax)
-        (void (log-outgoing-message msg)
-              (ssh-port-write sshc msg))
+        (ssh-port-write sshc msg)
         (ssh-port-ignore sshc msg))))

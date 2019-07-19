@@ -43,14 +43,15 @@
   ([peer-name : Symbol]
    [identity : Bytes]
    [ghostcat : Thread]
-   [sshin : (SSH-Stdin Port)])
+   [sshin : (SSH-Stdin Port)]
+   [srvin : (SSH-Stdin Port)])
   #:type-name SSH-Port)
 
 (define-type SSH-Userauth-State (U 'authentic 'authenticating 'initial))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define sshc-ghostcat : (-> (SSH-Stdout Port) String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
-  (lambda [/dev/sshout identification hostname port kexinit rfc]
+(define sshc-ghostcat : (-> (SSH-Stdout Port) (SSH-Stdout Port) String String Natural SSH-MSG-KEXINIT SSH-Configuration Thread)
+  (lambda [/dev/sshout /dev/srvout identification hostname port kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define-values (/dev/tcpin /dev/tcpout) (tcp-connect/enable-break hostname port))
@@ -68,11 +69,12 @@
              (if (ssh-message? peer)
                  (ssh-write-plain-message /dev/tcpout peer rfc parcel)
                  (ssh-prompt (current-peer-name)
-                             (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit identification (ssh-identification-raw peer) parcel rfc #false))
+                             (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout /dev/srvout
+                                                       kexinit identification (ssh-identification-raw peer) parcel rfc #false))
                              /dev/sshout)))))))
 
-(define sshd-ghostcat : (-> (SSH-Stdout Port) String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
-  (lambda [/dev/sshout identification /dev/tcpin /dev/tcpout kexinit rfc]
+(define sshd-ghostcat : (-> (SSH-Stdout Port) (SSH-Stdout Port) String Input-Port Output-Port SSH-MSG-KEXINIT SSH-Configuration Thread)
+  (lambda [/dev/sshout /dev/srvout identification /dev/tcpin /dev/tcpout kexinit rfc]
     (thread
      (λ [] (with-handlers ([exn? (λ [[e : exn]] (ssh-deliver-error e /dev/sshout))])
              (define parcel : SSH-Parcel (make-ssh-parcel ($ssh-payload-capacity rfc) (ssh-mac-capacity kexinit)))
@@ -89,11 +91,12 @@
              (if (ssh-message? peer)
                  (ssh-write-plain-message /dev/tcpout peer rfc parcel)
                  (ssh-prompt (current-peer-name)
-                             (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout kexinit (ssh-identification-raw peer) identification parcel rfc #true))
+                             (λ [] (ssh-transport-loop /dev/tcpin /dev/tcpout /dev/sshout /dev/srvout
+                                                       kexinit (ssh-identification-raw peer) identification parcel rfc #true))
                              /dev/sshout)))))))
 
-(define ssh-transport-loop : (-> Input-Port Output-Port (SSH-Stdout Port) SSH-MSG-KEXINIT String String SSH-Parcel SSH-Configuration Boolean Void)
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshout kexinit Vc Vs parcel rfc server?]
+(define ssh-transport-loop : (-> Input-Port Output-Port (SSH-Stdout Port) (SSH-Stdout Port) SSH-MSG-KEXINIT String String SSH-Parcel SSH-Configuration Boolean Void)
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshout /dev/srvout kexinit Vc Vs parcel rfc server?]
     (define /dev/sshin : (Evtof Any) (wrap-evt (thread-receive-evt) (λ [[e : (Rec x (Evtof x))]] (thread-receive))))
     (define rekex-traffic : Natural ($ssh-rekex-traffic rfc))
     (define self : Thread (current-thread))
@@ -103,7 +106,7 @@
       (ssh-write-plain-message /dev/tcpout id-handshake-await rfc parcel))
     
     (define newkeys : SSH-Newkeys (ssh-transport-negotiate-newkeys /dev/tcpin /dev/tcpout /dev/sshout kexinit parcel Vc Vs rfc server?))
-    (define-values (incoming-traffic outgoing-traffic) (ssh-transport-userauth-barrier /dev/tcpin /dev/tcpout /dev/sshin /dev/sshout newkeys rfc server?))
+    (define-values (incoming-traffic outgoing-traffic) (ssh-transport-userauth-barrier /dev/tcpin /dev/tcpout /dev/sshin /dev/sshout /dev/srvout newkeys rfc server?))
     
     (let service : Void ([rekex : (U SSH-Kex False) #false]
                          [rekexing : (Option SSH-Kex-Process) #false]
@@ -151,6 +154,8 @@
                     (cond [(ssh:msg:disconnect? maybe-kex-ing) (void (ssh-write-cipher-message /dev/tcpout maybe-kex-ing rfc newkeys))]
                           [else (service (car maybe-kex-ing) (cdr maybe-kex-ing) kexinit newkeys (or sthgilfni null) 0 0)])]
 
+                   
+                   [(ssh:msg:service:accept? msg) (ssh-stdout-propagate /dev/srvout msg) (step)]
                    [else (ssh-stdout-propagate /dev/sshout msg) (step)])]
             
             [(ssh-message? datum)
@@ -206,8 +211,9 @@
 
     newkeys))
 
-(define ssh-transport-userauth-barrier : (-> Input-Port Output-Port (Evtof Any) (SSH-Stdout Port) SSH-Newkeys SSH-Configuration Boolean (Values Natural Natural))
-  (lambda [/dev/tcpin /dev/tcpout /dev/sshin /dev/sshout newkeys rfc server?]
+(define ssh-transport-userauth-barrier : (-> Input-Port Output-Port (Evtof Any) (SSH-Stdout Port) (SSH-Stdout Port) SSH-Newkeys SSH-Configuration Boolean
+                                             (Values Natural Natural))
+  (lambda [/dev/tcpin /dev/tcpout /dev/sshin /dev/sshout /dev/srvout newkeys rfc server?]
     ; This routine does not do authenticating, it just watches the start and end of the authenticating
     ;   so that messages of super services will not be propagated too early.
     
@@ -244,7 +250,7 @@
                    [(ssh:msg:service:accept? msg)
                     (define service : Symbol (ssh:msg:service:accept-name msg))
                     (cond [(not (and (not server?) (eq? service 'ssh-userauth))) (userauth incoming++ outgoing-traffic authenticating?)]
-                          [else (ssh-stdout-propagate /dev/sshout msg) (userauth incoming++ outgoing-traffic #true)])]
+                          [else (ssh-stdout-propagate /dev/srvout msg) (userauth incoming++ outgoing-traffic #true)])]
 
                    [else (userauth incoming++
                                    (+ (ssh-write-cipher-message /dev/tcpout (ssh-ignore-message msg) rfc newkeys) outgoing-traffic)
