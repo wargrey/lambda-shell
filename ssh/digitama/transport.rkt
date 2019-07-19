@@ -277,6 +277,10 @@
   (lambda [service]
     (format "service '~a' not available" service)))
 
+(define ssh-service-not-configured-description : (-> Symbol String)
+  (lambda [service]
+    (format "service '~a' not configured in local machine" service)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-pull-datum : (All (a) (-> (SSH-Stdin Port) Index (-> Any Boolean : a) Procedure (U a SSH-MSG-DISCONNECT)))
   (lambda [/dev/sshin timeout ? func]

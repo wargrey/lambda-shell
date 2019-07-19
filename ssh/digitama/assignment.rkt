@@ -92,6 +92,8 @@
      #'(begin (define-ssh-name &ssh-authentication-methods definition) ...)]
     [(_ #:service (definition ...))
      #'(begin (define-ssh-name &ssh-registered-services definition) ...)]
+    [(_ #:application (definition ...))
+     #'(begin (define-ssh-name &ssh-registered-applications definition) ...)]
 
     [(_ #:channel (definition ...))
      #'(begin (define-ssh-name &ssh-registered-channels definition) ...)]
@@ -116,6 +118,7 @@
 
 (define-ssh-namebase ssh-authentication-methods : SSH-Authentication# #:as SSH-Userauth-Constructor)
 (define-ssh-namebase ssh-registered-services : SSH-Service# #:as SSH-Service-Constructor)
+(define-ssh-namebase ssh-registered-applications : SSH-Application# #:as SSH-Application-Constructor)
 
 (define-ssh-namebase ssh-registered-channels : SSH-Channel# #:as SSH-Channel-Constructor)
 

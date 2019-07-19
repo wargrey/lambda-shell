@@ -48,81 +48,76 @@
     (define rfc : SSH-Configuration (ssh-transport-preference sshc))
     (define alive-services : (HashTable Symbol SSH-Service)
       (make-hasheq (list (cons (car 1st-λservice)
-                               ((cdr 1st-λservice) (car 1st-λservice) user session rfc)))))
+                               ((cdr 1st-λservice) (car 1st-λservice) user session)))))
     
     (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshc 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
-      (let read-dispatch-serve-loop ()
-        (define datum : (U SSH-Datum (Pairof SSH-Service SSH-Service-Reply))
-          (apply sync/enable-break (ssh-port-datum-evt sshc)
-                 (ssh-datum-evts alive-services)))
+      (letrec ([sync-dispatch-response-feedback-loop
+                : (-> Void)
+                (λ []
+                  (apply sync/enable-break (handle-evt (ssh-port-datum-evt sshc) dispatch-response)
+                         (for/fold ([evts : (Listof (Evtof Void)) null])
+                                   ([service (in-hash-values alive-services)])
+                           (define e : (Option (Evtof SSH-Service-Layer-Reply)) (ssh-service.push-evt service rfc))
 
-        (unless (ssh-eof? datum)
-          (cond [(bytes? datum)
-                 (define mid : Byte (ssh-message-payload-number datum))
-                 (let dispatch ([services (hash-values alive-services)])
-                   (cond [(null? services) (ssh-port-write sshc (make-ssh:msg:unimplemented #:number mid))]
-                         [else (let*-values ([(srv-state) (car services)]
-                                             [(name) (ssh-service-name srv-state)]
-                                             [(idmin idmax) (let ([r (ssh-service-range srv-state)]) (values (car r) (cdr r)))]
-                                             [(log-outgoing-message) (ssh-service-log-outgoing srv-state)])
-                                 (cond [(not (<= idmin mid idmax)) (dispatch (cdr services))]
-                                       [else (let-values ([(srv++ responses) (ssh-service.response srv-state datum)])
-                                               (ssh-services-update! alive-services srv++ srv-state)
-                                               (unless (not responses)
-                                                 (for ([resp (if (list? responses) (in-list responses) (in-value responses))])
-                                                   (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]))]))]
-                
-                [(ssh:msg:service:request? datum)
-                 (define service : Symbol (ssh:msg:service:request-name datum))
-                 (define nth-service : (Option (Pairof Symbol SSH-Service-Constructor))
-                   (and (not (hash-has-key? alive-services service))
-                        (assq (ssh:msg:service:request-name datum) all-λservices)))
-                 
-                 (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description service))]
-                       [else (let ([construct (cdr nth-service)])
-                               (ssh-port-write sshc (make-ssh:msg:service:accept #:name service))
-                               (ssh-services-update! alive-services (construct (car nth-service) user session rfc) #false))])]
+                           (cond [(not e) evts]
+                                 [else (cons (handle-evt e (λ [[datum : SSH-Service-Layer-Reply]] (pushback service datum)))
+                                             evts)]))))]
 
-                [(pair? datum)
-                 (define srv++ : SSH-Service (car datum))
-                 (define requests : SSH-Service-Reply (cdr datum))
-                 
-                 (ssh-services-update! alive-services srv++ (hash-ref alive-services (ssh-service-name srv++) (λ [] #false)))
+               [dispatch-response
+                : (-> SSH-Datum Void)
+                (λ [datum]
+                  (unless (ssh-eof? datum)
+                    (cond [(bytes? datum)
+                           (define mid : Byte (ssh-message-payload-number datum))
+                           (let dispatch ([services (hash-values alive-services)])
+                             (cond [(null? services) (ssh-port-write sshc (make-ssh:msg:unimplemented #:number mid))]
+                                   [else (let*-values ([(service) (car services)]
+                                                       [(idmin idmax) (let ([r (ssh-service-range service)]) (values (car r) (cdr r)))]
+                                                       [(log-outgoing-message) (ssh-service-log-outgoing service)])
+                                           (cond [(not (<= idmin mid idmax)) (dispatch (cdr services))]
+                                                 [else (let ([responses (ssh-service.response service datum rfc)])
+                                                         (unless (not responses)
+                                                           (for ([resp (if (list? responses) (in-list responses) (in-value responses))])
+                                                             (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]))]))]
+                          
+                          [(ssh:msg:service:request? datum)
+                           (define name : Symbol (ssh:msg:service:request-name datum))
+                           (define nth-service : (Option (Pairof Symbol SSH-Service-Constructor))
+                             (and (not (hash-has-key? alive-services name))
+                                  (assq name all-λservices)))
+                           
+                           (cond [(not nth-service) (ssh-log-message 'info (ssh-service-reject-description name))]
+                                 [else (let ([construct (cdr nth-service)])
+                                         (ssh-port-write sshc (make-ssh:msg:service:accept #:name name))
+                                         (hash-set! alive-services name (construct name user session)))])]
+                          
+                          [else (ssh-port-write sshc (make-ssh:msg:unimplemented #:number (ssh-message-number datum)))])
 
-                 (unless (not requests)
-                   (let-values ([(idmin idmax) (let ([r (ssh-service-range srv++)]) (values (car r) (cdr r)))]
-                                [(log-outgoing-message) (ssh-service-log-outgoing srv++)])
-                     (for ([resp (if (list? requests) (in-list requests) (in-value requests))])
-                       (ssh-send-message sshc resp log-outgoing-message idmin idmax))))]
+                    (sync-dispatch-response-feedback-loop))
 
-                [else (ssh-port-write sshc (make-ssh:msg:unimplemented #:number (ssh-message-number datum)))])
+                  (when (ssh:msg:disconnect? datum)
+                    (ssh-log-message 'debug (ssh:msg:disconnect-description datum))))]
 
-          (read-dispatch-serve-loop))
+               [pushback
+                : (-> SSH-Service SSH-Service-Layer-Reply Void)
+                (λ [srv requests]
+                  (unless (not requests)
+                    (let-values ([(idmin idmax) (let ([r (ssh-service-range srv)]) (values (car r) (cdr r)))]
+                                 [(log-outgoing-message) (ssh-service-log-outgoing srv)])
+                      (for ([resp (if (list? requests) (in-list requests) (in-value requests))])
+                        (ssh-send-message sshc resp log-outgoing-message idmin idmax))))
 
-        (when (ssh:msg:disconnect? datum)
-          (ssh-log-message 'debug (ssh:msg:disconnect-description datum)))))
+                  (sync-dispatch-response-feedback-loop))])
+        
+        (sync-dispatch-response-feedback-loop)))
 
     (for ([service (in-hash-values alive-services)])
       (ssh-service.destruct service))
 
     (ssh-port-wait sshc #:abandon? #true)
-    (ssh-log-message 'debug "Good Bye!")))
+    (ssh-log-message 'debug "bye!")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-datum-evts : (-> (HashTable Symbol SSH-Service) (Listof (Evtof (Pairof SSH-Service SSH-Service-Reply))))
-  (lambda [services]
-    (let filter-map ([services : (Listof SSH-Service) (hash-values services)]
-                     [evts : (Listof (Evtof (Pairof SSH-Service SSH-Service-Reply))) null])
-      (cond [(null? services) evts]
-            [else (let ([e (ssh-service.datum-evt (car services))])
-                    (cond [(not e) (filter-map (cdr services) evts)]
-                          [else (filter-map (cdr services) (cons e evts))]))]))))
-
-(define ssh-services-update! : (-> (HashTable Symbol SSH-Service) SSH-Service (Option SSH-Service) Void)
-  (lambda [alive-services srv++ srv]
-    (unless (eq? srv++ srv)
-      (hash-set! alive-services (ssh-service-name srv++) srv++))))
-
 (define ssh-send-message : (-> SSH-Port SSH-Message (-> SSH-Message Void) Index Index Void)
   (lambda [sshc msg log-outgoing-message idmin idmax]
     ; TODO: should be the transport layer messages allowed?

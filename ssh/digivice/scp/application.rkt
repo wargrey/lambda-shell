@@ -6,9 +6,10 @@
 (require ssh/connection)
 
 (define scp : (-> SSH-Port Void)
-  (lambda [sshc]
-    (parameterize ([current-peer-name (ssh-port-peer-name sshc)])
-      (define maybe-service : SSH-Maybe-Service (ssh-user-identify sshc 'wargrey))
+  (lambda [sshd]
+    (parameterize ([current-peer-name (ssh-port-peer-name sshd)])
+      (define session : (Option SSH-Session) (ssh-user-login sshd 'wargrey))
 
-      (when (pair? maybe-service)
-        (displayln maybe-service)))))
+      (unless (not session)
+        (ssh-session-ignore session "test")
+        (ssh-session-wait session)))))

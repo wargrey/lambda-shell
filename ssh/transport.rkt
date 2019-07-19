@@ -136,8 +136,8 @@
     (ssh-port-write self (make-ssh:msg:debug #:display? display? #:message (format "~a" payload)))))
 
 (define ssh-port-ignore : (-> SSH-Port Any Void)
-  (lambda [self payload]
-    (ssh-port-write self (ssh-ignore-message payload))))
+  (lambda [self garbage]
+    (ssh-port-write self (ssh-ignore-message garbage))))
 
 (define ssh-port-request-service : (-> SSH-Port Symbol [#:wait? Boolean] Void)
   (lambda [self service #:wait? [wait? #true]]

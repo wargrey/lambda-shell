@@ -2,11 +2,12 @@
 
 ;;; https://tools.ietf.org/html/rfc4252
 
-(provide (all-defined-out) SSH-Maybe-User SSH-Maybe-Service)
+(provide (all-defined-out) SSH-Maybe-User SSH-Maybe-Application)
 
 (require racket/port)
 
 (require "digitama/authentication.rkt")
+(require "digitama/transport.rkt")
 
 (require "datatype.rkt")
 (require "transport.rkt")
@@ -18,15 +19,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-identify : (->* (SSH-Port Symbol)
-                                 (Symbol #:services (SSH-Name-Listof* SSH-Service#) #:methods (SSH-Name-Listof* SSH-Authentication#))
-                                 SSH-Maybe-Service)
-  (lambda [sshd username [service 'ssh-connection] #:services [services (ssh-registered-services)] #:methods [all-methods (ssh-authentication-methods)]]
+                                 (Symbol #:applications (SSH-Name-Listof* SSH-Application#) #:methods (SSH-Name-Listof* SSH-Authentication#))
+                                 SSH-Maybe-Application)
+  (lambda [sshd username [service 'ssh-connection] #:applications [applications (ssh-registered-applications)] #:methods [all-methods (ssh-authentication-methods)]]
     (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (exn-message e)))])
-      (define maybe-service : (Option (SSH-Nameof SSH-Service#)) (assq service services))
+      (define maybe-application : (Option (SSH-Nameof SSH-Application#)) (assq service applications))
       
-      (cond [(not maybe-service) (ssh-shutdown sshd 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (format "service '~a' not configured in local machine" service))]
+      (cond [(not maybe-application) (ssh-shutdown sshd 'SSH-DISCONNECT-AUTH-CANCELLED-BY-USER (ssh-service-not-configured-description service))]
             [else (let ([maybe-identified (userauth-identify sshd username service all-methods)])
-                    (cond [(boolean? maybe-identified) maybe-service]
+                    (cond [(boolean? maybe-identified) maybe-application]
                           [else maybe-identified]))]))))
 
 (define ssh-user-authenticate : (-> SSH-Port [#:services (SSH-Name-Listof* SSH-Service#)] [#:methods (SSH-Name-Listof* SSH-Authentication#)] SSH-Maybe-User)

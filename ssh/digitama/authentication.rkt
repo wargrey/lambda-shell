@@ -14,7 +14,7 @@
 (require "../transport.rkt")
 
 (define-type SSH-Maybe-User (U SSH-EOF Void (Pairof SSH-User (SSH-Nameof SSH-Service#))))
-(define-type SSH-Maybe-Service (U SSH-EOF Void (SSH-Nameof SSH-Service#)))
+(define-type SSH-Maybe-Application (U SSH-EOF Void (SSH-Nameof SSH-Application#)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define userauth-identify : (-> SSH-Port Symbol Symbol (SSH-Name-Listof* SSH-Authentication#) (U SSH-EOF Void True))
