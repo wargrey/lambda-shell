@@ -54,7 +54,9 @@
       (letrec ([sync-dispatch-response-feedback-loop
                 : (-> Void)
                 (λ []
-                  (apply sync/enable-break (handle-evt (ssh-port-datum-evt sshc) dispatch-response)
+                  (apply sync/enable-break
+                         (handle-evt (ssh-port-datum-evt sshc) dispatch-response)
+
                          (for/fold ([evts : (Listof (Evtof Void)) null])
                                    ([service (in-hash-values alive-services)])
                            (define e : (Option (Evtof SSH-Service-Layer-Reply)) (ssh-service.push-evt service rfc))
@@ -113,7 +115,7 @@
       (ssh-service.destruct service))
 
     (ssh-port-wait sshc #:abandon? #true)
-    (ssh-log-message 'debug "bye!")))
+    (ssh-log-message 'debug "bye")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-send-message : (-> SSH-Port SSH-Message Index Index Void)

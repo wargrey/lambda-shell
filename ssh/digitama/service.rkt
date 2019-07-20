@@ -34,7 +34,7 @@
 
 (define-type SSH-Application-Guard (-> SSH-Application SSH-Message SSH-Configuration SSH-Service-Layer-Reply))
 (define-type SSH-Application-Deliver (-> SSH-Application Bytes SSH-Configuration (U SSH-Service-Layer-Reply (Boxof Any))))
-(define-type SSH-Application-Datum-Evt (-> SSH-Application SSH-Configuration (Option (Evtof SSH-Service-Layer-Reply))))
+(define-type SSH-Application-Data-Evt (-> SSH-Application SSH-Configuration (Option (Evtof SSH-Service-Layer-Reply))))
 
 (define-object ssh-application : SSH-Application
   ([name : Symbol]
@@ -42,6 +42,7 @@
    [range : (Pairof Index Index)])
   ([guard : SSH-Application-Guard]
    [deliver : SSH-Application-Deliver]
+   [data-evt : SSH-Application-Data-Evt]
    [destruct : SSH-Application-Destructor void]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

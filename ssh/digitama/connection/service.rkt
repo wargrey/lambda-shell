@@ -33,7 +33,7 @@
       (let ([request (ssh-filter-connection-message brequest)])
         (and request
              (ssh-chport-filter (ssh-connection-service-ports self)
-                                request rfc))))))
+                                request rfc #true))))))
 
 (define ssh-connection-push-evt : SSH-Service-Push-Evt
   (lambda [self rfc]

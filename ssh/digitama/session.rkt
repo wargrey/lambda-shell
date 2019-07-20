@@ -45,9 +45,18 @@
     (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
       (letrec ([request-wait-dispatch-loop
                 : (-> Void)
-                (λ [] (sync/enable-break (handle-evt (thread-receive-evt) (λ [e] (dispatch-guard-transmit (thread-receive))))
-                                         (handle-evt (ssh-port-datum-evt sshd) dispatch-filter-deliver)
-                                         (handle-evt (ssh-port-service-accept-evt sshd) setup-new-application)))]
+                (λ [] (apply sync/enable-break
+                             (handle-evt (thread-receive-evt) (λ [e] (dispatch-guard-transmit (thread-receive))))
+                             (handle-evt (ssh-port-datum-evt sshd) dispatch-filter-deliver)
+                             (handle-evt (ssh-port-service-accept-evt sshd) setup-new-application)
+
+                             (for/fold ([evts : (Listof (Evtof Void)) null])
+                                       ([app (in-hash-values alive-applications)])
+                               (define e : (Option (Evtof SSH-Service-Layer-Reply)) (ssh-application.data-evt app rfc))
+                               
+                               (cond [(not e) evts]
+                                     [else (cons (handle-evt e (λ [[datum : SSH-Service-Layer-Reply]] (pipe-stream app datum)))
+                                                 evts)]))))]
 
                [dispatch-guard-transmit
                 : (-> Any Void)
@@ -100,6 +109,16 @@
                   (when (ssh:msg:disconnect? datum)
                     (ssh-log-message 'debug (ssh:msg:disconnect-description datum))))]
 
+               [pipe-stream
+                : (-> SSH-Application SSH-Service-Layer-Reply Void)
+                (λ [app streams]
+                  (unless (not streams)
+                    (let-values ([(idmin idmax) (let ([r (ssh-application-range app)]) (values (car r) (cdr r)))])
+                      (for ([resp (if (list? streams) (in-list streams) (in-value streams))])
+                        (ssh-send-message sshd resp idmin idmax))))
+
+                  (request-wait-dispatch-loop))]
+
                [setup-new-application
                 : (-> Symbol Void)
                 (λ [name]
@@ -116,7 +135,7 @@
     (for ([application (in-hash-values alive-applications)])
       (ssh-application.destruct application))
 
-    (ssh-log-message 'debug "bye!")))
+    (ssh-log-message 'debug "bye")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 #;(define ssh-datum-evts : (-> (HashTable Symbol SSH-Application) SSH-Configuration (Listof (Evtof (Pairof SSH-Application SSH-Service-Layer-Reply))))

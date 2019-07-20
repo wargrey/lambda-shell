@@ -27,7 +27,7 @@
 
 (struct ssh-spot
   ([channel : SSH-Channel]
-   [partner : (Option Index)] ; #false => waiting for the confirmation 
+   [partner : Index] 
    [incoming-window : Index]
    [outgoing-window : Index]
    [parcel : Bytes]
@@ -47,8 +47,8 @@
       (ssh-channel.destruct (ssh-spot-channel chport)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-chport-filter : (-> SSH-Channel-Port SSH-Message SSH-Configuration (U SSH-Message (Listof SSH-Message) False))
-  (lambda [self msg rfc]
+(define ssh-chport-filter : (-> SSH-Channel-Port SSH-Message SSH-Configuration Boolean (U SSH-Message (Listof SSH-Message) False))
+  (lambda [self msg rfc server?]
     (cond [(ssh:msg:channel:data? msg)
            (define chid : Index (ssh:msg:channel:data-recipient msg))
            (define maybe-chport : (Option SSH-Spot) (and msg (hash-ref self chid (λ [] #false))))
@@ -57,10 +57,10 @@
                 (let*-values ([(octets) (ssh:msg:channel:data-octets msg)]
                               [(maybe-partner maybe-adjust) (ssh-chport-check-incoming-parcel! maybe-chport octets)])
                   (and maybe-partner
-                       (let*-values ([(channel) (ssh-spot-channel maybe-chport)]
-                                     [(channel++ feedback) (ssh-channel.consume channel octets maybe-partner)])
+                       (let* ([channel (ssh-spot-channel maybe-chport)]
+                              [feedback (ssh-channel.consume channel octets maybe-partner)])
                          (ssh-chport-update-channel-port! self
-                                                          maybe-chport channel++ feedback maybe-adjust)))))]
+                                                          maybe-chport channel maybe-adjust)))))]
           
           [(ssh:msg:channel:extended:data? msg)
            (define chid : Index (ssh:msg:channel:extended:data-recipient msg))
@@ -70,9 +70,9 @@
                 (let*-values ([(octets) (ssh:msg:channel:extended:data-octets msg)]
                               [(maybe-partner maybe-adjust) (ssh-chport-check-incoming-parcel! maybe-chport octets)])
                   (and maybe-partner
-                       (let*-values ([(channel) (ssh-spot-channel maybe-chport)]
-                                     [(channel++ feedback) (ssh-channel.consume channel octets (ssh:msg:channel:extended:data-type msg) maybe-partner)])
-                         (ssh-chport-update-channel-port! self maybe-chport channel++ feedback maybe-adjust)))))]
+                       (let* ([channel (ssh-spot-channel maybe-chport)]
+                              [feedback (ssh-channel.consume channel octets (ssh:msg:channel:extended:data-type msg) maybe-partner)])
+                         (ssh-chport-update-channel-port! self maybe-chport channel feedback maybe-adjust)))))]
           
           [(ssh:msg:channel:eof? msg)
            (define chid : Index (ssh:msg:channel:eof-recipient msg))
@@ -82,9 +82,9 @@
                 (let ([channel (ssh-spot-channel maybe-chport)]
                       [partner (ssh-channel-incoming-partner maybe-chport)])
                   (and partner
-                       (let-values ([(channel++ feedback) (ssh-channel.consume channel eof partner)])
+                       (let ([feedback (ssh-channel.consume channel eof partner)])
                          (set-ssh-spot-incoming-eof?! maybe-chport #true)
-                         (ssh-chport-update-channel-port! self maybe-chport channel++ feedback)))))]
+                         (ssh-chport-update-channel-port! self maybe-chport channel feedback)))))]
           
           [(ssh:msg:channel:open? msg)
            (define type : Symbol (ssh:msg:channel:open-type msg))
@@ -117,10 +117,7 @@
                 (let ([channel (ssh-spot-channel maybe-chport)]
                       [partner (ssh-spot-partner maybe-chport)])
                   (and partner
-                       (let-values ([(channel++ okay?) (ssh-channel.response channel msg rfc)])
-                         (unless (eq? channel channel++)
-                           (set-ssh-spot-channel! maybe-chport channel++))
-                         
+                       (let ([okay? (ssh-channel.response channel msg rfc)])
                          (and reply?
                               (if (not okay?)
                                   (make-ssh:msg:channel:failure #:recipient partner)
@@ -165,23 +162,20 @@
       (cond [(null? chports) (and (pair? evts) (apply choice-evt evts))]
             [else (let* ([chport (car chports)]
                          [partner (ssh-spot-partner chport)])
-                    (define e : (Option (Evtof (Pairof SSH-Channel SSH-Channel-Reply)))
+                    (define e : (Option (Evtof SSH-Channel-Reply))
                       (and partner (ssh-channel.datum-evt (ssh-spot-channel chport) (ssh-spot-parcel chport) partner)))
                     (cond [(and e) (filter-map (cdr chports) (cons (ssh-chport-wrap-evt self e chport) evts))]
                           [else (filter-map (cdr chports) evts)]))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-chport-wrap-evt : (-> SSH-Channel-Port (Evtof (Pairof SSH-Channel SSH-Channel-Reply)) SSH-Spot (Evtof SSH-Channel-Port-Reply))
+(define ssh-chport-wrap-evt : (-> SSH-Channel-Port (Evtof SSH-Channel-Reply) SSH-Spot (Evtof SSH-Channel-Port-Reply))
   (lambda [self evt chport]
     (wrap-evt evt
-              (λ [[chply : (Pairof SSH-Channel SSH-Channel-Reply)]] : SSH-Channel-Port-Reply
-                (ssh-chport-update-channel-port! self chport (car chply) (cdr chply))))))
+              (λ [[chply : SSH-Channel-Reply]] : SSH-Channel-Port-Reply
+                (ssh-chport-update-channel-port! self chport (ssh-spot-channel chport) chply)))))
 
 (define ssh-chport-update-channel-port! : (->* (SSH-Channel-Port SSH-Spot SSH-Channel SSH-Channel-Reply) ((Option SSH-Message)) SSH-Channel-Reply)
   (lambda [self chport channel reply [maybe-adjust #false]]
-    (unless (eq? (ssh-spot-channel chport) channel)
-      (set-ssh-spot-channel! chport channel))
-
     (let ([replies (ssh-chport-check-outgoing-parcels! self chport reply (ssh-channel-id channel))])
       (cond [(not maybe-adjust) replies]
             [(ssh-message? replies) (list maybe-adjust replies)]
@@ -248,7 +242,7 @@
     (define self-str : String (number->string (ssh-channel-id (ssh-spot-channel chport)) 16))
     
     (cond [(not partner)
-           (ssh-log-message 'warning "Channel[0x~a]: waiting for the confirmation" self-str)
+           (ssh-log-message 'warning "Channel[0x~a]: incoming pipe has been closed" self-str)
            (values #false #false)]
           [(> traffic (+ channel-capacity (ssh-bstring-length #""))) ; stupid OpenSSH
            (ssh-log-message 'warning "Channel[0x~a]: packet is too big: ~a > ~a" self-str (~size traffic) (~size channel-capacity))
