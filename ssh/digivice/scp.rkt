@@ -43,7 +43,7 @@
                       [(error)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
                       [(fatal)   (echof "~a~n" #:fgcolor 'red    (vector-ref log 1))]
                       [else      (echof "~a~n" #:fgcolor 'gray   (vector-ref log 1))]))
-         (λ [] (scp (ssh-connect hostname (ssh-target-port))))
+         (λ [] (scp (ssh-connect hostname (ssh-target-port) #:configuration (make-ssh-configuration #:pretty-log-packet-level #false))))
          'debug)))
      '("hostname")
      (compose1 exit display --help)

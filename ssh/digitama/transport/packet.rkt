@@ -169,7 +169,8 @@
         (with-asserts ([packet-end index?])
           (let pretty-print ([pidx : Nonnegative-Fixnum start])
             (when (< pidx packet-end)              
-              (fprintf /dev/pktout "~a:  " (~r (- pidx ssh-packet-size-index) #:base 16 #:min-width 8 #:pad-string "0"))
+              (write-string (~r (- pidx ssh-packet-size-index) #:base 16 #:min-width 8 #:pad-string "0") /dev/pktout)
+              (write-string ":  " /dev/pktout)
 
               (let pretty-print-line ([count : Index 0]
                                       [srahc : (Listof Char) null])
@@ -178,9 +179,14 @@
                 (cond [(>= idx packet-end)
                        ; NOTE: logger appends the #\newline
                        ; NOTE: the packet length should always be the multiple of blocksize
-                       (fprintf /dev/pktout "| ~a" (list->string (reverse srahc)))]
+                       (write-string "| " /dev/pktout)
+                       (for ([ch (in-list (reverse srahc))])
+                         (write-char ch /dev/pktout))]
                       [(>= count blocksize)
-                       (fprintf /dev/pktout "| ~a~n" (list->string (reverse srahc)))
+                       (write-string "| " /dev/pktout)
+                       (for ([ch (in-list (reverse srahc))])
+                         (write-char ch /dev/pktout))
+                       (newline /dev/pktout)
                        (pretty-print (+ pidx blocksize))]
                       [else (let ([octet (bytes-ref parcel idx)]
                                   [count++ (+ count 1)])
@@ -189,12 +195,13 @@
                                   (cond [(char-graphic? c) c]
                                         [(> idx padding-mark-idx-1) #\+]
                                         [else #\.])))
-                              
-                              (fprintf /dev/pktout (if (= idx padding-mark-idx-1) "~a+" "~a ")
-                                       (~r octet #:base 16 #:min-width 2 #:pad-string "0"))
+
+                              (when (< octet #x10) (write-char #\0 /dev/pktout))
+                              (write-string (number->string octet 16) /dev/pktout)
+                              (write-char (if (= idx padding-mark-idx-1) #\+ #\space) /dev/pktout)
 
                               (when (= (remainder count++ blocksize) 0)
-                                (fprintf /dev/pktout " "))
+                                (write-char #\space /dev/pktout))
                               
                               (pretty-print-line count++ (cons char srahc)))])))))
 

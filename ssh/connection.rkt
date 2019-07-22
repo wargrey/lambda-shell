@@ -115,7 +115,7 @@
     
     (ssh-channel-write-request self request)))
 
-(define ssh-channel-request-program : (-> SSH-Application-Channel (U String Symbol) [#:reply? Boolean] Void)
+(define ssh-channel-request-exec : (-> SSH-Application-Channel (U String Symbol) [#:reply? Boolean] Void)
   (lambda [self cmd #:reply? [reply? #true]]
     (define partner : Index (ssh-channel-remote-id self))
     (define request : SSH-MSG-CHANNEL-REQUEST

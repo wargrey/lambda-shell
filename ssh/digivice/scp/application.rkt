@@ -23,7 +23,7 @@
 
         (let ([channel (ssh-session-read userlogin)])
           (when (ssh-application-channel? channel)
-            (ssh-channel-request-program channel "scp")
+            (ssh-channel-request-exec channel "scp")
             (ssh-channel-wait-replies channel 1)
             (ssh-channel-close channel)
 

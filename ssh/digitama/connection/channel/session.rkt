@@ -136,7 +136,7 @@
              (define program : (Option Subprocess) (ssh-session-channel-program self))
              (define signal : Symbol (ssh:msg:channel:request:signal-name request))
              (define kill? : Boolean (and (memq signal '(ABRT ILL FPE KILL PIPE SEGV)) #true))
-             (define interrupt? : Boolean (and (memq signal '(INT QUIT TERM)) #true))
+             (define interrupt? : Boolean (and (memq signal '(HUP INT QUIT TERM)) #true))
 
              (and program
                   (or kill? interrupt?)
