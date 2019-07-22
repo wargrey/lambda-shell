@@ -8,9 +8,25 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp : (-> SSH-Port Void)
   (lambda [sshd]
-    (parameterize ([current-peer-name (ssh-port-peer-name sshd)])
-      (define session : (Option SSH-Session) (ssh-user-login sshd 'wargrey))
+    (parameterize ([current-peer-name (ssh-port-peer-name sshd)]
+                   [current-custodian (ssh-custodian sshd)])
+      (define-values (userlogin connection) (ssh-user-login sshd 'wargrey))
 
-      (unless (not session)
-        (ssh-session-write session "test")
-        (ssh-session-wait session)))))
+      (when (and userlogin (ssh-connection-application? connection))
+        (define rfc : SSH-Configuration (ssh-transport-preference sshd))
+        (define open-session-message : SSH-MSG-CHANNEL-OPEN
+          (ssh-connection-open-channel-message connection 'session
+                                               #:window-size ($ssh-channel-initial-window-size rfc)
+                                               #:packet-capacity ($ssh-channel-packet-capacity rfc)))
+        
+        (ssh-session-write userlogin open-session-message)
+
+        (let ([channel (ssh-session-read userlogin)])
+          (when (ssh-application-channel? channel)
+            (ssh-channel-request-program channel "scp")
+            (ssh-channel-wait-replies channel 1)
+            (ssh-channel-close channel)
+
+            (ssh-session-wait userlogin))
+
+          (ssh-session-close userlogin "something is wrong"))))))

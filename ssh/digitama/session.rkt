@@ -38,9 +38,10 @@
   (lambda [sshd /dev/appout /dev/srvout 1st-λapplication all-λapplications]
     (define sid : Bytes (ssh-port-session-identity sshd))
     (define rfc : SSH-Configuration (ssh-transport-preference sshd))
-    (define alive-applications : (HashTable Symbol SSH-Application)
-      (make-hasheq (list (cons (car 1st-λapplication)
-                               ((cdr 1st-λapplication) (car 1st-λapplication) sid)))))
+    (define 1st-app : SSH-Application ((cdr 1st-λapplication) (car 1st-λapplication) sid))
+    (define alive-applications : (HashTable Symbol SSH-Application) (make-hasheq (list (cons (car 1st-λapplication) 1st-app))))
+
+    (ssh-stdout-propagate /dev/srvout 1st-app)
     
     (with-handlers ([exn? (λ [[e : exn]] (ssh-shutdown sshd 'SSH-DISCONNECT-BY-APPLICATION (exn-message e)))])
       (letrec ([request-wait-dispatch-loop
@@ -75,12 +76,11 @@
                          (let dispatch ([applications (hash-values alive-applications)])
                            (cond [(null? applications) (ssh-port-ignore sshd mid)]
                                  [else (let*-values ([(app) (car applications)]
-                                                     [(idmin idmax) (let ([r (ssh-application-range app)]) (values (car r) (cdr r)))])
+                                                     [(range) (ssh-application-range app)]
+                                                     [(idmin idmax) (values (car range) (cdr range))])
                                          (cond [(not (<= idmin mid idmax)) (dispatch (cdr applications))]
-                                               [else (let ([requests (ssh-application.guard app datum rfc)])
-                                                       (unless (not requests)
-                                                         (for ([req (if (list? requests) (in-list requests) (in-value requests))])
-                                                           (ssh-send-message sshd req idmin idmax))))]))]))]
+                                               [else (ssh-send-messages sshd (ssh-application.transmit app datum rfc)
+                                                                        /dev/appout idmin idmax (ssh-application-outgoing-log app))]))]))]
 
                         [else (ssh-port-write sshd datum)])
                   
@@ -95,13 +95,11 @@
                            (let deliver ([applications (hash-values alive-applications)])
                              (cond [(null? applications) (ssh-port-ignore sshd datum)]
                                    [else (let*-values ([(app) (car applications)]
-                                                       [(idmin idmax) (let ([r (ssh-application-range app)]) (values (car r) (cdr r)))])
+                                                       [(range) (ssh-application-range app)]
+                                                       [(idmin idmax) (values (car range) (cdr range))])
                                            (cond [(not (<= idmin mid idmax)) (deliver (cdr applications))]
-                                                 [else (let ([responses (ssh-application.deliver app datum rfc)])
-                                                         (cond [(box? responses) (ssh-stdout-propagate /dev/appout (unbox responses))]
-                                                               [else (unless (not responses)
-                                                                       (for ([resp (if (list? responses) (in-list responses) (in-value responses))])
-                                                                         (ssh-send-message sshd resp idmin idmax)))]))]))]))]
+                                                 [else (ssh-send-messages sshd (ssh-application.deliver app datum rfc)
+                                                                          /dev/appout idmin idmax (ssh-application-outgoing-log app))]))]))]
                           [else (ssh-port-ignore sshd datum)])
 
                     (request-wait-dispatch-loop))
@@ -112,21 +110,21 @@
                [pipe-stream
                 : (-> SSH-Application SSH-Service-Layer-Reply Void)
                 (λ [app streams]
-                  (unless (not streams)
-                    (let-values ([(idmin idmax) (let ([r (ssh-application-range app)]) (values (car r) (cdr r)))])
-                      (for ([resp (if (list? streams) (in-list streams) (in-value streams))])
-                        (ssh-send-message sshd resp idmin idmax))))
+                  (let ([range (ssh-application-range app)])
+                    (ssh-send-messages sshd streams /dev/appout (car range) (cdr range) (ssh-application-outgoing-log app)))
 
                   (request-wait-dispatch-loop))]
 
                [setup-new-application
                 : (-> Symbol Void)
                 (λ [name]
-                  (define nth-app : (Option (Pairof Symbol SSH-Application-Constructor)) (assq name all-λapplications))
+                  (define nth-λapp : (Option (Pairof Symbol SSH-Application-Constructor)) (assq name all-λapplications))
 
-                  (unless (not nth-app)
-                    (hash-set! alive-applications name ((cdr nth-app) name sid))
-                    (ssh-stdout-propagate /dev/srvout name))
+                  (unless (not nth-λapp)
+                    (define nth-app : SSH-Application ((cdr nth-λapp) name sid))
+                    
+                    (hash-set! alive-applications name nth-app)
+                    (ssh-stdout-propagate /dev/srvout nth-app))
 
                   (request-wait-dispatch-loop))])
 
@@ -138,18 +136,13 @@
     (ssh-log-message 'debug "bye")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#;(define ssh-datum-evts : (-> (HashTable Symbol SSH-Application) SSH-Configuration (Listof (Evtof (Pairof SSH-Application SSH-Service-Layer-Reply))))
-  (lambda [services rfc]
-    (let filter-map ([services : (Listof SSH-Application) (hash-values services)]
-                     [evts : (Listof (Evtof (Pairof SSH-Application SSH-Service-Layer-Reply))) null])
-      (cond [(null? services) evts]
-            [else (let ([e (ssh-application.datum-evt (car services) rfc)])
-                    (cond [(not e) (filter-map (cdr services) evts)]
-                          [else (filter-map (cdr services) (cons e evts))]))]))))
-
-(define ssh-send-message : (-> SSH-Port SSH-Message Index Index Void)
-  (lambda [sshc msg idmin idmax]
-    ; TODO: should be the transport layer messages allowed?
-    (if (<= idmin (ssh-message-number msg) idmax)
-        (ssh-port-write sshc msg)
-        (ssh-port-ignore sshc msg))))
+(define ssh-send-messages : (-> SSH-Port (U SSH-Service-Layer-Reply (Boxof Any)) (SSH-Stdout Port) Index Index (-> SSH-Message Void) Void)
+  (lambda [sshc reply /dev/appout idmin idmax outgoing-log]
+    (cond [(box? reply) (ssh-stdout-propagate /dev/appout (unbox reply))]
+          [else (unless (not reply)
+                  (for ([msg (if (list? reply) (in-list reply) (in-value reply))])
+                    ; TODO: should be the transport layer messages allowed?
+                    (if (<= idmin (ssh-message-number msg) idmax)
+                        (void (outgoing-log msg)
+                              (ssh-port-write sshc msg))
+                        (ssh-port-ignore sshc msg))))])))

@@ -16,8 +16,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-connection-service : SSH-Service-Constructor
   (lambda [name user session]
-    (ssh-connection-service (super-ssh-service #:name name #:user user #:session session #:range ssh-connection-range
-                                               #:response ssh-connection-response #:push-evt ssh-connection-push-evt
+    (ssh-connection-service (super-ssh-service #:name name #:user user #:session session
+                                               #:range ssh-connection-range
+                                               #:outgoing-log ssh-log-outgoing-message
+                                               #:response ssh-connection-response
+                                               #:push-evt ssh-connection-push-evt
                                                #:destruct ssh-connection-destruct)
                             (make-hasheq))))
 

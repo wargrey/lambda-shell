@@ -19,8 +19,7 @@
 (require "../../message/connection.rkt")
 (require (for-syntax "../../message/connection.rkt"))
 
-(define ssh-session-signals : (Listof Symbol)
-  '(ABRT ALRM FPE HUP ILL INT KILL PIPE QUIT SEGV TERM USR1 USR2))
+(define-type SSH-Session-Signal  (U 'ABRT 'ALRM 'FPE 'HUP 'ILL 'INT 'KILL 'PIPE 'QUIT 'SEGV 'TERM 'USR1 'USR2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-case-messages SSH-MSG-CHANNEL-OPEN
@@ -73,7 +72,7 @@
 (define make-ssh-session-channel : SSH-Channel-Constructor
   (lambda [type id msg rfc]
     (with-asserts ([msg ssh:msg:channel:open:session?])
-      (ssh-session-channel (super-ssh-channel #:type type #:id id #:custodian (make-custodian)
+      (ssh-session-channel (super-ssh-channel #:type type #:name (make-ssh-channel-name type id) #:custodian (make-custodian)
                                               #:response ssh-session-response #:consume ssh-session-consume #:datum-evt ssh-session-datum-evt
                                               #:destruct ssh-session-destruct)
                            (environment-variables-copy (current-environment-variables)) (ssh-session-pty 0 0 0 0 #"")
@@ -110,12 +109,12 @@
              (define name : Bytes (ssh:msg:channel:request:env-name request))
              
              (and (member name ($ssh-allowed-envs rfc))
-                  (ssh-session-putevn (ssh-channel-id self) (ssh-session-channel-envariables self)
+                  (ssh-session-putevn (ssh-channel-name self) (ssh-session-channel-envariables self)
                                       (ssh:msg:channel:request:env-name request)
                                       (ssh:msg:channel:request:env-value request)))]
 
             [(ssh:msg:channel:request:pty:req? request)
-             (and (ssh-session-putevn (ssh-channel-id self) (ssh-session-channel-envariables self)
+             (and (ssh-session-putevn (ssh-channel-name self) (ssh-session-channel-envariables self)
                                       #"TERM" (ssh:msg:channel:request:pty:req-TERM request))
                   (let ([pty (struct-copy ssh-session-pty (ssh-session-channel-pty self)
                                           [modes (ssh:msg:channel:request:pty:req-modes request)]
@@ -132,6 +131,17 @@
              
              (set-ssh-session-channel-pty! self pty)
              #true]
+
+            [(ssh:msg:channel:request:signal? request)
+             (define program : (Option Subprocess) (ssh-session-channel-program self))
+             (define signal : Symbol (ssh:msg:channel:request:signal-name request))
+             (define kill? : Boolean (and (memq signal '(ABRT ILL FPE KILL PIPE SEGV)) #true))
+             (define interrupt? : Boolean (and (memq signal '(INT QUIT TERM)) #true))
+
+             (and program
+                  (or kill? interrupt?)
+                  (subprocess-kill program kill?)
+                  #true)]
             
             [else #false]))))
 
@@ -146,13 +156,10 @@
          (cond [(eof-object? octets) (close-output-port /dev/binout)]
                [else (void (write-bytes octets /dev/binout)
                            (flush-output /dev/binout))]))
-
        #false)]
     [(self octets type partner)
      (with-asserts ([self ssh-session-channel?])
-       (ssh-log-message 'error "Channel[0x~a]: ~a" (number->string partner 16)
-                        (string-trim (bytes->string/utf-8 octets)))
-       
+       (ssh-log-message 'error "~a: ~a" (make-ssh-channel-name 'channel partner) (string-trim (bytes->string/utf-8 octets)))
        #false)]))
 
 (define ssh-session-datum-evt : SSH-Channel-Datum-Evt
@@ -172,12 +179,11 @@
                    [else binevt]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-session-putevn : (-> Index Environment-Variables Bytes Bytes Boolean)
-  (lambda [self-id evars name value]
+(define ssh-session-putevn : (-> Symbol Environment-Variables Bytes Bytes Boolean)
+  (lambda [self-name evars name value]
     (define okay? : Boolean (and (environment-variables-set! evars name value (λ [] #false)) #true))
     
-    (ssh-log-message 'debug "Channel[0x~a]: SET ~a=~a (~a)"
-                     (number->string self-id 16)
+    (ssh-log-message 'debug "~a: SET ~a=~a (~a)" self-name
                      name value (if (not okay?) 'failure 'success))
     okay?))
 
@@ -190,9 +196,7 @@
                         [current-custodian (ssh-channel-custodian self)])
            (define-values (child /dev/outin /dev/stdout /dev/errin) (apply subprocess #false #false #false /usr/bin/program args))
            
-           (ssh-log-message 'debug "Channel[0x~a]: exec ~a ~a"
-                            (number->string (ssh-channel-id self) 16)
-                            /usr/bin/program (string-join args " "))
+           (ssh-log-message 'debug "~a: exec ~a ~a" (ssh-channel-name self) /usr/bin/program (string-join args " "))
            
            (set-ssh-session-channel-command! self /usr/bin/program)
            (set-ssh-session-channel-program! self child)
@@ -206,22 +210,23 @@
   (lambda [self /dev/pin parcel ext-type partner other-in]
     (define size : (U Natural EOF Procedure) (read-bytes-avail! parcel /dev/pin))
 
-    (cond [(eof-object? size)
+    (cond [(exact-nonnegative-integer? size)
+           (cond [(not ext-type) (make-ssh:msg:channel:data #:recipient partner #:payload (subbytes parcel 0 size))]
+                 [else (let ([errmsg (subbytes parcel 0 size)])
+                         (ssh-log-message 'error "~a: ~a" (ssh-channel-name self) (string-trim (bytes->string/utf-8 errmsg)))
+                         (make-ssh:msg:channel:extended:data #:recipient partner #:payload errmsg #:type ext-type))])]
+          [(eof-object? size)
            (close-input-port /dev/pin)
-           (and (port-closed? other-in) (make-ssh:msg:channel:eof #:recipient partner))]
-          [(procedure? size) #false]
-          [(not ext-type) (make-ssh:msg:channel:data #:recipient partner #:octets (subbytes parcel 0 size))]
-          [else (let ([errmsg (subbytes parcel 0 size)])
-                  (ssh-log-message 'error "Channel[0x~a]: ~a" (number->string (ssh-channel-id self) 16) (string-trim (bytes->string/utf-8 errmsg)))
-                  (make-ssh:msg:channel:extended:data #:recipient partner #:octets errmsg #:type ext-type))])))
+           (and (port-closed? other-in)
+                (make-ssh:msg:channel:eof #:recipient partner))]
+          [else #false])))
 
 (define ssh-session-exit-status : (-> SSH-Session-Channel Subprocess Index SSH-Channel-Reply)
   (lambda [self program partner]
     (define status : (U Natural 'running) (subprocess-status program))
 
-    (ssh-log-message 'debug "Channel[0x~a]: program(~a) has terminated with exit code ~a"
-                     (number->string (ssh-channel-id self) 16)
-                     (ssh-session-channel-command self) status)
+    (ssh-log-message 'debug "~a: program(~a) has terminated with exit code ~a"
+                     (ssh-channel-name self) (ssh-session-channel-command self) status)
 
     (and (index? status)
          (set-ssh-session-channel-program! self #false)

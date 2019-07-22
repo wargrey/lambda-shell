@@ -16,8 +16,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-ssh-connection-application : SSH-Application-Constructor
   (lambda [name session]
-    (ssh-connection-application (super-ssh-application #:name name #:session session #:range ssh-connection-range
-                                                       #:guard ssh-connection-guard #:deliver ssh-connection-deliver
+    (ssh-connection-application (super-ssh-application #:name name #:session session
+                                                       #:range ssh-connection-range
+                                                       #:outgoing-log ssh-log-outgoing-message
+                                                       #:transmit ssh-connection-transmit
+                                                       #:deliver ssh-connection-deliver
                                                        #:data-evt ssh-connection-data-evt
                                                        #:destruct ssh-connection-destruct)
                                 (make-hasheq))))
@@ -28,19 +31,19 @@
       (ssh-chport-destruct (ssh-connection-application-ports self)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-connection-guard : SSH-Application-Guard
-  (lambda [self request rfc]
-    (with-asserts ([self ssh-connection-application?])
-      (ssh-chport-filter (ssh-connection-application-ports self)
-                         request rfc #false))))
+(define ssh-connection-transmit : SSH-Application-Transmit
+    (lambda [self request rfc]
+      (with-asserts ([self ssh-connection-application?])
+        (ssh-chport-transmit (ssh-connection-application-ports self)
+                             request rfc #false))))
 
 (define ssh-connection-deliver : SSH-Application-Deliver
   (lambda [self bresponse rfc]
     (with-asserts ([self ssh-connection-application?])
       (let ([response (ssh-filter-connection-message bresponse)])
         (and response
-             (ssh-chport-filter (ssh-connection-application-ports self)
-                                response rfc #false))))))
+             (ssh-chport-filter* (ssh-connection-application-ports self)
+                                 response rfc #false))))))
 
 (define ssh-connection-data-evt : SSH-Application-Data-Evt
   (lambda [self rfc]

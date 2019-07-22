@@ -89,7 +89,7 @@
 
     (let* ([timespan (- (current-inexact-milliseconds) time0)])
       (ssh-log-message 'debug "sent message ~a[~a] (~a, ~ams)" (ssh-message-name msg) (ssh-message-number msg)
-                       (~size traffic #:precision 3) (~r timespan #:precision 6)))
+                       (~size traffic #:precision 3) (~r timespan #:precision '(= 3))))
     
     (ssh-log-outgoing-message msg)
 
@@ -103,11 +103,9 @@
   (lambda [incoming-parcel payload-end traffic time0 rfc group]
     (define msg-id : Byte (ssh-message-payload-number incoming-parcel ssh-packet-payload-index))
     (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:group group))
-    (define clocktime : Flonum (- (current-inexact-milliseconds) time0))
-    (define strtime : String (~r clocktime #:precision '(= 6)))
-
+    
     (let* ([timespan (- (current-inexact-milliseconds) time0)]
-           [ms (~r timespan #:precision 6)])
+           [ms (~r timespan #:precision '(= 3))])
       (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a, ~ams)" msg-id (~size traffic #:precision 3) ms)]
             [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a, ~ams)" (ssh-message-name maybe-trans-msg) msg-id
                                    (~size traffic #:precision 3) ms)]))
