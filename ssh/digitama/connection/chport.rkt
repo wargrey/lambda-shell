@@ -34,7 +34,7 @@
 (struct ssh-spot
   ([channel : SSH-Channel]
    [self-id : Index]
-   [peer-id : (Option Index)]
+   [peer-id : (Option Index)] ; #false => waiting SSH-MSG-CHANNEL-OPEN-CONFIRMATION or SSH-MSG-CHANNEL-CLOSE
    [incoming-window : Index]
    [outgoing-window : Index]
    [parcel : Bytes]
@@ -113,7 +113,7 @@
                   (cond [(ssh-message? app-channel) (box app-channel)]
                         [else (let ([outgoing-capacity (min ($ssh-payload-capacity rfc) ($ssh-channel-packet-capacity rfc) incoming-capacity)])
                                 (hash-set! self self-id
-                                           (ssh-spot app-channel self-id self-id incoming-window incoming-window
+                                           (ssh-spot app-channel self-id #false incoming-window incoming-window
                                                      (make-bytes (max (- outgoing-capacity ssh-channel-data-fault-tolerance) 0))
                                                      incoming-window incoming-window null #false #false 0 0))
                                 msg)]))])))
@@ -319,7 +319,7 @@
                        [outgoing-window-- (- outgoing-window traffic)])
                   ; the outgoing traffic always less than the channel capacity by implementation
                   (cond [(not (index? outgoing-window--))
-                         (ssh-log-message 'warning "~a: outgoing outgoing window has to be adjusted: ~a < ~a" self-name
+                         (ssh-log-message 'warning "~a: the outgoing window has to be adjusted: ~a < ~a" self-name
                                           (~size outgoing-window #:precision '(= 6)) (~size traffic))
                          (values #false (list reply) #false)]
                         [else (let ([outgoing-traffic++ (+ (ssh-spot-outgoing-traffic chport) traffic)]

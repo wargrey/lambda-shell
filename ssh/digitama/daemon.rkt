@@ -27,8 +27,7 @@
           (ssh-accept sshd)))
 
       (when (ssh-port? sshc)
-        (parameterize ([current-custodian (ssh-custodian sshc)])
-          (serve sshc))))
+        (serve sshc)))
 
     (define root-custodian : Custodian (ssh-custodian sshd))
     (parameterize ([current-custodian (make-custodian root-custodian)])
