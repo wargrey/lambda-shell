@@ -7,6 +7,7 @@
 (require digimon/struct)
 
 (require "../message.rkt")
+(require "../diagnostics.rkt")
 
 (require "../../configuration.rkt")
 
@@ -49,3 +50,9 @@
     (string->symbol (format "~a[0x~a]"
                       (string-titlecase (symbol->string type))
                       (number->string id 16)))))
+
+(define ssh-log-extended-data : (-> Symbol Symbol String Void)
+  (lambda [channel type description]
+    (case type
+      [(SSH-EXTENDED-DATA-STDERR) (ssh-log-message 'error "~a: ~a: ~a" channel type description)]
+      [else (ssh-log-message 'info "~a: ~a: ~a" channel type description)])))

@@ -48,9 +48,9 @@
   (lambda [self]
     (ssh-application-channel-stdin self)))
 
-(define ssh-channel-extended-data-evt : (-> SSH-Application-Channel (Evtof (Pairof Symbol Bytes)))
+(define ssh-channel-extended-data-evt : (-> SSH-Application-Channel (Evtof (Pairof Symbol String)))
   (lambda [self]
-    ((inst ssh-stdin-evt (Pairof Symbol Bytes))
+    ((inst ssh-stdin-evt (Pairof Symbol String))
      (ssh-application-channel-extin self))))
 
 (define ssh-channel-write-extended-data : (->* (SSH-Application-Channel String) (#:type Symbol) #:rest Any Void)
@@ -66,6 +66,10 @@
     (write-special (make-ssh:msg:channel:close #:recipient (ssh-channel-remote-id self))
                    (ssh-application-channel-stdout self))
     (void)))
+
+(define ssh-channel-wait : (-> SSH-Application-Channel Void)
+  (lambda [self]
+    (semaphore-wait (ssh-application-channel-done self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-channel-wait-replies : (-> SSH-Application-Channel Byte (Listof Boolean))
@@ -115,13 +119,17 @@
     
     (ssh-channel-write-request self request)))
 
-(define ssh-channel-request-exec : (-> SSH-Application-Channel (U String Symbol) [#:reply? Boolean] Void)
-  (lambda [self cmd #:reply? [reply? #true]]
+(define ssh-channel-request-exec : (-> SSH-Application-Channel (U Symbol String) [#:reply? Boolean] Any * Void)
+  (lambda [self cmd #:reply? [reply? #true] . argl]
     (define partner : Index (ssh-channel-remote-id self))
     (define request : SSH-MSG-CHANNEL-REQUEST
-      (cond [(string? cmd) (make-ssh:msg:channel:request:exec #:recipient partner #:reply? reply? #:command cmd)]
-            [(eq? cmd 'shell) (make-ssh:msg:channel:request:shell #:recipient partner #:reply? reply?)]
-            [else (make-ssh:msg:channel:request:subsystem #:recipient partner #:reply? reply? #:name cmd)]))
+      (if (string? cmd)
+          (if (null? argl)
+              (make-ssh:msg:channel:request:exec #:recipient partner #:reply? reply? #:command cmd)
+              (make-ssh:msg:channel:request:exec #:recipient partner #:reply? reply? #:command (apply format cmd argl)))
+          (if (eq? cmd 'shell)
+              (make-ssh:msg:channel:request:shell #:recipient partner #:reply? reply?)
+              (make-ssh:msg:channel:request:subsystem #:recipient partner #:reply? reply? #:name cmd))))
     
     (ssh-channel-write-request self request)))
 

@@ -1,7 +1,6 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide environment-variables-copy)
 
 (require racket/string)
 
@@ -159,7 +158,10 @@
        #false)]
     [(self octets type partner)
      (with-asserts ([self ssh-session-channel?])
-       (ssh-log-message 'error "~a: ~a" (make-ssh-channel-name 'channel partner) (string-trim (bytes->string/utf-8 octets)))
+       (define description : String (string-trim (bytes->string/utf-8 octets)))
+       
+       (ssh-log-extended-data (ssh-channel-name self) type description)
+       
        #false)]))
 
 (define ssh-session-datum-evt : SSH-Channel-Datum-Evt

@@ -73,7 +73,9 @@
 
 (define ssh-session-close : (->* (SSH-Session) ((Option String)) Void)
   (lambda [self [description #false]]
-    (unless (thread-dead? (ssh-session-ghostcat self))
+    (define ghostcat : Thread (ssh-session-ghostcat self))
+    
+    (unless (thread-dead? ghostcat)
       (if (not description)
           (ssh-shutdown (ssh-session-port self))
           (ssh-shutdown (ssh-session-port self) description))

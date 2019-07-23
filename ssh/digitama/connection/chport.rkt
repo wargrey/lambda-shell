@@ -34,7 +34,7 @@
 (struct ssh-spot
   ([channel : SSH-Channel]
    [self-id : Index]
-   [peer-id : Index]
+   [peer-id : (Option Index)]
    [incoming-window : Index]
    [outgoing-window : Index]
    [parcel : Bytes]
@@ -240,19 +240,6 @@
                             (~size (ssh-spot-outgoing-traffic maybe-chport)))
            (ssh-chport-check-outgoing-parcels! self maybe-chport pending-data self-id)))))
 
-(define ssh-chport-filter:close : (-> SSH-Channel-Port SSH-MSG-CHANNEL-CLOSE SSH-Configuration SSH-Channel-Port-Reply)
-  (lambda [self msg rfc]
-    (define self-id : Index (ssh:msg:channel:close-recipient msg))
-    (define maybe-chport : (Option SSH-Spot) (hash-ref self self-id (λ [] #false)))
-    
-    (and maybe-chport
-         (let ([channel (ssh-spot-channel maybe-chport)]
-               [partner (ssh-spot-peer-id maybe-chport)])
-           (hash-remove! self self-id)
-           (ssh-channel.destruct channel)
-           (and partner #| should not be #false |#
-                (make-ssh:msg:channel:close #:recipient partner))))))
-
 (define ssh-chport-filter:eof : (-> SSH-Channel-Port SSH-MSG-CHANNEL-EOF SSH-Configuration SSH-Channel-Port-Reply)
   (lambda [self msg rfc]
     (define self-id : Index (ssh:msg:channel:eof-recipient msg))
@@ -264,6 +251,19 @@
                 (let ([feedback (ssh-channel.consume (ssh-spot-channel maybe-chport) eof partner)])
                   (set-ssh-spot-incoming-eof?! maybe-chport #true)
                   (ssh-chport-update-channel-port! self maybe-chport feedback)))))))
+
+(define ssh-chport-filter:close : (-> SSH-Channel-Port SSH-MSG-CHANNEL-CLOSE SSH-Configuration SSH-Channel-Port-Reply)
+  (lambda [self msg rfc]
+    (define self-id : Index (ssh:msg:channel:close-recipient msg))
+    (define maybe-chport : (Option SSH-Spot) (hash-ref self self-id (λ [] #false)))
+    
+    (and maybe-chport
+         (let ([channel (ssh-spot-channel maybe-chport)]
+               [partner (ssh-spot-peer-id maybe-chport)])
+           (hash-remove! self self-id)
+           (ssh-channel.destruct channel)
+           
+           (and partner (make-ssh:msg:channel:close #:recipient partner))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-chport-wrap-evt : (-> SSH-Channel-Port (Evtof SSH-Channel-Reply) SSH-Spot (Evtof SSH-Channel-Port-Reply))
@@ -297,11 +297,8 @@
                                              (if (not close?) (cdr replies) null)
                                              close?))]))]))
     
-    (cond [(and close?)
-           (hash-remove! self channel-id)
-           (ssh-channel.destruct (ssh-spot-channel chport))]
-          [(pair? pending-data)
-           (set-ssh-spot-pending-data! chport (append (ssh-spot-pending-data chport) pending-data))])
+    (cond [(and close?) (set-ssh-spot-peer-id! chport #false)]
+          [(pair? pending-data) (set-ssh-spot-pending-data! chport (append (ssh-spot-pending-data chport) pending-data))])
     
     outgoing-replies))
 

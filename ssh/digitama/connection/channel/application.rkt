@@ -15,18 +15,20 @@
 (require "../../stdio.rkt")
 (require "../../diagnostics.rkt")
 
-(require "../../../configuration.rkt")
+(require/typed racket/port
+               [make-pipe-with-specials (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct ssh-application-channel ssh-channel
   ([partner : Index]
    [program : (U String Symbol False)]
+   [done : Semaphore]
 
-   ; for reading remote data
+   ; for reading data
    [stdin : Input-Port]
    [usrout : Output-Port]
 
-   ; for reading remote extended data
+   ; for reading extended data
    [extin : (SSH-Stdin Port)]
    [extout : (SSH-Stdout Port)]
 
@@ -43,15 +45,23 @@
 (define make-ssh-application-channel : SSH-Channel-Constructor
   (lambda [type id msg rfc]
     (parameterize ([current-custodian (make-custodian)])
-      (define-values (stdin usrout) (make-pipe))
-      (define-values (extin extout) (make-ssh-stdio 'ssh:msg:channel:extended:data))
-      (define-values (usrin stdout) (make-pipe-with-specials))
+      (define name : Symbol (make-ssh-channel-name type id))
+      (define-values (stdin usrout) (make-pipe-with-specials #false name name))
+      (define-values (extin extout) (make-ssh-stdio 'ssh:msg:channel:extended:requst))
+      (define-values (usrin stdout) (make-pipe-with-specials #false name name))
       (define-values (ackin ackout) (make-ssh-stdio 'ssh:msg:channel:requst))
       
-      (ssh-application-channel (super-ssh-channel #:type type #:name (make-ssh-channel-name type id) #:custodian (current-custodian)
+      (ssh-application-channel (super-ssh-channel #:type type #:name name #:custodian (current-custodian)
                                                   #:response ssh-application-response #:notify ssh-application-notify
-                                                  #:consume ssh-application-consume #:datum-evt ssh-application-datum-evt)
-                               0 #false stdin usrout extin extout usrin stdout ackin ackout))))
+                                                  #:consume ssh-application-consume #:datum-evt ssh-application-datum-evt
+                                                  #:destruct ssh-application-channel-destruct)
+                               0 #false (make-semaphore 0) stdin usrout extin extout usrin stdout ackin ackout))))
+
+(define ssh-application-channel-destruct : SSH-Channel-Destructor
+  (lambda [self]
+    (with-asserts ([self ssh-application-channel?])
+      (semaphore-post (ssh-application-channel-done self))
+      (ssh-channel-shutdown-custodian self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-application-notify : SSH-Channel-Notify
@@ -93,8 +103,11 @@
        #false)]
     [(self octets type partner)
      (with-asserts ([self ssh-application-channel?])
-       (ssh-stdout-propagate (ssh-application-channel-extout self)
-                             (cons type octets))
+       (define description : String (string-trim (bytes->string/utf-8 octets)))
+       
+       (ssh-log-extended-data (ssh-channel-name self) type description)
+       (ssh-stdout-propagate (ssh-application-channel-extout self) (cons type description))
+       
        #false)]))
 
 (define ssh-application-datum-evt : SSH-Channel-Datum-Evt
@@ -116,6 +129,7 @@
           [else (let ([data (hint #false #false #false #false)]
                       [upsize (bytes-length parcel)])
                   (cond [(ssh-message? data) (ssh-channel-filter self data partner upsize)]
+                        [(list? data) (ssh-channel-filter* self (filter ssh-message? data) partner upsize)]
                         [else (ssh-make-extended-data partner 'SSH-EXTENDED-DATA-STDERR
                                                 (cond [(bytes? data) data]
                                                       [(string? data) (string->bytes/utf-8 data)]
@@ -123,7 +137,7 @@
                                                 upsize)]))])))
 
 
-(define ssh-channel-filter : (-> SSH-Application-Channel SSH-Message Index Index SSH-Channel-Reply)
+(define ssh-channel-filter : (-> SSH-Application-Channel (U SSH-Message (Listof SSH-Message)) Index Index SSH-Channel-Reply)
   (lambda [self msg partner upsize]
     (cond [(ssh:msg:channel:request:shell? msg) (set-ssh-application-channel-program! self 'shell)]
           [(ssh:msg:channel:request:exec? msg) (set-ssh-application-channel-program! self (ssh:msg:channel:request:exec-command msg))]
@@ -134,6 +148,16 @@
           [(ssh:msg:channel:data? msg) (and (= (ssh:msg:channel:data-recipient msg) partner) (ssh-split-data msg upsize))]
           [(ssh:msg:channel:close? msg) (and (= (ssh:msg:channel:close-recipient msg) partner) msg)]
           [else #false])))
+
+(define ssh-channel-filter* : (-> SSH-Application-Channel (Listof SSH-Message) Index Index SSH-Channel-Reply)
+  (lambda [self msgs partner upsize]
+    (let filter ([replies : (Listof SSH-Message) null]
+                 [rest : (Listof SSH-Message) msgs])
+      (cond [(null? rest) (and (pair? replies) replies)]
+            [else (let ([msg (ssh-channel-filter self (car rest) partner upsize)])
+                    (cond [(not msg) (filter replies (cdr rest))]
+                          [(list? msg) (filter (append replies msg) (cdr rest))]
+                          [else (filter (append replies (list msg)) (cdr rest))]))]))))
 
 (define ssh-split-data : (-> SSH-MSG-CHANNEL-DATA Index (U SSH-Message (Listof SSH-Message)))
   (lambda [msg upsize]
