@@ -57,14 +57,15 @@
   (lambda [self #:type [type 'SSH-EXTENDED-DATA-STDERR] extfmt . argl]
     (define payload : String (if (null? argl) extfmt (apply format extfmt argl)))
 
-    (write-special (make-ssh:msg:channel:extended:data #:recipient (ssh-channel-remote-id self) #:type type #:payload (string->bytes/utf-8 payload))
-                   (ssh-application-channel-stdout self))
+    (ssh-stdout-propagate (ssh-application-channel-msgout self)
+                          (make-ssh:msg:channel:extended:data #:recipient (ssh-channel-remote-id self) #:type type
+                                                              #:payload (string->bytes/utf-8 payload)))
     (void)))
 
 (define ssh-channel-close : (-> SSH-Application-Channel Void)
   (lambda [self]
-    (write-special (make-ssh:msg:channel:close #:recipient (ssh-channel-remote-id self))
-                   (ssh-application-channel-stdout self))
+    (ssh-stdout-propagate (ssh-application-channel-msgout self)
+                          (make-ssh:msg:channel:close #:recipient (ssh-channel-remote-id self)))
     (void)))
 
 (define ssh-channel-wait : (-> SSH-Application-Channel Void)
@@ -81,7 +82,7 @@
 
 (define ssh-channel-write-request : (-> SSH-Application-Channel SSH-MSG-CHANNEL-REQUEST Void)
   (lambda [self request]
-    (write-special request (ssh-application-channel-stdout self))
+    (ssh-stdout-propagate (ssh-application-channel-msgout self) request)
     (void)))
 
 (define ssh-channel-request-pty : (-> SSH-Application-Channel (U String Bytes) #:cols Index #:rows Index #:width Index #:height Index #:modes Bytes

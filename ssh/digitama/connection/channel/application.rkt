@@ -15,7 +15,8 @@
 (require "../../stdio.rkt")
 (require "../../diagnostics.rkt")
 
-(require/typed racket/port
+(require/typed racket
+               [make-pipe (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))]
                [make-pipe-with-specials (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -32,9 +33,13 @@
    [extin : (SSH-Stdin Port)]
    [extout : (SSH-Stdout Port)]
 
-   ; for writing data and extended data
+   ; for writing data
    [usrin : Input-Port]
    [stdout : Output-Port]
+
+   ; for writing messages (including extended data)
+   [msgin : (SSH-Stdin Port)]
+   [msgout : (SSH-Stdout Port)]
 
    ; for reading acknowledgements of local requests
    [ackin : (SSH-Stdin Port)]
@@ -46,16 +51,17 @@
   (lambda [type id msg rfc]
     (parameterize ([current-custodian (make-custodian)])
       (define name : Symbol (make-ssh-channel-name type id))
-      (define-values (stdin usrout) (make-pipe-with-specials #false name name))
-      (define-values (extin extout) (make-ssh-stdio 'ssh:msg:channel:extended:requst))
-      (define-values (usrin stdout) (make-pipe-with-specials #false name name))
+      (define-values (stdin usrout) (make-pipe #false name name))
+      (define-values (extin extout) (make-ssh-stdio 'ssh:msg:channel:extended:data))
+      (define-values (usrin stdout) (make-pipe #false name name))
+      (define-values (msgin msgout) (make-ssh-stdio 'ssh-message))
       (define-values (ackin ackout) (make-ssh-stdio 'ssh:msg:channel:requst))
       
       (ssh-application-channel (super-ssh-channel #:type type #:name name #:custodian (current-custodian)
                                                   #:response ssh-application-response #:notify ssh-application-notify
                                                   #:consume ssh-application-consume #:datum-evt ssh-application-datum-evt
                                                   #:destruct ssh-application-channel-destruct)
-                               0 #false (make-semaphore 0) stdin usrout extin extout usrin stdout ackin ackout))))
+                               0 #false (make-semaphore 0) stdin usrout extin extout usrin stdout msgin msgout ackin ackout))))
 
 (define ssh-application-channel-destruct : SSH-Channel-Destructor
   (lambda [self]
@@ -113,29 +119,39 @@
 (define ssh-application-datum-evt : SSH-Channel-Datum-Evt
   (lambda [self parcel partner]
     (with-asserts ([self ssh-application-channel?])
+      (define program : (Option (U String Symbol)) (ssh-application-channel-program self))
       (define /dev/usrin : Input-Port (ssh-application-channel-usrin self))
-      
-      (and (not (port-closed? /dev/usrin))
-           (wrap-evt /dev/usrin (λ [_] (ssh-user-read self /dev/usrin parcel partner)))))))
+      (define /dev/msgin : (SSH-Stdin Port) (ssh-application-channel-msgin self))
+      (define upsize : Index (bytes-length parcel))
+
+      (define maybe-usrin-evt : (Option (Evtof SSH-Channel-Reply))
+        (and program
+             (not (port-closed? /dev/usrin))
+             (wrap-evt /dev/usrin (λ [_] (ssh-user-read self /dev/usrin parcel partner)))))
+
+      (define maybe-msgin-evt : (Option (Evtof SSH-Channel-Reply))
+        (and (not (port-closed? /dev/usrin))
+             (wrap-evt ((inst ssh-stdin-evt (U SSH-Message (Listof SSH-Message))) /dev/msgin) 
+                       (λ [[msg : (U SSH-Message (Listof SSH-Message))]]
+                         (cond [(list? msg) (ssh-channel-filter* self msg partner upsize)]
+                               [else (ssh-channel-filter self msg partner upsize)])))))
+
+      (cond [(and maybe-usrin-evt maybe-msgin-evt) (choice-evt maybe-usrin-evt maybe-msgin-evt)]
+            [else (or maybe-usrin-evt maybe-msgin-evt)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-read : (-> SSH-Application-Channel Input-Port Bytes Index SSH-Channel-Reply)
   (lambda [self /dev/usrin parcel partner]
-    (define hint : (U Natural EOF (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any))
-      (read-bytes-avail! parcel /dev/usrin))
+    ;; NOTE
+    ; It seems that special pipes dislike bytes
+    ; If large amount of bytes are written to the special pipe continuously
+    ;   the readers have a high probability to see byte one by one for each continuation
+    ; Normal pipes have no such problems
+    
+    (define size : (U Natural EOF Procedure) (read-bytes-avail! parcel /dev/usrin))
 
-    (cond [(exact-nonnegative-integer? hint) (make-ssh:msg:channel:data #:recipient partner #:payload (subbytes parcel 0 hint))]
-          [(eof-object? hint) (close-input-port /dev/usrin) (make-ssh:msg:channel:eof #:recipient partner)]
-          [else (let ([data (hint #false #false #false #false)]
-                      [upsize (bytes-length parcel)])
-                  (cond [(ssh-message? data) (ssh-channel-filter self data partner upsize)]
-                        [(list? data) (ssh-channel-filter* self (filter ssh-message? data) partner upsize)]
-                        [else (ssh-make-extended-data partner 'SSH-EXTENDED-DATA-STDERR
-                                                (cond [(bytes? data) data]
-                                                      [(string? data) (string->bytes/utf-8 data)]
-                                                      [else (with-output-to-bytes (λ [] (write data)))])
-                                                upsize)]))])))
-
+    (cond [(exact-nonnegative-integer? size) (make-ssh:msg:channel:data #:recipient partner #:payload (subbytes parcel 0 size))]
+          [else (close-input-port /dev/usrin) (make-ssh:msg:channel:eof #:recipient partner)])))
 
 (define ssh-channel-filter : (-> SSH-Application-Channel (U SSH-Message (Listof SSH-Message)) Index Index SSH-Channel-Reply)
   (lambda [self msg partner upsize]

@@ -51,36 +51,34 @@
       
       (ssh-session-write userlogin open-session-message)
       
-      (let ([channel (ssh-session-read userlogin)])
-        (when (ssh-application-channel? channel)
+      (let ([chin (ssh-session-read userlogin)])
+        (when (ssh-application-channel? chin)
           (with-handlers ([exn? (λ [[e : exn]] (ssh-session-close userlogin (exn-message e)))])
             (define parcel (make-bytes ($ssh-channel-packet-capacity rfc)))
             
-            (ssh-channel-request-exec channel "scp -t ~a" (find-system-path 'temp-dir))
+            (ssh-channel-request-exec chin "scp -f ~a" path)
             
-            (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies channel 1))
-              (define-values (/dev/scpin /dev/scpout) (ssh-channel-stdio-port channel))
+            (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies chin 1))
+              (define-values (/dev/scpin /dev/scpout) (ssh-channel-stdio-port chin))
               
-              (let scp-send ([acknowledgement : Byte 0])
-                (define scpin (sync/enable-break /dev/scpin (ssh-channel-extended-data-evt channel)))
+              (let scp-recv ([acknowledgement : Index 0])
+                (define scpin (sync/enable-break /dev/scpin (ssh-channel-extended-data-evt chin)))
                 
                 (cond [(input-port? scpin)
                        (define size (read-bytes-avail! parcel scpin))
                        
                        (when (index? size)
-                         (let ([ack? (and (= size 1) (eq? (bytes-ref parcel 0) 0))])
-                           (unless (not ack?)
-                             (case acknowledgement
-                               [(0) (fprintf /dev/scpout "T~a 0 ~a 0~n" (current-seconds) (current-seconds)) (scp-send 1)] ; mtime and atime
-                               [(1) (fprintf /dev/scpout "C0~a ~a ~a~n" (number->string #o777 8) (expt 2 33) "scp.rkt.test") (scp-send 2)] ; mode, size, basename
-                               [else (write (make-bytes (expt 2 33)) /dev/scpout) (scp-send acknowledgement)]))))]
+                         (case acknowledgement
+                           [(0 1) (write-bytes parcel /dev/stdout 0 size)
+                                  (scp-recv (+ acknowledgement 1))] ; mtime and atime
+                           [else (void)]))]
                       [(pair? scpin)
                        (fprintf (current-error-port) "~a~n" (cdr scpin))
-                       (scp-send acknowledgement)]
-                      [else (scp-send acknowledgement)]))
+                       (scp-recv acknowledgement)]
+                      [else (scp-recv acknowledgement)]))
               
-              (ssh-channel-close channel)
-              (ssh-channel-wait channel)
+              (ssh-channel-close chin)
+              (ssh-channel-wait chin)
               (ssh-session-close userlogin "job done"))))
         
         (ssh-session-close userlogin "something is wrong")))))
@@ -99,20 +97,20 @@
       
       (ssh-session-write userlogin open-session-message)
       
-      (let ([channel (ssh-session-read userlogin)])
-        (when (ssh-application-channel? channel)
+      (let ([chout (ssh-session-read userlogin)])
+        (when (ssh-application-channel? chout)
           (with-handlers ([exn? (λ [[e : exn]] (ssh-session-close userlogin (exn-message e)))])
             (define parcel (make-bytes ($ssh-channel-packet-capacity rfc)))
             
-            (ssh-channel-request-exec channel "scp -t ~a" (find-system-path 'temp-dir))
+            (ssh-channel-request-exec chout "scp -t ~a" path)
             
-            (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies channel 1))
-              (define-values (/dev/scpin /dev/scpout) (ssh-channel-stdio-port channel))
+            (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies chout 1))
+              (define-values (/dev/scpin /dev/scpout) (ssh-channel-stdio-port chout))
               (define mtime (read-bytes-line /dev/stdin))
               (define finfo (read-bytes-line /dev/stdin))
               
               (let scp-send ([acknowledgement : Byte 0])
-                (define scpin (sync/enable-break /dev/scpin (ssh-channel-extended-data-evt channel)))
+                (define scpin (sync/enable-break /dev/scpin (ssh-channel-extended-data-evt chout)))
                 
                 (cond [(input-port? scpin)
                        (define size (read-bytes-avail! parcel scpin))
@@ -133,8 +131,8 @@
                        (scp-send acknowledgement)]
                       [else (scp-send acknowledgement)]))
               
-              (ssh-channel-close channel)
-              (ssh-channel-wait channel)
+              (ssh-channel-close chout)
+              (ssh-channel-wait chout)
               (ssh-session-close userlogin "job done"))))
         
         (ssh-session-close userlogin "something is wrong")))))
