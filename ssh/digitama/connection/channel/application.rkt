@@ -15,34 +15,39 @@
 (require "../../stdio.rkt")
 (require "../../diagnostics.rkt")
 
-(require/typed racket/base
-               [make-pipe (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))])
+(require typed/racket/unsafe)
+
+(require/typed
+ racket/base
+ [make-pipe (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))])
+
+(unsafe-require/typed
+ racket/base
+ [(wrap-evt log-evt) (All (a b) (-> Log-Receiver (-> (Immutable-Vector Log-Level String a (Option Symbol)) b) (Evtof b)))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct ssh-application-channel ssh-channel
   ([partner : Index]
+   [sshout : Logger]
    [program : (U String Symbol False)]
    [done : Semaphore]
 
-   ; for reading data
+   ; reading data
    [stdin : Input-Port]
    [usrout : Output-Port]
 
-   ; for reading extended data
-   [extin : (SSH-Stdin Port)]
-   [extout : (SSH-Stdout Port)]
-
-   ; for writing data
+   ; writing data
    [usrin : Input-Port]
    [stdout : Output-Port]
 
-   ; for writing messages (including extended data)
-   [msgin : (SSH-Stdin Port)]
-   [msgout : (SSH-Stdout Port)]
-
-   ; for reading acknowledgements of local requests
-   [ackin : (SSH-Stdin Port)]
-   [ackout : (SSH-Stdout Port)])
+   ; reading extended data
+   [extin : Log-Receiver]
+   ; writing messages (including extended data)
+   [msgin : Log-Receiver]
+   ; reading acknowledgements of local requests
+   [ackin : Log-Receiver]
+   ; reading acknowledgements of local requests
+   [retin : Log-Receiver])
   #:type-name SSH-Application-Channel
   #:mutable)
 
@@ -50,17 +55,19 @@
   (lambda [type id msg rfc]
     (parameterize ([current-custodian (make-custodian)])
       (define name : Symbol (make-ssh-channel-name type id))
+      (define sshout : Logger (make-logger name #false))
       (define-values (stdin usrout) (make-pipe #false name name))
-      (define-values (extin extout) (make-ssh-stdio 'ssh:msg:channel:extended:data))
       (define-values (usrin stdout) (make-pipe #false name name))
-      (define-values (msgin msgout) (make-ssh-stdio 'ssh-message))
-      (define-values (ackin ackout) (make-ssh-stdio 'ssh:msg:channel:requst))
+      (define extin : Log-Receiver (make-log-receiver sshout 'debug 'extended:data))
+      (define msgin : Log-Receiver (make-log-receiver sshout 'debug 'ssh:msg:channel))
+      (define ackin : Log-Receiver (make-log-receiver sshout 'debug 'request:reply))
+      (define retin : Log-Receiver (make-log-receiver sshout 'debug 'exit:status))
       
       (ssh-application-channel (super-ssh-channel #:type type #:name name #:custodian (current-custodian)
                                                   #:response ssh-application-response #:notify ssh-application-notify
                                                   #:consume ssh-application-consume #:datum-evt ssh-application-datum-evt
                                                   #:destruct ssh-application-channel-destruct)
-                               0 #false (make-semaphore 0) stdin usrout extin extout usrin stdout msgin msgout ackin ackout))))
+                               0 sshout #false (make-semaphore 0) stdin usrout usrin stdout extin msgin ackin retin))))
 
 (define ssh-application-channel-destruct : SSH-Channel-Destructor
   (lambda [self]
@@ -73,8 +80,8 @@
   (lambda [self msg rfc]
     (with-asserts ([self ssh-application-channel?])
       (cond [(ssh:msg:channel:open:confirmation? msg) (set-ssh-application-channel-partner! self (ssh:msg:channel:open:confirmation-sender msg))]
-            [(ssh:msg:channel:success? msg) (ssh-stdout-propagate (ssh-application-channel-ackout self) #true)]
-            [(ssh:msg:channel:failure? msg) (ssh-stdout-propagate (ssh-application-channel-ackout self) #false)]))))
+            [(ssh:msg:channel:success? msg) (ssh-chout-propagate (ssh-application-channel-sshout self) #true #:topic 'request:reply)]
+            [(ssh:msg:channel:failure? msg) (ssh-chout-propagate (ssh-application-channel-sshout self) #false #:topic 'request:reply)]))))
 
 (define ssh-application-response : SSH-Channel-Response
   (lambda [self request rfc]
@@ -84,17 +91,16 @@
              (ssh-log-message (if (zero? retcode) 'debug 'error)
                               "~a: remote program(~a) has terminated with exit code ~a" (ssh-channel-name self)
                               (ssh-application-channel-program self) retcode)
-             #true]
+             (ssh-chout-propagate (ssh-application-channel-sshout self) retcode #:topic 'exit:status)]
             
             [(ssh:msg:channel:request:exit:signal? request)
              (ssh-log-message 'warning "~a: remote program(~a) has terminated due to signal SIG~a ~a core dumpped, details: ~a" (ssh-channel-name self)
                               (ssh-application-channel-program self)
                               (ssh:msg:channel:request:exit:signal-name request)
                               (if (ssh:msg:channel:request:exit:signal-core? request) 'with 'without)
-                              (ssh:msg:channel:request:exit:signal-error-message request))
-             #true]
-            
-            [else #false]))))
+                              (ssh:msg:channel:request:exit:signal-error-message request))])
+
+      #false)))
 
 (define ssh-application-consume : SSH-Channel-Consume
   (case-lambda
@@ -112,7 +118,7 @@
        (define description : String (string-trim (bytes->string/utf-8 octets)))
        
        (ssh-log-extended-data (ssh-channel-name self) type description)
-       (ssh-stdout-propagate (ssh-application-channel-extout self) (cons type description))
+       (ssh-chout-propagate (ssh-application-channel-sshout self) (cons type description) #:topic 'extended:data)
        
        #false)]))
 
@@ -133,10 +139,11 @@
       (define maybe-msgin-evt : (Option (Evtof SSH-Channel-Reply))
         (and winok?
              (not (port-closed? /dev/usrin))
-             (wrap-evt ((inst ssh-stdin-evt (U SSH-Message (Listof SSH-Message))) /dev/msgin) 
-                       (λ [[msg : (U SSH-Message (Listof SSH-Message))]]
-                         (cond [(list? msg) (ssh-channel-filter* self msg partner upsize)]
-                               [else (ssh-channel-filter self msg partner upsize)])))))
+             ((inst ssh-chin-evt (U SSH-Message (Listof SSH-Message)) SSH-Channel-Reply)
+              /dev/msgin
+              (λ [[msg : (U SSH-Message (Listof SSH-Message))]]
+                (cond [(list? msg) (ssh-channel-filter* self msg partner upsize)]
+                      [else (ssh-channel-filter self msg partner upsize)])))))
 
       (cond [(and maybe-usrin-evt maybe-msgin-evt) (choice-evt maybe-usrin-evt maybe-msgin-evt)]
             [else (or maybe-usrin-evt maybe-msgin-evt)]))))
@@ -213,3 +220,20 @@
     (cond [(<= extsize upsize) (make-ssh:msg:channel:extended:data #:recipient partner #:type type #:payload payload)]
           [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload upsize))])
                   (make-ssh:msg:channel:extended:data #:recipient partner #:type type #:payload data))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ssh-chin-evt : (All (a b) (case-> [Log-Receiver (-> a b) -> (Evtof b)]
+                                          [Log-Receiver -> (Evtof a)]))
+  (case-lambda
+    [(/dev/sshin)
+     ((inst log-evt a a) /dev/sshin
+                         (λ [[info : (Immutable-Vector Log-Level String a (Option Symbol))]]
+                           (vector-ref info 2)))]
+    [(/dev/sshin wrap)
+     ((inst log-evt a b) /dev/sshin
+                         (λ [[info : (Immutable-Vector Log-Level String a (Option Symbol))]]
+                           (wrap (vector-ref info 2))))]))
+
+(define ssh-chout-propagate : (->* ((SSH-Stdout Port) Any #:topic Symbol) (String #:level Log-Level) Void)
+  (lambda [/dev/sshout msg [description ""] #:topic topic #:level [level 'debug]]
+    (log-message /dev/sshout level topic description msg)))

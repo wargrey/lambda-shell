@@ -50,23 +50,36 @@
 
 (define ssh-channel-extended-data-evt : (-> SSH-Application-Channel (Evtof (Pairof Symbol String)))
   (lambda [self]
-    ((inst ssh-stdin-evt (Pairof Symbol String))
+    ((inst ssh-chin-evt (Pairof Symbol String))
      (ssh-application-channel-extin self))))
+
+(define ssh-channel-program-evt : (-> SSH-Application-Channel (Evtof Index))
+  (lambda [self]
+    ((inst ssh-chin-evt Index)
+     (ssh-application-channel-retin self))))
 
 (define ssh-channel-write-extended-data : (->* (SSH-Application-Channel String) (#:type Symbol) #:rest Any Void)
   (lambda [self #:type [type 'SSH-EXTENDED-DATA-STDERR] extfmt . argl]
     (define payload : String (if (null? argl) extfmt (apply format extfmt argl)))
 
-    (ssh-stdout-propagate (ssh-application-channel-msgout self)
-                          (make-ssh:msg:channel:extended:data #:recipient (ssh-channel-remote-id self) #:type type
-                                                              #:payload (string->bytes/utf-8 payload)))
-    (void)))
+    (ssh-chout-propagate (ssh-application-channel-sshout self)
+                         (make-ssh:msg:channel:extended:data #:recipient (ssh-channel-remote-id self) #:type type
+                                                             #:payload (string->bytes/utf-8 payload))
+                         #:topic 'ssh:msg:channel)))
 
 (define ssh-channel-close : (-> SSH-Application-Channel Void)
   (lambda [self]
-    (ssh-stdout-propagate (ssh-application-channel-msgout self)
-                          (make-ssh:msg:channel:close #:recipient (ssh-channel-remote-id self)))
-    (void)))
+    (ssh-chout-propagate (ssh-application-channel-sshout self)
+                         (make-ssh:msg:channel:close #:recipient (ssh-channel-remote-id self))
+                         #:topic 'ssh:msg:channel)))
+
+(define ssh-channel-program-wait : (case-> [SSH-Application-Channel -> Index]
+                                           [SSH-Application-Channel Nonnegative-Real -> (Option Index)])
+  (case-lambda
+    [(self)
+     (sync/enable-break (ssh-channel-program-evt self))]
+    [(self timeout)
+     (sync/timeout/enable-break timeout (ssh-channel-program-evt self))]))
 
 (define ssh-channel-wait : (-> SSH-Application-Channel Void)
   (lambda [self]
@@ -77,13 +90,12 @@
   (lambda [self n]
     (let wait ([seilper : (Listof Boolean) null])
       (cond [(= (length seilper) n) (reverse seilper)]
-            [else (wait (cons (sync/enable-break ((inst ssh-stdin-evt Boolean) (ssh-application-channel-ackin self)))
+            [else (wait (cons (sync/enable-break ((inst ssh-chin-evt Boolean) (ssh-application-channel-ackin self)))
                               seilper))]))))
 
 (define ssh-channel-write-request : (-> SSH-Application-Channel SSH-MSG-CHANNEL-REQUEST Void)
   (lambda [self request]
-    (ssh-stdout-propagate (ssh-application-channel-msgout self) request)
-    (void)))
+    (ssh-chout-propagate (ssh-application-channel-sshout self) request #:topic 'ssh:msg:channel)))
 
 (define ssh-channel-request-pty : (-> SSH-Application-Channel (U String Bytes) #:cols Index #:rows Index #:width Index #:height Index #:modes Bytes
                                       [#:reply? Boolean] Void)

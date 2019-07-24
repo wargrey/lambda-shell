@@ -17,6 +17,8 @@
 (require/typed racket/port
                [input-port-append (-> Boolean Input-Port * Input-Port)])
 
+(define scp-exit-status : (Parameterof Index) (make-parameter 0))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp : (-> String String Index SSH-Configuration Void)
   (lambda [source target port rfc]
@@ -26,23 +28,29 @@
     (parameterize ([current-custodian (make-custodian)])
       (define-values (/dev/srcin /dev/srcout) (make-pipe))
       (define-values (/dev/destin /dev/destout) (make-pipe))
+      (define-values (&read-status &write-status) (values (box 1) (box 1)))
       (define rthread : Thread
-        (thread (λ [] (with-handlers ([exn:break? void]
-                                      [exn? (λ [[e : exn]] (fprintf (current-error-port) "~a~n" (exn-message e)))])
-                        (cond [(not shost) (scp-local-read spath /dev/destin /dev/srcout)]
-                              [else (scp-read suser shost sport spath rfc /dev/destin /dev/srcout)])))))
+        (thread (λ [] (parameterize ([scp-exit-status 1])
+                        (with-handlers ([exn:break? void]
+                                        [exn? (λ [[e : exn]] (fprintf (current-error-port) "~a~n" (exn-message e)))])
+                          (cond [(not shost) (scp-local-read spath /dev/destin /dev/srcout)]
+                                [else (scp-read suser shost sport spath rfc /dev/destin /dev/srcout)]))
+                        (set-box! &read-status (scp-exit-status))))))
       
       (define wthread : Thread
-        (thread (λ [] (with-handlers ([exn:break? void]
-                                      [exn? (λ [[e : exn]] (fprintf (current-error-port) "~a~n" (exn-message e)))])
-                        (cond [(not thost) (scp-local-write tpath /dev/srcin /dev/destout)]
-                              [else (scp-write tuser thost tport tpath rfc /dev/srcin /dev/destout)])))))
+        (thread (λ [] (parameterize ([scp-exit-status 1])
+                        (with-handlers ([exn:break? void]
+                                        [exn? (λ [[e : exn]] (fprintf (current-error-port) "~a~n" (exn-message e)))])
+                          (cond [(not thost) (scp-local-write tpath /dev/srcin /dev/destout)]
+                                [else (scp-write tuser thost tport tpath rfc /dev/srcin /dev/destout)]))
+                        (set-box! &write-status (scp-exit-status))))))
       
       (with-handlers ([exn? void])
         (sync/enable-break wthread))
       
       (thread-safe-kill (list rthread wthread))
-      (custodian-shutdown-all (current-custodian)))))
+      (custodian-shutdown-all (current-custodian))
+      (exit (+ (unbox &read-status) (unbox &write-status))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-read : (-> Symbol String Index Path-String SSH-Configuration Input-Port Output-Port Void)
@@ -149,7 +157,7 @@
                        (scp-send acknowledgement)]
                       [else (scp-send acknowledgement)]))
 
-              (ssh-channel-close chout)
+              (scp-exit-status (ssh-channel-program-wait chout))
               (ssh-channel-wait chout)
               (ssh-session-close userlogin "job done"))))
         
@@ -175,7 +183,8 @@
       (when (byte? ack)
         (stdio ack)))
 
-    (close-input-port /dev/srcin)))
+    (close-input-port /dev/srcin)
+    (scp-exit-status 0)))
 
 (define scp-local-write : (-> Path-String Input-Port Output-Port Void)
   (lambda [path /dev/win /dev/rout]
@@ -189,7 +198,8 @@
         (stdio)))
     
     (close-input-port /dev/win)
-    (close-output-port /dev/stdout)))
+    (close-output-port /dev/stdout)
+    (scp-exit-status 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-port-write : (-> Bytes Input-Port Output-Port Input-Port (Option Output-Port) Byte (U Byte Void))
@@ -219,5 +229,4 @@
                    (cond [(index? size)
                           (write-bytes parcel /dev/scpout 0 size)
                           (scpio)]
-                         [else (close-output-port /dev/scpout) 3]))]
-            [else (void)]))))))
+                         [else (close-output-port /dev/scpout) 3]))]))))))
