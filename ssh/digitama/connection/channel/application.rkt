@@ -80,13 +80,14 @@
   (lambda [self request rfc]
     (with-asserts ([self ssh-application-channel?])
       (cond [(ssh:msg:channel:request:exit:status? request)
-             (ssh-log-message 'debug "~a: remote program(~a) has terminated with exit code ~a" (ssh-channel-name self)
-                              (ssh-application-channel-program self)
-                              (ssh:msg:channel:request:exit:status-code request))
+             (define retcode : Index (ssh:msg:channel:request:exit:status-code request))
+             (ssh-log-message (if (zero? retcode) 'debug 'error)
+                              "~a: remote program(~a) has terminated with exit code ~a" (ssh-channel-name self)
+                              (ssh-application-channel-program self) retcode)
              #true]
             
             [(ssh:msg:channel:request:exit:signal? request)
-             (ssh-log-message 'debug "~a: remote program(~a) has terminated due to signal SIG~a ~a core dumpped, details: ~a" (ssh-channel-name self)
+             (ssh-log-message 'warning "~a: remote program(~a) has terminated due to signal SIG~a ~a core dumpped, details: ~a" (ssh-channel-name self)
                               (ssh-application-channel-program self)
                               (ssh:msg:channel:request:exit:signal-name request)
                               (if (ssh:msg:channel:request:exit:signal-core? request) 'with 'without)

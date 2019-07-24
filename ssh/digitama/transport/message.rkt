@@ -156,7 +156,7 @@
            (ssh-log-message 'debug "[DEBUG] ~a" (ssh:msg:debug-message msg) #:with-peer-name? #false)]
           [(ssh:msg:disconnect? msg)
            (ssh-log-message #:with-peer-name? #false
-                            'info "terminate the connection ~a because of ~a, details: ~a"
+                            'info "terminate the connection to ~a because of ~a, details: ~a"
                             (current-peer-name) (ssh:msg:disconnect-reason msg) (ssh:msg:disconnect-description msg))]
           [(ssh:msg:unimplemented? msg)
            (ssh-log-message #:with-peer-name? #false

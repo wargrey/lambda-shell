@@ -131,9 +131,7 @@
         (request-wait-dispatch-loop)))
       
     (for ([application (in-hash-values alive-applications)])
-      (ssh-application.destruct application))
-
-    (ssh-log-message 'debug "bye")))
+      (ssh-application.destruct application))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-send-messages : (-> SSH-Port (U SSH-Service-Layer-Reply (Boxof Any)) (SSH-Stdout Port) Index Index (-> SSH-Message Void) Void)

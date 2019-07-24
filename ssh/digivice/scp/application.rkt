@@ -149,7 +149,6 @@
                        (scp-send acknowledgement)]
                       [else (scp-send acknowledgement)]))
 
-              (sleep 1)
               (ssh-channel-close chout)
               (ssh-channel-wait chout)
               (ssh-session-close userlogin "job done"))))
@@ -158,7 +157,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-local-read : (-> Path-String Input-Port Output-Port Void)
-  (lambda [path /dev/scpin /dev/destout]
+  (lambda [path /dev/scpin /dev/scpout]
     (define parcel : Bytes (make-bytes 4096))
     (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds path))
     (define mode : Nonnegative-Fixnum (file-or-directory-permissions path 'bits))
@@ -167,16 +166,16 @@
                          (open-input-string (format "T~a 0 ~a 0~n" mtime mtime))
                          (open-input-string (format "C~a ~a ~a~n" (~r mode #:base 8 #:min-width 4 #:pad-string "0")
                                               (file-size path) (file-name-from-path path)))
-                         (open-input-file path)))
+                         (open-input-file path)
+                         (open-input-bytes (bytes 0))))
     
     (let stdio : Void ([acknowledgement : Byte 0])
-      (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/destout /dev/srcin #false acknowledgement))
+      (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/scpout /dev/srcin #false acknowledgement))
 
       (when (byte? ack)
         (stdio ack)))
 
-    (close-input-port /dev/srcin)
-    (close-output-port /dev/destout)))
+    (close-input-port /dev/srcin)))
 
 (define scp-local-write : (-> Path-String Input-Port Output-Port Void)
   (lambda [path /dev/win /dev/rout]
@@ -194,7 +193,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-port-write : (-> Bytes Input-Port Output-Port Input-Port (Option Output-Port) Byte (U Byte Void))
-  (lambda [parcel /dev/scpin /dev/destout /dev/srcin /dev/srcout acknowledgement]
+  (lambda [parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout acknowledgement]
     (define size (read-bytes-avail! parcel /dev/scpin))
     
     (when (index? size)
@@ -207,16 +206,18 @@
           (case acknowledgement
             [(0) (let ([Tline (read-line /dev/srcin)])
                    (when (string? Tline)
-                     (write-string Tline /dev/destout)
-                     (newline /dev/destout)
+                     (write-string Tline /dev/scpout)
+                     (newline /dev/scpout)
                      1))]
             [(1) (let ([Fline (read-line /dev/srcin)])
                    (when (string? Fline)
-                     (write-string Fline /dev/destout)
-                     (newline /dev/destout)
+                     (write-string Fline /dev/scpout)
+                     (newline /dev/scpout)
                      2))]
-            [else (let scpio : Void ()
-                    (define size (read-bytes-avail! parcel /dev/srcin))
-                    (when (index? size)
-                      (write-bytes parcel /dev/destout 0 size)
-                      (scpio)))]))))))
+            [(2) (let scpio : (U Byte Void) ()
+                   (define size (read-bytes-avail! parcel /dev/srcin))
+                   (cond [(index? size)
+                          (write-bytes parcel /dev/scpout 0 size)
+                          (scpio)]
+                         [else (close-output-port /dev/scpout) 3]))]
+            [else (void)]))))))

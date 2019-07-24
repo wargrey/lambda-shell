@@ -110,8 +110,7 @@
     (for ([service (in-hash-values alive-services)])
       (ssh-service.destruct service))
 
-    (ssh-port-wait sshc #:abandon? #true)
-    (ssh-log-message 'debug "bye")))
+    (ssh-port-wait sshc #:abandon? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-send-messages : (-> SSH-Port SSH-Service-Layer-Reply Index Index (-> SSH-Message Void) Void)
