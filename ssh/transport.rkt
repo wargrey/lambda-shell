@@ -29,13 +29,15 @@
 (define-type SSH-Datum (U SSH-Message SSH-EOF Bytes))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-connect : (-> String Natural [#:custodian Custodian] [#:logger Logger] [#:configuration SSH-Configuration] [#:kexinit SSH-MSG-KEXINIT] SSH-Port)
+(define ssh-connect : (-> String Natural
+                          [#:custodian Custodian] [#:logger Logger] [#:configuration SSH-Configuration] [#:kexinit SSH-MSG-KEXINIT] [#:name (Option Symbol)]
+                          SSH-Port)
   (lambda [hostname port #:custodian [root (make-custodian)] #:logger [logger (make-logger 'λsh:sshc (current-logger))]
-                    #:configuration [rfc (make-ssh-configuration)] #:kexinit [kexinit (make-ssh:msg:kexinit)]]
+                    #:configuration [rfc (make-ssh-configuration)] #:kexinit [kexinit (make-ssh:msg:kexinit)] #:name [name #false]]
     (define sshc-custodian : Custodian (make-custodian root))
     (parameterize ([current-custodian sshc-custodian]
                    [current-logger logger])
-      (define server-name : Symbol (string->symbol (format "~a:~a" hostname port)))
+      (define server-name : Symbol (string->symbol (if (not name) (format "~a:~a" hostname port) (format "~a:~a.~a" hostname port name))))
       (ssh-log-message 'info "connecting to ~a" server-name)
 
       (parameterize ([current-peer-name server-name])

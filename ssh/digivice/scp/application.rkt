@@ -70,7 +70,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-read : (-> Symbol String Index Path-String SSH-Configuration Input-Port Output-Port Void)
   (lambda [user host port path rfc /dev/destin /dev/destout]
-    (define sshd : SSH-Port (ssh-connect host port #:configuration rfc))
+    (define sshd : SSH-Port (ssh-connect host port #:configuration rfc #:name 'r))
     (define scp-reader : SSH-Session (ssh-user-login sshd user))
     (define connection : SSH-Application (sync/enable-break (ssh-session-service-ready-evt scp-reader)))
     
@@ -121,7 +121,7 @@
 
 (define scp-write : (-> Symbol String Index Path-String SSH-Configuration Input-Port Output-Port Void)
   (lambda [user host port path rfc /dev/srcin /dev/srcout]
-    (define sshd : SSH-Port (ssh-connect host port #:configuration rfc))
+    (define sshd : SSH-Port (ssh-connect host port #:configuration rfc #:name 'w))
     (define scp-writer : SSH-Session (ssh-user-login sshd user))
     (define connection : SSH-Application (sync/enable-break (ssh-session-service-ready-evt scp-writer)))
     
