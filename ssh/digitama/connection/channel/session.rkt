@@ -154,15 +154,12 @@
        (when (and program (not (port-closed? /dev/binout)))
          (cond [(eof-object? octets) (close-output-port /dev/binout)]
                [else (void (write-bytes octets /dev/binout)
-                           (flush-output /dev/binout))]))
-       #false)]
+                           (flush-output /dev/binout))])))]
     [(self octets type partner)
      (with-asserts ([self ssh-session-channel?])
        (define description : String (string-trim (bytes->string/utf-8 octets)))
        
-       (ssh-log-extended-data (ssh-channel-name self) type description)
-       
-       #false)]))
+       (ssh-log-extended-data (ssh-channel-name self) type description))]))
 
 (define ssh-session-datum-evt : SSH-Channel-Datum-Evt
   (lambda [self parcel partner window]
@@ -172,14 +169,14 @@
       (define errin : Input-Port (ssh-session-channel-errin self))
       (define winok? : Boolean (< (bytes-length parcel) window))
 
-      (and program
-           (let ([oievt (and winok? (not (port-closed? outin)) (wrap-evt outin (λ [[oin : Input-Port]] (ssh-session-read self oin parcel #false partner errin))))]
-                 [eievt (and winok? (not (port-closed? errin)) (wrap-evt errin (λ [[ein : Input-Port]] (ssh-session-read self ein parcel 'STDERR partner outin))))]
-                 [binevt (wrap-evt program (λ [[p : Subprocess]] (ssh-session-exit-status self program partner)))])
-             (cond [(and oievt eievt) (choice-evt oievt eievt binevt)]
-                   [(and oievt) (choice-evt oievt binevt)]
-                   [(and eievt) (choice-evt eievt binevt)]
-                   [else binevt]))))))
+      (unless (not program)
+        (let ([oievt (and winok? (not (port-closed? outin)) (wrap-evt outin (λ [[oin : Input-Port]] (ssh-session-read self oin parcel #false partner errin))))]
+              [eievt (and winok? (not (port-closed? errin)) (wrap-evt errin (λ [[ein : Input-Port]] (ssh-session-read self ein parcel 'STDERR partner outin))))]
+              [binevt (wrap-evt program (λ [[p : Subprocess]] (ssh-session-exit-status self program partner)))])
+          (cond [(and oievt eievt) (choice-evt oievt eievt binevt)]
+                [(and oievt) (choice-evt oievt binevt)]
+                [(and eievt) (choice-evt eievt binevt)]
+                [else binevt]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-session-putevn : (-> Symbol Environment-Variables Bytes Bytes Boolean)
@@ -220,9 +217,8 @@
                          (make-ssh:msg:channel:extended:data #:recipient partner #:payload errmsg #:type ext-type))])]
           [(eof-object? size)
            (close-input-port /dev/pin)
-           (and (port-closed? other-in)
-                (make-ssh:msg:channel:eof #:recipient partner))]
-          [else #false])))
+           (when (port-closed? other-in)
+             (make-ssh:msg:channel:eof #:recipient partner))])))
 
 (define ssh-session-exit-status : (-> SSH-Session-Channel Subprocess Index SSH-Channel-Reply)
   (lambda [self program partner]
@@ -231,7 +227,7 @@
     (ssh-log-message 'debug "~a: program(~a) has terminated with exit code ~a"
                      (ssh-channel-name self) (ssh-session-channel-command self) status)
 
-    (and (index? status)
-         (set-ssh-session-channel-program! self #false)
-         (list (make-ssh:msg:channel:request:exit:status #:recipient partner #:reply? #false #:code status)
-               (make-ssh:msg:channel:close #:recipient partner)))))
+    (when (index? status)
+      (set-ssh-session-channel-program! self #false)
+      (list (make-ssh:msg:channel:request:exit:status #:recipient partner #:reply? #false #:code status)
+            (make-ssh:msg:channel:close #:recipient partner)))))

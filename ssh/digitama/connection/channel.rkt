@@ -11,14 +11,14 @@
 
 (require "../../configuration.rkt")
 
-(define-type SSH-Channel-Reply (U SSH-Message (Listof SSH-Message) False))
+(define-type SSH-Channel-Reply (U SSH-Message (Listof SSH-Message) Void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type SSH-Channel-Constructor (-> Symbol Index SSH-Message SSH-Configuration (U SSH-Channel SSH-Message)))
 (define-type SSH-Channel-Destructor (-> SSH-Channel Void))
 
 (define-type SSH-Channel-Response (-> SSH-Channel SSH-Message SSH-Configuration Boolean))
-(define-type SSH-Channel-Datum-Evt (-> SSH-Channel Bytes Index Index (Option (Evtof SSH-Channel-Reply))))
+(define-type SSH-Channel-Datum-Evt (-> SSH-Channel Bytes Index Index (U (Evtof SSH-Channel-Reply) Void)))
 (define-type SSH-Channel-Notify (-> SSH-Channel SSH-Message SSH-Configuration Void))
 
 (define-type SSH-Channel-Consume
@@ -31,13 +31,13 @@
    [custodian : Custodian])
   ([response : SSH-Channel-Response]
    [consume : SSH-Channel-Consume]
-   [datum-evt : SSH-Channel-Datum-Evt ssh-channel-no-evt]
+   [datum-evt : SSH-Channel-Datum-Evt void]
    [notify : SSH-Channel-Notify void]
    [destruct : SSH-Channel-Destructor ssh-channel-shutdown-custodian]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-channel-no-evt : SSH-Channel-Datum-Evt
-  (lambda [self parcel partner-id window]
+(define ssh-channel-void-method : (-> Any * False)
+  (lambda whatever
     #false))
 
 (define ssh-channel-shutdown-custodian : SSH-Channel-Destructor

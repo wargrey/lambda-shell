@@ -41,9 +41,9 @@
   (lambda [self bresponse rfc]
     (with-asserts ([self ssh-connection-application?])
       (let ([response (ssh-filter-connection-message bresponse)])
-        (and response
-             (ssh-chport-filter* (ssh-connection-application-ports self)
-                                 response rfc #false))))))
+        (unless (not response)
+          (ssh-chport-filter* (ssh-connection-application-ports self)
+                              response rfc #false))))))
 
 (define ssh-connection-data-evt : SSH-Application-Data-Evt
   (lambda [self rfc]

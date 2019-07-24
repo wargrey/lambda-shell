@@ -11,6 +11,8 @@
 (require "diagnostics.rkt")
 
 (require "../transport.rkt")
+(require "../authentication.rkt")
+
 (require "../datatype.rkt")
 (require "../configuration.rkt")
 
@@ -24,14 +26,23 @@
    [srvin : (SSH-Stdin Port)])
   #:type-name SSH-Session)
 
-(define make-ssh-session : (-> SSH-Port (SSH-Nameof SSH-Application#) [#:applications (SSH-Name-Listof* SSH-Application#)] SSH-Session)
-  (lambda [sshd 1st-λapplication #:applications [applications (ssh-registered-applications)]]
+(define make-ssh-session : (->* (SSH-Port Symbol)
+                                (Symbol (SSH-Name-Listof* SSH-Application#) (SSH-Name-Listof* SSH-Authentication#))
+                                SSH-Session)
+  (lambda [sshd username [service 'ssh-connection] [applications (ssh-registered-applications)] [methods (ssh-authentication-methods)]]
     (define-values (/dev/appin /dev/appout) (make-ssh-stdio (ssh-port-peer-name sshd)))
     (define-values (/dev/srvin /dev/srvout) (make-ssh-stdio (ssh-port-peer-name sshd)))
-    
-    (ssh-session sshd
-                 (thread (λ [] (ssh-session-dispatch sshd /dev/appout /dev/srvout 1st-λapplication applications)))
-                 /dev/appin /dev/srvin)))
+
+    (define (daemon)
+      (parameterize ([current-peer-name (ssh-port-peer-name sshd)]
+                     [current-custodian (ssh-custodian sshd)])
+        (define maybe-application : SSH-Maybe-Application (ssh-user-identify sshd username service #:applications applications #:methods methods))
+        
+        (cond [(pair? maybe-application) (ssh-session-dispatch sshd /dev/appout /dev/srvout maybe-application applications)]
+              [else (ssh-stdout-propagate /dev/srvout (make-ssh-application #:name (gensym 'pseudo-app) #:session #"" #:range (cons 255 255) #:outgoing-log void
+                                                                            #:transmit void #:deliver void))])))
+  
+    (ssh-session sshd (thread daemon) /dev/appin /dev/srvin)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-session-dispatch : (-> SSH-Port (SSH-Stdout Port) (SSH-Stdout Port) (SSH-Nameof SSH-Application#) (SSH-Name-Listof* SSH-Application#) Void)
@@ -53,9 +64,9 @@
 
                              (for/fold ([evts : (Listof (Evtof Void)) null])
                                        ([app (in-hash-values alive-applications)])
-                               (define e : (Option (Evtof SSH-Service-Layer-Reply)) (ssh-application.data-evt app rfc))
+                               (define e : (U (Evtof SSH-Service-Layer-Reply) Void) (ssh-application.data-evt app rfc))
                                
-                               (cond [(not e) evts]
+                               (cond [(void? e) evts]
                                      [else (cons (handle-evt e (λ [[datum : SSH-Service-Layer-Reply]] (pipe-stream app datum)))
                                                  evts)]))))]
 
@@ -137,7 +148,7 @@
 (define ssh-send-messages : (-> SSH-Port (U SSH-Service-Layer-Reply (Boxof Any)) (SSH-Stdout Port) Index Index (-> SSH-Message Void) Void)
   (lambda [sshc reply /dev/appout idmin idmax outgoing-log]
     (cond [(box? reply) (ssh-stdout-propagate /dev/appout (unbox reply))]
-          [else (unless (not reply)
+          [else (unless (void? reply)
                   (for ([msg (if (list? reply) (in-list reply) (in-value reply))])
                     ; TODO: should be the transport layer messages allowed?
                     (if (<= idmin (ssh-message-number msg) idmax)

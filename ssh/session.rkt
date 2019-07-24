@@ -1,31 +1,22 @@
 #lang typed/racket/base
 
-(provide (all-defined-out) SSH-Session)
-(provide ssh-session? make-ssh-session)
+(provide (all-defined-out))
+(provide ssh-session? SSH-Session SSH-Application)
 
 (require "transport.rkt")
-(require "authentication.rkt")
 
 (require "datatype.rkt")
 (require "assignment.rkt")
 
 (require "digitama/session.rkt")
 (require "digitama/service.rkt")
-(require "digitama/diagnostics.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-login : (->* (SSH-Port Symbol)
                               (Symbol #:applications (SSH-Name-Listof* SSH-Application#) #:authentications (SSH-Name-Listof* SSH-Authentication#))
-                              (Values (Option SSH-Session) (Option SSH-Application)))
+                              SSH-Session)
   (lambda [sshd username [service 'ssh-connection] #:applications [applications (ssh-registered-applications)] #:authentications [methods (ssh-authentication-methods)]]
-    (parameterize ([current-peer-name (ssh-port-peer-name sshd)]
-                   [current-custodian (ssh-custodian sshd)])
-      (define maybe-application : SSH-Maybe-Application (ssh-user-identify sshd username service #:applications applications #:methods methods))
-
-      (cond [(not (pair? maybe-application)) (values #false #false)]
-            [else (let ([user-session (make-ssh-session sshd maybe-application)])
-                    (values user-session
-                            (sync/enable-break (ssh-session-service-ready-evt user-session))))]))))
+    (make-ssh-session sshd username service applications methods)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-session-datum-evt : (All (a) (-> SSH-Session (Evtof a)))

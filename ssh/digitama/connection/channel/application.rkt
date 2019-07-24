@@ -111,16 +111,13 @@
        (unless (port-closed? /dev/usrout)
          (cond [(eof-object? octets) (close-output-port /dev/usrout)]
                [else (void (write-bytes octets /dev/usrout)
-                           (flush-output /dev/usrout))]))
-       #false)]
+                           (flush-output /dev/usrout))])))]
     [(self octets type partner)
      (with-asserts ([self ssh-application-channel?])
        (define description : String (string-trim (bytes->string/utf-8 octets)))
        
        (ssh-log-extended-data (ssh-channel-name self) type description)
-       (ssh-chout-propagate (ssh-application-channel-sshout self) (cons type description) #:topic 'extended:data)
-       
-       #false)]))
+       (ssh-chout-propagate (ssh-application-channel-sshout self) (cons type description) #:topic 'extended:data))]))
 
 (define ssh-application-datum-evt : SSH-Channel-Datum-Evt
   (lambda [self parcel partner window]
@@ -146,7 +143,7 @@
                       [else (ssh-channel-filter self msg partner upsize)])))))
 
       (cond [(and maybe-usrin-evt maybe-msgin-evt) (choice-evt maybe-usrin-evt maybe-msgin-evt)]
-            [else (or maybe-usrin-evt maybe-msgin-evt)]))))
+            [else (or maybe-usrin-evt maybe-msgin-evt (void))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-user-read : (-> SSH-Application-Channel Input-Port Bytes Index SSH-Channel-Reply)
@@ -168,19 +165,18 @@
           [(ssh:msg:channel:request:exec? msg) (set-ssh-application-channel-program! self (ssh:msg:channel:request:exec-command msg))]
           [(ssh:msg:channel:request:subsystem? msg) (set-ssh-application-channel-program! self (ssh:msg:channel:request:subsystem-name msg))])
 
-    (cond [(ssh:msg:channel:request? msg) (and (= (ssh:msg:channel:request-recipient msg) partner) msg)]
-          [(ssh:msg:channel:extended:data? msg) (and (= (ssh:msg:channel:extended:data-recipient msg) partner) (ssh-split-extended-data msg upsize))]
-          [(ssh:msg:channel:data? msg) (and (= (ssh:msg:channel:data-recipient msg) partner) (ssh-split-data msg upsize))]
-          [(ssh:msg:channel:close? msg) (and (= (ssh:msg:channel:close-recipient msg) partner) msg)]
-          [else #false])))
+    (cond [(ssh:msg:channel:request? msg) (when (= (ssh:msg:channel:request-recipient msg) partner) msg)]
+          [(ssh:msg:channel:extended:data? msg) (when (= (ssh:msg:channel:extended:data-recipient msg) partner) (ssh-split-extended-data msg upsize))]
+          [(ssh:msg:channel:data? msg) (when (= (ssh:msg:channel:data-recipient msg) partner) (ssh-split-data msg upsize))]
+          [(ssh:msg:channel:close? msg) (when (= (ssh:msg:channel:close-recipient msg) partner) msg)])))
 
 (define ssh-channel-filter* : (-> SSH-Application-Channel (Listof SSH-Message) Index Index SSH-Channel-Reply)
   (lambda [self msgs partner upsize]
     (let filter ([replies : (Listof SSH-Message) null]
                  [rest : (Listof SSH-Message) msgs])
-      (cond [(null? rest) (and (pair? replies) replies)]
+      (cond [(null? rest) (when (pair? replies) replies)]
             [else (let ([msg (ssh-channel-filter self (car rest) partner upsize)])
-                    (cond [(not msg) (filter replies (cdr rest))]
+                    (cond [(void? msg) (filter replies (cdr rest))]
                           [(list? msg) (filter (append replies msg) (cdr rest))]
                           [else (filter (append replies (list msg)) (cdr rest))]))]))))
 

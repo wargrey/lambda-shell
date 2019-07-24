@@ -34,9 +34,9 @@
   (lambda [self brequest rfc]
     (with-asserts ([self ssh-connection-service?])
       (let ([request (ssh-filter-connection-message brequest)])
-        (and request
-             (ssh-chport-filter (ssh-connection-service-ports self)
-                                request rfc #true))))))
+        (unless (not request)
+          (ssh-chport-filter (ssh-connection-service-ports self)
+                             request rfc #true))))))
 
 (define ssh-connection-push-evt : SSH-Service-Push-Evt
   (lambda [self rfc]

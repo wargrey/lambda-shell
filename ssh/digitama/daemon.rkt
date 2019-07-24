@@ -58,9 +58,9 @@
 
                          (for/fold ([evts : (Listof (Evtof Void)) null])
                                    ([service (in-hash-values alive-services)])
-                           (define e : (Option (Evtof SSH-Service-Layer-Reply)) (ssh-service.push-evt service rfc))
+                           (define e : (U (Evtof SSH-Service-Layer-Reply) Void) (ssh-service.push-evt service rfc))
 
-                           (cond [(not e) evts]
+                           (cond [(void? e) evts]
                                  [else (cons (handle-evt e (λ [[datum : SSH-Service-Layer-Reply]] (pushback service datum)))
                                              evts)]))))]
 
@@ -115,7 +115,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-send-messages : (-> SSH-Port SSH-Service-Layer-Reply Index Index (-> SSH-Message Void) Void)
   (lambda [sshc reply idmin idmax outgoing-log]
-    (unless (not reply)
+    (unless (void? reply)
       (for ([msg (if (list? reply) (in-list reply) (in-value reply))])
         ; TODO: should be the transport layer messages allowed?
         (if (<= idmin (ssh-message-number msg) idmax)
