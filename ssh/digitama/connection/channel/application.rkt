@@ -15,9 +15,8 @@
 (require "../../stdio.rkt")
 (require "../../diagnostics.rkt")
 
-(require/typed racket
-               [make-pipe (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))]
-               [make-pipe-with-specials (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))])
+(require/typed racket/base
+               [make-pipe (->* () ((Option Positive-Integer) Any Any) (Values Input-Port Output-Port))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct ssh-application-channel ssh-channel
@@ -117,20 +116,22 @@
        #false)]))
 
 (define ssh-application-datum-evt : SSH-Channel-Datum-Evt
-  (lambda [self parcel partner]
+  (lambda [self parcel partner window]
     (with-asserts ([self ssh-application-channel?])
       (define program : (Option (U String Symbol)) (ssh-application-channel-program self))
       (define /dev/usrin : Input-Port (ssh-application-channel-usrin self))
       (define /dev/msgin : (SSH-Stdin Port) (ssh-application-channel-msgin self))
       (define upsize : Index (bytes-length parcel))
+      (define winok? : Boolean (< upsize window))
 
       (define maybe-usrin-evt : (Option (Evtof SSH-Channel-Reply))
-        (and program
+        (and program winok?
              (not (port-closed? /dev/usrin))
              (wrap-evt /dev/usrin (λ [_] (ssh-user-read self /dev/usrin parcel partner)))))
 
       (define maybe-msgin-evt : (Option (Evtof SSH-Channel-Reply))
-        (and (not (port-closed? /dev/usrin))
+        (and winok?
+             (not (port-closed? /dev/usrin))
              (wrap-evt ((inst ssh-stdin-evt (U SSH-Message (Listof SSH-Message))) /dev/msgin) 
                        (λ [[msg : (U SSH-Message (Listof SSH-Message))]]
                          (cond [(list? msg) (ssh-channel-filter* self msg partner upsize)]

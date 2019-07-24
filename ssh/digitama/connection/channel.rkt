@@ -18,7 +18,7 @@
 (define-type SSH-Channel-Destructor (-> SSH-Channel Void))
 
 (define-type SSH-Channel-Response (-> SSH-Channel SSH-Message SSH-Configuration Boolean))
-(define-type SSH-Channel-Datum-Evt (-> SSH-Channel Bytes Index (Option (Evtof SSH-Channel-Reply))))
+(define-type SSH-Channel-Datum-Evt (-> SSH-Channel Bytes Index Index (Option (Evtof SSH-Channel-Reply))))
 (define-type SSH-Channel-Notify (-> SSH-Channel SSH-Message SSH-Configuration Void))
 
 (define-type SSH-Channel-Consume
@@ -37,7 +37,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-channel-no-evt : SSH-Channel-Datum-Evt
-  (lambda [self parcel partner-id]
+  (lambda [self parcel partner-id window]
     #false))
 
 (define ssh-channel-shutdown-custodian : SSH-Channel-Destructor

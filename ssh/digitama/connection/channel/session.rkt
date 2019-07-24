@@ -165,15 +165,16 @@
        #false)]))
 
 (define ssh-session-datum-evt : SSH-Channel-Datum-Evt
-  (lambda [self parcel partner]
+  (lambda [self parcel partner window]
     (with-asserts ([self ssh-session-channel?])
       (define program : (Option Subprocess) (ssh-session-channel-program self))
       (define outin : Input-Port (ssh-session-channel-outin self))
       (define errin : Input-Port (ssh-session-channel-errin self))
+      (define winok? : Boolean (< (bytes-length parcel) window))
 
       (and program
-           (let ([oievt (and (not (port-closed? outin)) (wrap-evt outin (λ [[oin : Input-Port]] (ssh-session-read self oin parcel #false partner errin))))]
-                 [eievt (and (not (port-closed? errin)) (wrap-evt errin (λ [[ein : Input-Port]] (ssh-session-read self ein parcel 'STDERR partner outin))))]
+           (let ([oievt (and winok? (not (port-closed? outin)) (wrap-evt outin (λ [[oin : Input-Port]] (ssh-session-read self oin parcel #false partner errin))))]
+                 [eievt (and winok? (not (port-closed? errin)) (wrap-evt errin (λ [[ein : Input-Port]] (ssh-session-read self ein parcel 'STDERR partner outin))))]
                  [binevt (wrap-evt program (λ [[p : Subprocess]] (ssh-session-exit-status self program partner)))])
              (cond [(and oievt eievt) (choice-evt oievt eievt binevt)]
                    [(and oievt) (choice-evt oievt binevt)]

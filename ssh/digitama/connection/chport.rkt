@@ -92,9 +92,12 @@
                      [evts : (Listof (Evtof SSH-Channel-Port-Reply)) null])
       (cond [(null? chports) (and (pair? evts) (apply choice-evt evts))]
             [else (let* ([chport (car chports)]
-                         [partner (ssh-spot-peer-id chport)])
+                         [partner (ssh-spot-peer-id chport)]
+                         [window (ssh-spot-outgoing-window chport)])
                     (define e : (Option (Evtof SSH-Channel-Reply))
-                      (and partner (ssh-channel.datum-evt (ssh-spot-channel chport) (ssh-spot-parcel chport) partner)))
+                      (and partner
+                           (ssh-channel.datum-evt (ssh-spot-channel chport) (ssh-spot-parcel chport)
+                                                  partner window)))
                     (cond [(and e) (filter-map (cdr chports) (cons (ssh-chport-wrap-evt self e chport) evts))]
                           [else (filter-map (cdr chports) evts)]))]))))
 
