@@ -349,8 +349,7 @@
            (ssh-log-message 'warning "~a: the incoming window is too small: ~a < ~a" self-name (~size incoming-window #:precision '(= 6)) (~size traffic))
            (values #false (void))]
           [else (let ([consumption (- incoming-upwindow incoming-window--)])
-                  ; see `channel-check-window` in channels.c of OpenSSH
-                  (set-ssh-spot-incoming-traffic! chport (+ (ssh-spot-incoming-traffic chport) traffic))
+                 (set-ssh-spot-incoming-traffic! chport (+ (ssh-spot-incoming-traffic chport) traffic))
                   (if (and (< incoming-window-- (* channel-capacity 2)) (index? consumption))
                       (let ([incoming-str (~size incoming-upwindow)])
                         (set-ssh-spot-incoming-window! chport incoming-upwindow)

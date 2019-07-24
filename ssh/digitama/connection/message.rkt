@@ -27,11 +27,11 @@
 (define ssh-log-outgoing-message : (-> SSH-Message Void)
   (lambda [msg]
     (cond [(ssh:msg:channel:data? msg)
-           (ssh-log-message 'debug "sent ~a data to channel[0x~a]"
+           (ssh-log-message 'debug "packaged ~a data to channel[0x~a]"
                             (~size (bytes-length (ssh:msg:channel:data-payload msg)) #:precision 3)
                             (number->string (ssh:msg:channel:data-recipient msg) 16))]
           [(ssh:msg:channel:extended:data? msg)
-           (ssh-log-message 'debug "sent ~a extended data to channel[0x~a]"
+           (ssh-log-message 'debug "packaged ~a extended data to channel[0x~a]"
                             (~size (bytes-length (ssh:msg:channel:extended:data-payload msg)) #:precision 3)
                             (number->string (ssh:msg:channel:extended:data-recipient msg) 16))]
           [(ssh:msg:channel:window:adjust? msg)
@@ -62,11 +62,11 @@
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
     (cond [(ssh:msg:channel:data? msg)
-           (ssh-log-message 'debug "received ~a data for channel[0x~a]"
+           (ssh-log-message 'debug "extract ~a data for channel[0x~a]"
                             (~size (bytes-length (ssh:msg:channel:data-payload msg)) #:precision 3)
                             (number->string (ssh:msg:channel:data-recipient msg) 16))]
           [(ssh:msg:channel:extended:data? msg)
-           (ssh-log-message 'debug "received ~a extended data for channel[0x~a]"
+           (ssh-log-message 'debug "extract ~a extended data for channel[0x~a]"
                             (~size (bytes-length (ssh:msg:channel:extended:data-payload msg)) #:precision 3)
                             (number->string (ssh:msg:channel:extended:data-recipient msg) 16))]
           [(ssh:msg:channel:window:adjust? msg)
