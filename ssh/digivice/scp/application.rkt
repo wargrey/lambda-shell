@@ -24,7 +24,7 @@
   ([mtime : Nonnegative-Fixnum]
    [atime : Nonnegative-Fixnum]
    [mode : Nonnegative-Fixnum]
-   [size : Nonnegative-Integer]
+   [size : Natural]
    [basename : Path-String])
   #:type-name SCP-File
   #:transparent
@@ -142,12 +142,13 @@
             
             (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies chout 1))
               (define-values (/dev/scpin /dev/scpout) (ssh-channel-stdio-port chout))
+              (define srcfile : SCP-File (scp-file 0 0 0 0 path))
               
               (let scp-send ([round : Byte 0])
                 (define scpin (sync/enable-break /dev/scpin (ssh-channel-extended-data-evt chout)))
                 
                 (cond [(input-port? scpin)
-                       (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round))
+                       (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round srcfile))
                        (when (byte? ack) (scp-send ack))]
                       [(pair? scpin)
                        (fprintf (current-error-port) "~a~n" (cdr scpin))
@@ -165,16 +166,16 @@
     (define parcel : Bytes (make-bytes ($ssh-channel-packet-capacity rfc)))
     (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds path))
     (define mode : Nonnegative-Fixnum (file-or-directory-permissions path 'bits))
+    (define srcfile : SCP-File (scp-file mtime mtime mode (file-size path) path))
     (define /dev/srcin : Input-Port
       (input-port-append #true
                          (open-input-string (format "T~a 0 ~a 0~n" mtime mtime))
                          (open-input-string (format "C~a ~a ~a~n" (~r mode #:base 8 #:min-width 4 #:pad-string "0")
-                                              (file-size path) (file-name-from-path path)))
-                         (open-input-file path)
-                         (open-input-bytes (bytes 0))))
+                                              (scp-file-size srcfile) (file-name-from-path path)))
+                         (open-input-file path)))
     
     (let stdio : Void ([round : Byte 0])
-      (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/scpout /dev/srcin #false round))
+      (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/scpout /dev/srcin #false round srcfile))
       (when (byte? ack) (stdio ack)))
 
     (close-input-port /dev/srcin)
@@ -211,12 +212,12 @@
                (make-parent-directory* destpath)
                (call-with-output-file* destpath #:exists 'truncate/replace
                  (λ [[/dev/destout : Output-Port]] : Void
-                   (let read ([rest : Integer (scp-file-size destfile)])
+                   (let scpio ([rest : Integer (scp-file-size destfile)])
                      (if (> rest 0)
                          (let ([size (read-bytes-avail! parcel /dev/scpin 0 (min capacity rest))])
                            (when (index? size)
                              (write-bytes parcel /dev/destout 0 size)
-                             (read (- rest size))))
+                             (scpio (- rest size))))
                          (let ([mtime (scp-file-mtime destfile)]
                                [mode (scp-file-mode destfile)])
                            (when (> mtime 0) (file-or-directory-modify-seconds destpath mtime void))
@@ -251,8 +252,8 @@
                                 (set-scp-file-size! scpfile size)
                                 (set-scp-file-basename! scpfile basename))]))])))
 
-(define scp-port-write : (-> Bytes Input-Port Output-Port Input-Port (Option Output-Port) Byte (U Byte Void))
-  (lambda [parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round]
+(define scp-port-write : (-> Bytes Input-Port Output-Port Input-Port (Option Output-Port) Byte SCP-File (U Byte Void))
+  (lambda [parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round srcfile]
     (define size (read-bytes-avail! parcel /dev/scpin))
     
     (when (index? size)
@@ -263,22 +264,36 @@
         
         (unless (not ack?)
           (case round
-            [(0) (let ([Tline (read-line /dev/srcin)])
-                   (when (string? Tline)
-                     (write-string Tline /dev/scpout)
-                     (newline /dev/scpout)
-                     1))]
-            [(1) (let ([Fline (read-line /dev/srcin)])
-                   (when (string? Fline)
-                     (write-string Fline /dev/scpout)
-                     (newline /dev/scpout)
+            [(0) (let ([T (read-char /dev/srcin)]
+                       [line (read-line /dev/srcin)])
+                   (when (and (char? T) (string? line))
+                     (scp-port-write-info-line T line /dev/scpout)
+                     (case T
+                       [(#\T) (scp-port-parse-time line srcfile) 1]
+                       [(#\C) (scp-port-parse-info line srcfile) 2])))]
+            [(1) (let ([T (read-char /dev/srcin)]
+                       [line (read-line /dev/srcin)])
+                   (when (and (char? T) (eq? T #\C) (string? line))
+                     (scp-port-write-info-line T line /dev/scpout)
+                     (scp-port-parse-info line srcfile)
                      2))]
-            [(2) (let scpio : (U Byte Void) ()
-                   (define size (read-bytes-avail! parcel /dev/srcin))
-                   (cond [(index? size)
-                          (write-bytes parcel /dev/scpout 0 size)
-                          (scpio)]
-                         [else (close-output-port /dev/scpout) 3]))]))))))
+            [(2) (let ([capacity (bytes-length parcel)])
+                   (let scpio : (U Byte Void) ([rest : Integer (scp-file-size srcfile)])
+                     (if (> rest 0)
+                         (let ([size (read-bytes-avail! parcel /dev/srcin 0 (min capacity rest))])
+                           (when (index? size)
+                             (write-bytes parcel /dev/scpout 0 size)
+                             (scpio (- rest size))))
+                         (and (write-byte 0 /dev/scpout)
+                              (close-output-port /dev/scpout)
+                              (displayln srcfile)
+                              3))))]))))))
+
+(define scp-port-write-info-line : (-> Char String Output-Port Void)
+  (lambda [T line /dev/scpout]
+    (write-char T /dev/scpout)
+    (write-string line /dev/scpout)
+    (newline /dev/scpout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nonnegative-fixnum? : (-> Any Boolean : #:+ Nonnegative-Fixnum)
