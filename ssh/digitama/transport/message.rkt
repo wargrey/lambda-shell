@@ -180,8 +180,8 @@
                             'info "service '~a' is available to ~a"
                             (ssh:msg:service:accept-name msg) (current-peer-name))])))
 
-(define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
-  (lambda [msg [level 'debug]]
+(define ssh-log-incoming-message : (-> SSH-Message Void)
+  (lambda [msg]
     (cond [(ssh:msg:debug? msg)
            (ssh-log-message 'info "[DEBUG] ~a says: ~a" (current-peer-name) (ssh:msg:debug-message msg) #:with-peer-name? #false)]
           [(ssh:msg:disconnect? msg)

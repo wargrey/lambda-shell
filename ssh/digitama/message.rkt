@@ -246,7 +246,7 @@
      #'(begin (define-message-interface id n #:parent parent
                 (parent-field-definition ...) (field-definition ...) conditions ...)
 
-                #| messages that have a parent have already had their number registered |#)]))
+              #| messages that have a parent have already had their number registered |#)]))
 
 (define-syntax (define-ssh-case-message stx)
   (syntax-parse stx #:literals [:]
