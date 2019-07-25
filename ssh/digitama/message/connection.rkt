@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4254
-  [SSH_MSG_GLOBAL_REQUEST            80 ([name : Symbol] [replay? : Boolean #true]) #:case name]
+  [SSH_MSG_GLOBAL_REQUEST            80 ([name : Symbol] [reply? : Boolean #true]) #:case name]
   [SSH_MSG_REQUEST_SUCCESS           81 ([details : (SSH-Bytes #false) #""])]
   [SSH_MSG_REQUEST_FAILURE           82 ([details : (SSH-Bytes #false) #""])]
   [SSH_MSG_CHANNEL_OPEN              90 ([type : Symbol] [sender : Index] [window-size : Index] [packet-capacity : Index]) #:case type]

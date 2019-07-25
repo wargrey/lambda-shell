@@ -126,16 +126,15 @@
       (define /dev/usrin : Input-Port (ssh-application-channel-usrin self))
       (define /dev/msgin : (SSH-Stdin Port) (ssh-application-channel-msgin self))
       (define upsize : Index (bytes-length parcel))
-      (define winok? : Boolean (< upsize window))
-
+      
       (define maybe-usrin-evt : (Option (Evtof SSH-Channel-Reply))
-        (and program winok?
+        (and program
+             (< upsize window)
              (not (port-closed? /dev/usrin))
              (wrap-evt /dev/usrin (λ [_] (ssh-user-read self /dev/usrin parcel partner)))))
 
       (define maybe-msgin-evt : (Option (Evtof SSH-Channel-Reply))
-        (and winok?
-             (not (port-closed? /dev/usrin))
+        (and (not (port-closed? /dev/usrin))
              ((inst ssh-chin-evt (U SSH-Message (Listof SSH-Message)) SSH-Channel-Reply)
               /dev/msgin
               (λ [[msg : (U SSH-Message (Listof SSH-Message))]]

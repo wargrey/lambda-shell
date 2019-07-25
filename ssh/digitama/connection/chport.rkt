@@ -26,8 +26,8 @@
 (define-type SSH-Channel-Port-Reply (U SSH-Message (Listof SSH-Message) Void))
 
 ;; NOTE
-; Peers may not count on the size of channel data when computing the amount of data.
-; We count on it, and are tolerant of those do not.
+; Peers like OpenSSH may not count on the size of channel data when computing the amount of data.
+; This implementation counts on the size, and is tolerant of those do not.
 (define ssh-channel-data-fault-tolerance : Positive-Fixnum (ssh-bstring-length #""))
 (define ssh-window-upsize : Index (assert (- (expt 2 32) 1) index?))
 
@@ -145,6 +145,7 @@
 
 (define ssh-chport-filter:confirmation : (-> SSH-Channel-Port SSH-MSG-CHANNEL-OPEN-CONFIRMATION SSH-Configuration Boolean (U SSH-Channel-Port-Reply (Boxof Any)))
   (lambda [self msg rfc server?]
+    ;; NOTE: OpenSSH sshd may not send the initial window size right now, instead it sends a SSH-MSG-CHANNEL-WINDOW-ADJUST straight afterwards.
     (define self-id : Index (ssh:msg:channel:open:confirmation-recipient msg))
     (define partner : Index (ssh:msg:channel:open:confirmation-sender msg))
     (define outgoing-window : Index (ssh:msg:channel:open:confirmation-window-size msg)) ; uint32 field, never larger than 2^32 - 1;

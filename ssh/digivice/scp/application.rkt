@@ -138,7 +138,7 @@
         (when (ssh-application-channel? chout)
           (with-handlers ([exn? (λ [[e : exn]] (ssh-session-close scp-writer (exn-message e)))])
             (define parcel (make-bytes ($ssh-channel-packet-capacity rfc)))
-            
+
             (ssh-channel-request-exec chout "scp -t ~a" path)
             
             (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies chout 1))

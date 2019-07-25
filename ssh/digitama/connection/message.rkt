@@ -41,8 +41,9 @@
                             (number->string (ssh:msg:channel:open-sender msg) 16)
                             (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:open:confirmation? msg)
-           (ssh-log-message 'debug "identify the channel[0x~a] with channel[0x~a], employing a ~a-sized packet"
+           (ssh-log-message 'debug "identify the channel[0x~a] with a ~a-window-sized channel[0x~a], employing a ~a-sized packet"
                             (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16)
+                            (~size (ssh:msg:channel:open:confirmation-window-size msg) #:precision 3)
                             (number->string (ssh:msg:channel:open:confirmation-sender msg) 16)
                             (~size (ssh:msg:channel:open:confirmation-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:request? msg)
@@ -53,7 +54,11 @@
           [(ssh:msg:channel:eof? msg)
            (ssh-log-message 'debug "notify channel[0x~a] that no more data to be sent" (ssh:msg:channel:eof-recipient msg))]
           [(ssh:msg:channel:close? msg)
-           (ssh-log-message 'debug "notify channel[0x~a] to close" (ssh:msg:channel:close-recipient msg))])))
+           (ssh-log-message 'debug "notify channel[0x~a] to close" (ssh:msg:channel:close-recipient msg))]
+          [(ssh:msg:global:request? msg)
+           (ssh-log-message 'debug "request the global extension '~a' (~a reply)"
+                            (ssh:msg:global:request-name msg)
+                            (if (ssh:msg:global:request-reply? msg) 'wants 'no))])))
 
 (define ssh-log-incoming-message : (->* (SSH-Message) (Log-Level) Void)
   (lambda [msg [level 'debug]]
@@ -76,9 +81,10 @@
                             (number->string (ssh:msg:channel:open-sender msg) 16)
                             (~size (ssh:msg:channel:open-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:open:confirmation? msg)
-           (ssh-log-message 'debug "the channel[0x~a] has been identified with channel[0x~a] over a ~a-sized packet"
-                            (number->string (ssh:msg:channel:open:confirmation-sender msg) 16)
+           (ssh-log-message 'debug "the channel[0x~a] has been identified with a ~a-window-sized channel[0x~a] over a ~a-sized packet"
                             (number->string (ssh:msg:channel:open:confirmation-recipient msg) 16)
+                            (~size (ssh:msg:channel:open:confirmation-window-size msg) #:precision 3)
+                            (number->string (ssh:msg:channel:open:confirmation-sender msg) 16)
                             (~size (ssh:msg:channel:open:confirmation-packet-capacity msg) #:precision 3))]
           [(ssh:msg:channel:request? msg)
            (ssh-log-message 'debug "request channel[0x~a] for the extension '~a' (~a reply)"
@@ -88,4 +94,8 @@
           [(ssh:msg:channel:eof? msg)
            (ssh-log-message 'debug "half close the channel[0x~a]" (ssh:msg:channel:eof-recipient msg))]
           [(ssh:msg:channel:close? msg)
-           (ssh-log-message 'debug "close the channel[0x~a]" (ssh:msg:channel:close-recipient msg))])))
+           (ssh-log-message 'debug "close the channel[0x~a]" (ssh:msg:channel:close-recipient msg))]
+          [(ssh:msg:global:request? msg)
+           (ssh-log-message 'debug "request the connection for the global extension '~a' (~a reply)"
+                            (ssh:msg:global:request-name msg)
+                            (if (ssh:msg:global:request-reply? msg) 'wants 'no))])))
