@@ -18,8 +18,8 @@
                             [else "."])))
 
                   (case (length hosts)
-                    [(2) (values (string->symbol (car hosts)) (cadr hosts) port (scp-make-path path))]
-                    [(1) (values (current-username) (car hosts) port (scp-make-path path))]
+                    [(2) (values (string->symbol (car hosts)) (cadr hosts) port path)]
+                    [(1) (values (current-username) (car hosts) port path)]
                     [else (error 'scp-file-path "invalid path: ~a" remote-path)]))])))
 
 (define scp-protocol-path : (-> String Index (Values Symbol String Index Path-String))
@@ -43,8 +43,8 @@
               [else (error 'scp-protocol-path "invalid port: ~a" p)])))
     
     (case (length hosts)
-      [(2) (values (string->symbol (car hosts)) (cadr hosts) port (scp-make-path path))]
-      [(1) (values (current-username) (car hosts) port (scp-make-path path))]
+      [(2) (values (string->symbol (car hosts)) (cadr hosts) port path)]
+      [(1) (values (current-username) (car hosts) port path)]
       [else (error 'scp-protocol-path "invalid path: ~a" scp://host/path)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
