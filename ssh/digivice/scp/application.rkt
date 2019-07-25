@@ -257,7 +257,6 @@
   (lambda [parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round srcfile]
     (define size (read-bytes-avail! parcel /dev/scpin))
 
-    (displayln size)
     (when (index? size)
       (let ([ack? (and (= size 1) (eq? (bytes-ref parcel 0) 0))])
         
