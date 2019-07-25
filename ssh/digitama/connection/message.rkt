@@ -15,10 +15,6 @@
     (define-values (maybe-connection-msg _) (ssh-bytes->connection-message payload 0))
                                    
     (unless (not maybe-connection-msg)
-      (ssh-log-message 'debug "found connection layer message ~a[~a]"
-                       (ssh-message-name maybe-connection-msg)
-                       (ssh-message-number maybe-connection-msg))
-      
       (ssh-log-incoming-message maybe-connection-msg 'debug))
     
     maybe-connection-msg))

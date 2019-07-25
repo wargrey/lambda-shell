@@ -56,7 +56,9 @@
 
 (define ssh-read-auth-success : (-> Symbol Symbol True)
   (lambda [username service]
-    (ssh-log-message 'info #:with-peer-name? #false "'~a' is authorized to use the service '~a'" username service)
+    (ssh-log-message 'info #:with-peer-name? #false
+                     "'~a' is authorized to use the service '~a' provided by '~a'"
+                     username service (current-peer-name))
     #true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -65,10 +67,6 @@
     (define-values (maybe-userauth-msg _) (ssh-bytes->authentication-message payload 0 #:group group))
     
     (unless (not maybe-userauth-msg)
-      (ssh-log-message 'debug "found authentication layer message ~a[~a]"
-                       (ssh-message-name maybe-userauth-msg)
-                       (ssh-message-number maybe-userauth-msg))
-      
       (ssh-log-incoming-message maybe-userauth-msg))
     
     maybe-userauth-msg))

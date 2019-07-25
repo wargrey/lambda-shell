@@ -286,7 +286,6 @@
                              (scpio (- rest size))))
                          (and (write-byte 0 /dev/scpout)
                               (close-output-port /dev/scpout)
-                              (displayln srcfile)
                               3))))]))))))
 
 (define scp-port-write-info-line : (-> Char String Output-Port Void)

@@ -220,19 +220,28 @@
   (syntax-case stx [:]
     [(_ id n #:group gid (field-definition ...))
      (with-syntax* ([ssh:msg (ssh-typeid #'id)]
+                    [SSH-MSG (ssh-typename #'id)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
        #'(begin (define-message-interface id n (field-definition ...))
                 
                 (let ([database ((inst hash-ref! Symbol (HashTable Index Unsafe-SSH-Bytes->Message))
                                  ssh-bytes->shared-message-database 'gid (λ [] (make-hasheq)))])
-                  (hash-set! database n unsafe-bytes->ssh:msg))))]
+                  (hash-set! database n unsafe-bytes->ssh:msg))
+
+                (let ([names (hash-ref ssh-message-name-database n (λ [] null))])
+                  (when (list? names)
+                    (hash-set! ssh-message-name-database n
+                               (cons 'SSH-MSG names))))))]
     [(_ id n (field-definition ...) conditions ...)
      (with-syntax* ([ssh:msg (ssh-typeid #'id)]
+                    [SSH-MSG (ssh-typename #'id)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
        #'(begin (define-message-interface id n (field-definition ...) conditions ...)
 
                 (unless (hash-has-key? ssh-bytes->message-database n)
-                  (hash-set! ssh-bytes->message-database n unsafe-bytes->ssh:msg))))]
+                  (hash-set! ssh-bytes->message-database n unsafe-bytes->ssh:msg))
+
+                (hash-set! ssh-message-name-database n 'SSH-MSG)))]
     [(_ id n #:parent parent (parent-field-definition ...) (field-definition ...) conditions ...)
      #'(begin (define-message-interface id n #:parent parent
                 (parent-field-definition ...) (field-definition ...) conditions ...)
@@ -354,12 +363,17 @@
     (define-values (u32 _) (ssh-bytes->uint32 bmsg (+ offset 1)))
     u32))
 
+(define ssh-message-number->name : (-> Index (U Symbol (Listof Symbol) False))
+  (lambda [n]
+    (hash-ref ssh-message-name-database n (λ [] #false))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-bytes->shared-message-database : (HashTable Symbol (HashTable Index Unsafe-SSH-Bytes->Message)) (make-hasheq))
 (define ssh-bytes->case-message-database : (HashTable Symbol (cons Index (HashTable Any Unsafe-SSH-Bytes->Message))) (make-hasheq))
 (define ssh-bytes->message-database : (HashTable Index Unsafe-SSH-Bytes->Message) (make-hasheq))
 (define ssh-message->bytes-database : (HashTable Symbol SSH-Message->Bytes) (make-hasheq))
 (define ssh-message-length-database : (HashTable Symbol (-> SSH-Message Natural)) (make-hasheq))
+(define ssh-message-name-database : (HashTable Index (U Symbol (Listof Symbol))) (make-hasheq))
 
 (define ssh-undefined-message : (-> Byte SSH-Message-Undefined)
   (lambda [id]

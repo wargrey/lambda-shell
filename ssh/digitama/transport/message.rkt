@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/string)
+
 (require digimon/format)
 
 (require "packet.rkt")
@@ -105,10 +107,17 @@
     (define-values (maybe-trans-msg _) (ssh-bytes->transport-message incoming-parcel ssh-packet-payload-index #:group group))
     
     (let* ([timespan (- (current-inexact-milliseconds) time0)]
-           [ms (~r timespan #:precision '(= 3))])
-      (cond [(not maybe-trans-msg) (ssh-log-message 'debug "received message ~a (~a, ~ams)" msg-id (~size traffic #:precision 3) ms)]
-            [else (ssh-log-message 'debug "received transport layer message ~a[~a] (~a, ~ams)" (ssh-message-name maybe-trans-msg) msg-id
-                                   (~size traffic #:precision 3) ms)]))
+           [ms (~r timespan #:precision '(= 3))]
+           [t (~size traffic #:precision 3)])
+      (if (and maybe-trans-msg)
+          (ssh-log-message 'debug "received message ~a[~a] (~a, ~ams)" (ssh-message-name maybe-trans-msg) msg-id t ms)
+          (let ([name (ssh-message-number->name msg-id)])
+            (cond [(symbol? name) (ssh-log-message 'debug "received message ~a[~a] (~a, ~ams)" name msg-id t ms)]
+                  [(or (not name) (null? name)) (ssh-log-message 'debug "received message ~a (~a, ~ams)" msg-id t ms)]
+                  [(null? (cdr name)) (ssh-log-message 'debug "received message ~a[~a] (~a, ~ams)" (car name) msg-id t ms)]
+                  [else (ssh-log-message 'debug "received message ~a, it's shared by ~a (~a, ~ams)" msg-id
+                                         (string-join (map symbol->string name) ", " #:before-last " and ")
+                                         t ms)]))))
     
     (unless (not maybe-trans-msg)
       (ssh-log-incoming-message maybe-trans-msg)
