@@ -9,7 +9,7 @@
 (require "../../digitama/algorithm/random.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-runtime-path aes.txt "aes.txt")
+(define-runtime-path aes.txt "plain.txt")
 
 (define fsize : Nonnegative-Integer (file-size aes.txt))
 (define textsize : Nonnegative-Integer (* (quotient fsize aes-blocksize) aes-blocksize))
