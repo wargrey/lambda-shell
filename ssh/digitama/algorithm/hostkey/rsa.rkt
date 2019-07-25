@@ -18,8 +18,9 @@
 ;; WARNING
 ; the keyname of public key is always the `ssh-rsa-keyname` since it will not be affected by hash algorithm
 ; the keyname of the signature is detected by the hash algorithm
+; OpenSSH sshd may refuse hash functions other than the default one
 (define ssh-rsa-keyname : Symbol 'ssh-rsa)
-(define ssh-ras-default-hash : PKCS#1-Hash pkcs#1-id-sha256)
+(define ssh-ras-default-hash : PKCS#1-Hash pkcs#1-id-sha1)
 
 (struct ssh-rsa-hostkey ssh-hostkey
   ([private-key : RSA-Private-Key])
