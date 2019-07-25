@@ -39,33 +39,34 @@
     (parameterize ([current-custodian (make-custodian)])
       (define-values (/dev/srcin /dev/srcout) (make-pipe))
       (define-values (/dev/destin /dev/destout) (make-pipe))
-      (define-values (&read-status &write-status) (values (box 1) (box 1)))
+      (define-values (&rstatus &wstatus) (values (box 1) (box 1)))
+      
       (define rthread : Thread
         (thread (λ [] (parameterize ([scp-exit-status 1])
                         (with-handlers ([exn:break? void]
-                                        [exn? (λ [[e : exn]] (fprintf (current-error-port) "~a~n" (exn-message e)))])
+                                        [exn? (λ [[e : exn]] (fprintf (current-error-port) "scp-reader: ~a~n" (exn-message e)))])
                           (cond [(not shost) (scp-local-read spath /dev/destin /dev/srcout rfc)]
                                 [else (scp-read suser shost sport spath rfc /dev/destin /dev/srcout)]))
-                        (set-box! &read-status (scp-exit-status))))))
+                        (set-box! &rstatus (scp-exit-status))))))
       
       (define wthread : Thread
         (thread (λ [] (parameterize ([scp-exit-status 1])
                         (with-handlers ([exn:break? void]
-                                        [exn? (λ [[e : exn]] (fprintf (current-error-port) "~a~n" (exn-message e)))])
+                                        [exn? (λ [[e : exn]] (fprintf (current-error-port) "rcp-writer: ~a~n" (exn-message e)))])
                           (cond [(not thost) (scp-local-write tpath /dev/srcin /dev/destout rfc)]
                                 [else (scp-write tuser thost tport tpath rfc /dev/srcin /dev/destout)]))
-                        (set-box! &write-status (scp-exit-status))))))
+                        (set-box! &wstatus (scp-exit-status))))))
 
       (let ([thds (list rthread wthread)])
         (with-handlers ([exn? void])
-          (let wait ()
-            (when (ormap thread-running? thds)
-              (apply sync/enable-break thds)
-              (wait))))
-      
+          (define who (apply sync/enable-break thds))
+          
+          (cond [(eq? who rthread) (when (zero? (unbox &rstatus)) (sync/enable-break wthread))]
+                [(eq? who wthread) (when (zero? (unbox &wstatus)) (sync/enable-break rthread))]))
+        
         (thread-safe-kill thds)
         (custodian-shutdown-all (current-custodian))
-        (exit (+ (unbox &read-status) (unbox &write-status)))))))
+        (exit (+ (unbox &rstatus) (unbox &wstatus)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-read : (-> Symbol String Index Path-String SSH-Configuration Input-Port Output-Port Void)
@@ -115,9 +116,9 @@
               (scp-exit-status (ssh-channel-program-wait chin))
               (ssh-channel-close chin)
               (ssh-channel-wait chin)
-              (ssh-session-close scp-reader "scp read"))))
+              (ssh-session-close scp-reader "scp read"))))))
         
-        (ssh-session-close scp-reader "something is wrong")))))
+    (ssh-session-close scp-reader "something is wrong")))
 
 (define scp-write : (-> Symbol String Index Path-String SSH-Configuration Input-Port Output-Port Void)
   (lambda [user host port path rfc /dev/srcin /dev/srcout]
@@ -156,9 +157,9 @@
 
               (scp-exit-status (ssh-channel-program-wait chout))
               (ssh-channel-wait chout)
-              (ssh-session-close scp-writer "scp written"))))
+              (ssh-session-close scp-writer "scp written"))))))
         
-        (ssh-session-close scp-writer "something is wrong")))))
+    (ssh-session-close scp-writer "something is wrong")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define scp-local-read : (-> Path-String Input-Port Output-Port SSH-Configuration Void)
