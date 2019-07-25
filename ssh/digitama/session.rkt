@@ -26,6 +26,10 @@
    [srvin : (SSH-Stdin Port)])
   #:type-name SSH-Session)
 
+(define ssh-eof-application : SSH-Application
+  (make-ssh-application #:name 'End-Of-Application #:session #"" #:range (cons 255 255) #:outgoing-log void
+                        #:transmit void #:deliver void))
+
 (define make-ssh-session : (->* (SSH-Port Symbol)
                                 (Symbol (SSH-Name-Listof* SSH-Application#) (SSH-Name-Listof* SSH-Authentication#))
                                 SSH-Session)
@@ -39,8 +43,7 @@
         (define maybe-application : SSH-Maybe-Application (ssh-user-identify sshd username service #:applications applications #:methods methods))
         
         (cond [(pair? maybe-application) (ssh-session-dispatch sshd /dev/appout /dev/srvout maybe-application applications)]
-              [else (ssh-stdout-propagate /dev/srvout (make-ssh-application #:name (gensym 'pseudo-app) #:session #"" #:range (cons 255 255) #:outgoing-log void
-                                                                            #:transmit void #:deliver void))])))
+              [else (ssh-stdout-propagate /dev/srvout ssh-eof-application)])))
   
     (ssh-session sshd (thread daemon) /dev/appin /dev/srvin)))
 
@@ -116,7 +119,9 @@
                     (request-wait-dispatch-loop))
         
                   (when (ssh:msg:disconnect? datum)
-                    (ssh-log-message 'debug (ssh:msg:disconnect-description datum))))]
+                    (ssh-log-message 'debug (ssh:msg:disconnect-description datum))
+                    (ssh-stdout-propagate /dev/srvout ssh-eof-application)
+                    (ssh-stdout-propagate /dev/appout datum)))]
 
                [pipe-stream
                 : (-> SSH-Application SSH-Service-Layer-Reply Void)

@@ -90,8 +90,9 @@
   (lambda [self n]
     (let wait ([seilper : (Listof Boolean) null])
       (cond [(= (length seilper) n) (reverse seilper)]
-            [else (wait (cons (sync/enable-break ((inst ssh-chin-evt Boolean) (ssh-application-channel-ackin self)))
-                              seilper))]))))
+            [else (let ([reply (sync/enable-break ((inst ssh-chin-evt (U Boolean EOF)) (ssh-application-channel-ackin self)))])
+                    (cond [(eof-object? reply) (reverse (cons #false seilper))]
+                          [else (wait (cons reply seilper))]))]))))
 
 (define ssh-channel-write-request : (-> SSH-Application-Channel SSH-MSG-CHANNEL-REQUEST Void)
   (lambda [self request]

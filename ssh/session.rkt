@@ -19,9 +19,9 @@
     (make-ssh-session sshd username service applications methods)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ssh-session-datum-evt : (All (a) (-> SSH-Session (Evtof a)))
+(define ssh-session-datum-evt : (-> SSH-Session (Evtof Any))
   (lambda [self]
-    ((inst ssh-stdin-evt a) (ssh-session-appin self))))
+    ((inst ssh-stdin-evt Any) (ssh-session-appin self))))
 
 (define ssh-session-read : (-> SSH-Session Any)
   (lambda [self]
@@ -42,6 +42,11 @@
 (define ssh-session-service-ready-evt : (-> SSH-Session (Evtof SSH-Application))
   (lambda [self]
     ((inst ssh-stdin-evt SSH-Application) (ssh-session-srvin self))))
+
+(define ssh-session-dead-evt : (-> SSH-Session (Evtof SSH-Session))
+  (lambda [self]
+    (wrap-evt (ssh-session-ghostcat self)
+              (λ [[t : Thread]] self))))
 
 (define ssh-session-debug : (->* (SSH-Session Any) (Boolean) Void)
   (lambda [self payload [display? #false]]

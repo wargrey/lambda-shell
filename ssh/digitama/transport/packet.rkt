@@ -141,7 +141,7 @@
 (define ssh-check-outgoing-payload-size : (-> Natural Index Byte Boolean)
   (lambda [payload-length payload-capacity fault-tolerance]
     (or (<= payload-length (+ payload-capacity fault-tolerance))
-        (not (ssh-log-message 'warning "packet may overload based on local preference(~a > ~a + ~a), nonetheless, the peer may hold a much larger capacity"
+        (not (ssh-log-message 'warning "packet is overloaded based on local preference(~a > ~a + ~a), nonetheless, the peer may hold a much larger capacity"
                               (~size payload-length #:precision 3) (~size payload-capacity) fault-tolerance)))))
 
 (define ssh-incoming-payload-size : (-> Index Byte Index Byte Procedure Index)

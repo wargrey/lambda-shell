@@ -140,14 +140,14 @@
             (define parcel (make-bytes ($ssh-channel-packet-capacity rfc)))
 
             (ssh-channel-request-exec chout "scp -t ~a" path)
-            
+
             (when (andmap (λ [v] (eq? v #true)) (ssh-channel-wait-replies chout 1))
               (define-values (/dev/scpin /dev/scpout) (ssh-channel-stdio-port chout))
               (define srcfile : SCP-File (scp-file 0 0 0 0 path))
               
               (let scp-send ([round : Byte 0])
                 (define scpin (sync/enable-break /dev/scpin (ssh-channel-extended-data-evt chout)))
-                
+
                 (cond [(input-port? scpin)
                        (define ack : (U Byte Void) (scp-port-write parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round srcfile))
                        (when (byte? ack) (scp-send ack))]
@@ -256,7 +256,8 @@
 (define scp-port-write : (-> Bytes Input-Port Output-Port Input-Port (Option Output-Port) Byte SCP-File (U Byte Void))
   (lambda [parcel /dev/scpin /dev/scpout /dev/srcin /dev/srcout round srcfile]
     (define size (read-bytes-avail! parcel /dev/scpin))
-    
+
+    (displayln size)
     (when (index? size)
       (let ([ack? (and (= size 1) (eq? (bytes-ref parcel 0) 0))])
         

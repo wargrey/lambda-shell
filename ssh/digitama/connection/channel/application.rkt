@@ -46,7 +46,7 @@
    [msgin : Log-Receiver]
    ; reading acknowledgements of local requests
    [ackin : Log-Receiver]
-   ; reading acknowledgements of local requests
+   ; reading remote program's exit status
    [retin : Log-Receiver])
   #:type-name SSH-Application-Channel
   #:mutable)
@@ -72,7 +72,10 @@
 (define ssh-application-channel-destruct : SSH-Channel-Destructor
   (lambda [self]
     (with-asserts ([self ssh-application-channel?])
+      (ssh-chout-propagate (ssh-application-channel-sshout self) 130 #:topic 'exit:status)
+      (ssh-chout-propagate (ssh-application-channel-sshout self) eof #:topic 'request:reply)
       (semaphore-post (ssh-application-channel-done self))
+      (close-output-port (ssh-application-channel-usrout self))
       (ssh-channel-shutdown-custodian self))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
