@@ -2,15 +2,9 @@
 
 @(require digimon/tamer)
 
-@(define-bib SSH-USERAUTH
-   #:title  "The Secure Shell Authentication Protocol"
-   #:author (org-author-name "RFC4252")
-   #:date   2006
-   #:url    "https://tools.ietf.org/html/rfc4252")
-
 @handbook-story{The Secure Shell Authentication Protocol}
 
-This section demonstrates the implementation of @~cite[SSH-USERAUTH].
+This section demonstrates the implementation of @cite{SSH-USERAUTH}.
 
 @;tamer-smart-summary[]
 

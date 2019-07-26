@@ -14,7 +14,7 @@
     (aes-mix-columns! state 2 #:encrypt)
     (aes-mix-columns! state 3 #:encrypt)))
 
-(define aes-state-add-round-key! : (-> (State-Array 4 4) (Vector Nonnegative-Fixnum) Byte Void)
+(define aes-state-add-round-key! : (-> (State-Array 4 4) (Vectorof Nonnegative-Fixnum) Byte Void)
   (lambda [state schedule start]
     (aes-state-array-add-round-key! state schedule start)
     (void)))

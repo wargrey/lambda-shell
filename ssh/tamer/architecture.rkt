@@ -2,23 +2,15 @@
 
 @(require digimon/tamer)
 
-@(define-bib SSH-ARCH
-   #:title  "The Secure Shell Protocol Architecture"
-   #:author (org-author-name "RFC4251")
-   #:date   2006
-   #:url    "https://tools.ietf.org/html/rfc4251")
-
 @(define-bib OpenSSL
    #:title  "OpenSSL: Cryptography and SSL/TLS Toolkit"
    #:author (org-author-name "OpenSSL Software Foundation")
    #:date   2019
    #:url    "https://www.openssl.org")
 
-@(define-bib HMAC-SHA
-   #:title  "Identifiers and Test Vectors for HMAC-SHA-224, HMAC-SHA-256, HMAC-SHA-384, and HMAC-SHA-512"
-   #:author (org-author-name "RFC4231")
-   #:date   2005
-   #:url    "https://tools.ietf.org/html/rfc4231")
+@(define-rfc-bib HMAC-SHA 4231 "Identifiers and Test Vectors for HMAC-SHA-224, HMAC-SHA-256, HMAC-SHA-384, and HMAC-SHA-512"
+   #:author "M. Nystrom"
+   #:date   2005)
 
 @(define-bib AES
    #:title  "Advanced Encryption Standard (AES) (FIPS PUB 197)"
@@ -34,7 +26,7 @@
 
 @handbook-story{The Secure Shell Protocol Architecture}
 
-This section demonstrates the implementation of @~cite[SSH-ARCH].
+This section demonstrates the implementation of @cite{SSH-ARCH}.
 
 @;tamer-smart-summary[]
 
