@@ -1,15 +1,21 @@
 #lang scribble/manual
 
-@(require digimon/tamer)
+@(require "tamer.rkt")
 
 @handbook-title/pkg-desc[]
 
 The secure shell (@deftech{SSH}) Protocol is a protocol for secure remote login and other secure network services over an insecure network.
 
-This document describes an eventually full-featured @tech{SSH} implementation that wrote in @bold{Typed Racket} with minimal @bold{C} extensions.
+This document describes a full-featured client and server libraries named @deftech[the-name] implementing the @tech{SSH} protocol
+that wrote in @bold{Typed Racket} along with minimal @bold{C} extensions.
 
+@the-name does not reply on @cite{OpenSSH} and @cite{OpenSSL}, nor plan to stick with them.
+They are referenced here for parts of their sources and interoperability tests.
 
-@;tamer-smart-summary[]
+@bold{Warning:} Meanwhile, @the-name is far away from @italic{full-featured} and may not work accurately.
+Everything therefore is subject to change.
+
+@tamer-smart-summary[]
 
 @handbook-smart-table[]
 
@@ -21,4 +27,16 @@ This document describes an eventually full-featured @tech{SSH} implementation th
  (rfc-bib-entry 4251 "The Secure Shell (SSH) Protocol Architecture"     #:author "T. Ylonen"   #:date 2006 #:key 'SSH-ARCH)
  (rfc-bib-entry 4252 "The Secure Shell (SSH) Authentication Protocol"   #:author "T. Ylonen"   #:date 2006 #:key 'SSH-USERAUTH)
  (rfc-bib-entry 4253 "The Secure Shell (SSH) Transport Layer Protocol"  #:author "T. Ylonen"   #:date 2006 #:key 'SSH-TRANS)
- (rfc-bib-entry 4254 "The Secure Shell (SSH) Connection Protocol"       #:author "T. Ylonen"   #:date 2006 #:key 'SSH-CONNECT)]
+ (rfc-bib-entry 4254 "The Secure Shell (SSH) Connection Protocol"       #:author "T. Ylonen"   #:date 2006 #:key 'SSH-CONNECT)
+
+ (bib-entry #:key    "OpenSSH"
+            #:title  "OpenSSH: Keeping Your Communication Secret"
+            #:author (org-author-name "OpenBSD Foundation")
+            #:date   "2018"
+            #:url    "https://www.openssh.com")
+ 
+ (bib-entry #:key    "OpenSSL"
+            #:title  "OpenSSH: Cryptography and SSL/TLS Toolkit"
+            #:author (org-author-name "OpenSSL Software Foundation")
+            #:date   "2019"
+            #:url    "https://www.openssl.org")]

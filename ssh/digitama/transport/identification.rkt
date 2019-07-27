@@ -4,8 +4,8 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
 (require racket/string)
+(require racket/path)
 
 (require syntax/location)
 
@@ -13,7 +13,6 @@
 
 (require "prompt.rkt")
 
-(require "../message/transport.rkt")
 (require "../message/disconnection.rkt")
 
 (require "../../configuration.rkt")
@@ -70,24 +69,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-software-version : (-> String)
   (lambda []
-    (define info-ref (collection-ref (quote-source-file)))
-    (cond [(not info-ref) (default-comments)]
-          [else (format "~a_~a"
-                  (info-ref 'software-version)
-                  (info-ref 'version))])))
+    (define-values (name version) (software-version))
+    
+    (format "~a_~a" name version)))
 
 (define default-comments : (-> String)
   (lambda []
     (string-append "Racket-v" (version))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define collection-ref : (->* () (Path-String) (Option Info-Ref))
-  (lambda [[dir (current-directory)]]
-    (define info-ref (get-info/full dir))
-    (or info-ref
-        (let-values ([(base name dir?) (split-path (simple-form-path dir))])
-          (and (path? base) (collection-ref base))))))
-
 (define maybe-substring : (-> String Positive-Index Positive-Index (Option String))
   (lambda [src idx end]
     (and (> end idx)
@@ -154,3 +144,22 @@
             [(and rfc (not (= maybe-protoversion ($ssh-protoversion rfc))))
              (ssh-collapse (make-ssh:disconnect:protocol:version:not:supported #:source src "incompatible protoversion: ~a(~s)" maybe-protoversion idstr))]
             [else (ssh-identification maybe-protoversion maybe-softwareversion (or maybe-comments "") idstr)]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define software-version : (-> (Values String String))
+  (lambda []
+    (define info-ref (collection-ref (quote-source-file)))
+
+    (define-values (#{name : Any} #{v : Any})
+      (cond [(not info-ref) (values 'Racket (version))]
+            [else (values (info-ref 'software-version)
+                          (info-ref 'version))]))
+
+    (values (format "~a" name) (format "~a" v))))
+
+(define collection-ref : (->* () (Path-String) (Option Info-Ref))
+  (lambda [[dir (current-directory)]]
+    (define info-ref (get-info/full dir))
+    (or info-ref
+        (let-values ([(base name dir?) (split-path (simple-form-path dir))])
+          (and (path? base) (collection-ref base))))))
