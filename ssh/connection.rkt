@@ -60,7 +60,7 @@
 
 (define ssh-channel-write-extended-data : (->* (SSH-Application-Channel String) (#:type Symbol) #:rest Any Void)
   (lambda [self #:type [type 'SSH-EXTENDED-DATA-STDERR] extfmt . argl]
-    (define payload : String (if (null? argl) extfmt (apply format extfmt argl)))
+    (define payload : String (apply format extfmt argl))
 
     (ssh-chout-propagate (ssh-application-channel-sshout self)
                          (make-ssh:msg:channel:extended:data #:recipient (ssh-channel-remote-id self) #:type type

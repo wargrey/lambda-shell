@@ -7,7 +7,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-log-message : (->* (Log-Level String) (#:data Any #:with-peer-name? Boolean) #:rest Any Void)
   (lambda [level msgfmt #:data [data #false] #:with-peer-name? [peername? #true] . argl]
-    (define message-raw : String (if (null? argl) msgfmt (apply format msgfmt argl)))
+    (define message-raw : String (apply format msgfmt argl))
     
     (log-message (current-logger)
                  level

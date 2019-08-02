@@ -20,7 +20,7 @@
                     [make+id (format-id #'REASON "make+~a" (syntax-e (ssh-typeid #'REASON)))])
        #'(define make-id : (->* (Index) ((Option String) #:language (Option Symbol) #:source (Option Procedure)) #:rest Any SSH-MSG-CHANNEL-OPEN-FAILURE)
            (lambda [recipient #:language [lang #false] #:source [src #false] [descfmt #false] . argl]
-             (let* ([desc (and descfmt (if (null? argl) descfmt (apply format descfmt argl)))]
+             (let* ([desc (and descfmt (apply format descfmt argl))]
                     [desc (and desc (if (and src) (format "~a: ~a" (object-name src) desc) desc))])
                (make-ssh:msg:channel:open:failure #:recipient recipient #:reason 'REASON #:description desc #:language lang)))))]))
 

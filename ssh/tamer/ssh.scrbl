@@ -6,8 +6,8 @@
 
 The secure shell (@deftech{SSH}) Protocol is a protocol for secure remote login and other secure network services over an insecure network.
 
-This document describes a full-featured client and server libraries named @deftech[the-name] implementing the @tech{SSH} protocol
-that wrote in @bold{Typed Racket} along with minimal @bold{C} extensions.
+This document describes a full-featured client-side and server-side library named @deftech[the-name]
+implementing the @tech{SSH} protocol that wrote in @bold{Typed Racket} along with minimal @bold{C} extensions.
 
 @the-name does not reply on @cite{OpenSSH} and @cite{OpenSSL}, nor plan to stick with them.
 They are referenced here for parts of their sources and interoperability tests.
