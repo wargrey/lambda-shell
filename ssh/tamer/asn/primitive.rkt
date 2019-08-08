@@ -84,10 +84,7 @@ The first testcase is defined in @~cite[MS-DER].
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer |<asn.1-der:primitive:*>|)]
-
-@chunk[|<asn.1-der:primitive:*>|
-       (module+ story
+       (module+ tamer
          <primitive>)]
 
 @chunk[<primitive>

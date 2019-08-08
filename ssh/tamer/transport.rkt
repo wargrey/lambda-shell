@@ -6,7 +6,7 @@
 
 This section demonstrates the implementation of @cite{SSH-TRANS}.
 
-@;tamer-smart-summary[]
+@tamer-smart-summary[]
 
 @handbook-scenario{Identification String}
 
@@ -41,15 +41,10 @@ This section demonstrates the implementation of @cite{SSH-TRANS}.
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer |<transport:*>|)]
+       (module tamer typed/racket
+         |<transport:*>|)]
 
 @chunk[|<transport:*>|
-       (module story typed/racket/base
-         (require (submod digimon/tamer typed))
-         
-         <identification>)]
-
-@chunk[<identification>
        (require "message.rkt")
        
        (require "../transport.rkt") ; import builtin algorithms
@@ -58,7 +53,10 @@ This section demonstrates the implementation of @cite{SSH-TRANS}.
        (require "../digitama/message/transport.rkt")
        (require "../digitama/transport/identification.rkt")
        (require "../digitama/transport/prompt.rkt")
-       
+         
+       <identification>]
+
+@chunk[<identification>
        (define rfc : SSH-Configuration (make-ssh-configuration))
        (define default-identification : String (ssh-identification-string rfc))
 

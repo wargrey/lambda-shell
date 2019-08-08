@@ -22,8 +22,8 @@
   (lambda [sshd serve]
     (define (ssh-port-accept) : Void
       (define sshc : (U SSH-Port Void)
-        (with-handlers ([exn:fail? (λ [[e : exn]] (displayln (exn-message e) (current-error-port)))]
-                        [exn:break? void])
+        (with-handlers ([exn:break? void]
+                        [exn? (λ [[e : exn]] (displayln (exn-message e) (current-error-port)))])
           (ssh-accept sshd)))
 
       (when (ssh-port? sshc)

@@ -116,10 +116,7 @@ These test cases are defined in @~cite[HMAC-SHA].
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer |<architecture:*>|)]
-
-@chunk[|<architecture:*>|
-       (module+ story
+       (module+ tamer
          <datatype>)]
 
 @chunk[<datatype>

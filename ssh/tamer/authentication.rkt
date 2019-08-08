@@ -36,10 +36,7 @@ The format of @deftech{authorized_keys} is defined in @exec{man sshd}.
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer |<authentication:*>|)]
-
-@chunk[|<authentication:*>|
-       (module+ story
+       (module+ tamer
          <request>)]
 
 @chunk[<request>

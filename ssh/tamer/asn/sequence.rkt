@@ -73,12 +73,7 @@ The next example is defined int @~cite[RFC-PKCS#1].
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer |<asn.1-der:sequence:*>|)]
-
-@chunk[|<asn.1-der:sequence:*>|
-       (module story typed/racket/base
-         (require (submod digimon/tamer typed))
-         
+       (module tamer typed/racket
          <sequence>)]
 
 @chunk[<sequence>
