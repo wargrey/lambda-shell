@@ -8,10 +8,10 @@
 (require "cmdenv.rkt")
 (require "../cmdenv.rkt")
 
-(define rsa-keygen-main : (-> Any)
-  (lambda []
+(define rsa-keygen-main : (-> Boolean Any)
+  (lambda [check-only?]
     (define maybe-keyfile : (Option Path-String) (ssh-keyfile))
-    (cond [(sshkey-rsa-check-private)
+    (cond [(and check-only?)
            (unless (not maybe-keyfile)
              (define pem : (Option RSA-Private-Key) (read-rsa maybe-keyfile))
              (define okay? : Boolean (and pem (rsa-key-okay? pem)))

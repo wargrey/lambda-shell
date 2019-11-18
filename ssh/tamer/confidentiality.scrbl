@@ -4,4 +4,4 @@
 
 @table-of-contents[]
 
-@include-section[(submod "enc/aes.rkt" doc)]
+@include-section[(submod "confidentiality/aes.rkt" doc)]

@@ -8,8 +8,8 @@
 
 (require digimon/number)
 
-(require "state.rkt")
-(require "s-box.rkt")
+(require "aes/state.rkt")
+(require "aes/s-box.rkt")
 (require "math.rkt")
 
 (require (for-syntax racket/base))

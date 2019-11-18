@@ -80,7 +80,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
 
        (require "inc/aes.rkt")
        
-       (require "../../digitama/algorithm/crypto/s-box.rkt")
+       (require "../../digitama/algorithm/crypto/aes/s-box.rkt")
        (require "../../digitama/algorithm/crypto/pretty.rkt")
 
        (define openssl-rsa.pem (digimon-path "tamer" "stone" "openssl_rsa.pem"))

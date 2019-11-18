@@ -4,7 +4,7 @@
 (provide (all-from-out "../../../digitama/algorithm/crypto/aes.rkt"))
 
 (require "../../../digitama/algorithm/crypto/aes.rkt")
-(require "../../../digitama/algorithm/crypto/state.rkt")
+(require "../../../digitama/algorithm/crypto/aes/state.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-mixcolumns! : (-> (State-Array 4 4) Void)

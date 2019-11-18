@@ -5,7 +5,7 @@
 
 (require digimon/format)
 
-(require "../enc/inc/aes.rkt")
+(require "../confidentiality/inc/aes.rkt")
 (require "../../digitama/algorithm/random.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
