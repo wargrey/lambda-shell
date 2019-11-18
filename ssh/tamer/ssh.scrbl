@@ -20,6 +20,7 @@ Everything therefore is subject to change.
 @handbook-smart-table[]
 
 @include-section{walkthrough.scrbl}
+@include-section{encryption.scrbl}
 @include-section{asnder.scrbl}
 
 @handbook-appendix[#:index? #true
