@@ -4,19 +4,19 @@
 
 (require digimon/format)
 
-(require "../confidentiality/inc/aes.rkt")
+(require "../../digitama/algorithm/crypto/blowfish.rkt")
 (require "../../digitama/algorithm/random.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-runtime-path aes.txt "plain.txt")
+(define-runtime-path blowfish.txt "plain.txt")
 
-(define fsize : Nonnegative-Integer (file-size aes.txt))
-(define textsize : Nonnegative-Integer (* (quotient fsize aes-blocksize) aes-blocksize))
+(define fsize : Nonnegative-Integer (file-size blowfish.txt))
+(define textsize : Nonnegative-Integer (* (quotient fsize blowfish-blocksize) blowfish-blocksize))
 (define textpool : Bytes (make-bytes textsize))
 
-(call-with-input-file* aes.txt
-  (λ [[/dev/aesin : Input-Port]]
-    (void (read-bytes! textpool /dev/aesin 0 textsize))))
+(call-with-input-file* blowfish.txt
+  (λ [[/dev/bfin : Input-Port]]
+    (void (read-bytes! textpool /dev/bfin 0 textsize))))
 
 (define display-info : (-> Flonum Void)
   (lambda [time0]
@@ -26,9 +26,9 @@
               (~r (~MB/s textsize timespan) #:precision '(= 3))))))
 
 (define plaintext : Bytes (bytes-copy textpool))
-(define IV : Bytes (ssh-cookie aes-blocksize))
-(define key : Bytes (ssh-cookie aes-blocksize))
-(define-values (encrypt! decrypt!) (aes-cipher-ctr! IV key))
+(define IV : Bytes (ssh-cookie blowfish-blocksize))
+(define key : Bytes (ssh-cookie blowfish-blocksize))
+(define-values (encrypt! decrypt!) (blowfish-cipher-cbc! IV key))
 
 (collect-garbage)
 (collect-garbage)

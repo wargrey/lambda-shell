@@ -3,21 +3,23 @@
 ;;; https://tools.ietf.org/html/rfc4253
 
 (require "../assignment.rkt")
+
 (require "../algorithm/crypto/aes.rkt")
+(require "../algorithm/crypto/blowfish.rkt")
 
 ; datum definition: #(make-encrypt/decrypt-with-IV-key block-size-in-bytes key-size-in-bytes)
 
 (define-ssh-names #:cipher
   (; http://tools.ietf.org/html/rfc4253#section-6.3
    [3des-cbc                       REQUIRED        three-key 3DES in CBC mode]
-   [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode with 128-bit keys]
+   [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode with 128-bit keys        #:=> [blowfish-cipher-cbc! blowfish-blocksize 16]]
    [twofish256-cbc                 OPTIONAL        Twofish in CBC mode with a 256-bit key]
    [twofish-cbc                    OPTIONAL        alias for twofish256-cbc]
    [twofish192-cbc                 OPTIONAL        Twofish with a 192-bit key]
    [twofish128-cbc                 OPTIONAL        Twofish with a 128-bit key]
-   [aes256-ctr                     OPTIONAL        AES in CTR mode with a 256-bit key            #:=> [aes-cipher-ctr! 16 32]]
-   [aes192-ctr                     OPTIONAL        AES with a 192-bit key                        #:=> [aes-cipher-ctr! 16 24]]
-   [aes128-ctr                     RECOMMENDED     AES with a 128-bit key                        #:=> [aes-cipher-ctr! 16 16]]
+   [aes256-ctr                     OPTIONAL        AES in CTR mode with a 256-bit key            #:=> [aes-cipher-ctr! aes-blocksize 32]]
+   [aes192-ctr                     OPTIONAL        AES with a 192-bit key                        #:=> [aes-cipher-ctr! aes-blocksize 24]]
+   [aes128-ctr                     RECOMMENDED     AES with a 128-bit key                        #:=> [aes-cipher-ctr! aes-blocksize 16]]
    [serpent256-cbc                 OPTIONAL        Serpent in CBC mode with a 256-bit key]
    [serpent192-cbc                 OPTIONAL        Serpent with a 192-bit key]
    [serpent128-cbc                 OPTIONAL        Serpent with a 128-bit key]
