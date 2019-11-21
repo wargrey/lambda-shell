@@ -10,7 +10,7 @@
 (define-ssh-names #:cipher
   (; http://tools.ietf.org/html/rfc4253#section-6.3
    [3des-cbc                       REQUIRED        three-key 3DES in CBC mode]
-   [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode]
+   [blowfish-cbc                   OPTIONAL        Blowfish in CBC mode with 128-bit keys]
    [twofish256-cbc                 OPTIONAL        Twofish in CBC mode with a 256-bit key]
    [twofish-cbc                    OPTIONAL        alias for twofish256-cbc]
    [twofish192-cbc                 OPTIONAL        Twofish with a 192-bit key]

@@ -5,3 +5,4 @@
 @table-of-contents[]
 
 @include-section[(submod "confidentiality/aes.rkt" doc)]
+@include-section[(submod "confidentiality/blowfish.rkt" doc)]

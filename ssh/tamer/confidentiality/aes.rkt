@@ -20,14 +20,14 @@ This section demonstrates the implementation of @~cite[AES].
 
 @;tamer-smart-summary[]
 
-@handbook-scenario{Key Expansion Examples}
+@handbook-scenario[#:tag "aes-key-expansion"]{Key Expansion Examples}
 
 @tamer-action[
  (define key-schedule128 (aes-key-schedule aes-key128 4 '0xb6630ca6))
  (define key-schedule192 (aes-key-schedule aes-key192 6 '0x01002202))
  (define key-schedule256 (aes-key-schedule aes-key256 8 '0x706c631e))]
 
-@handbook-scenario{Cipher Example}
+@handbook-scenario[#:tag "aes-cipher"]{Cipher Example}
 
 @tamer-action[
  (define state (make-aes-state-array))
@@ -46,14 +46,14 @@ This section demonstrates the implementation of @~cite[AES].
  (aes-round-done state key-schedule128 10)
  (aes-core-cipher! aes-plaintext aes-key128 aes-ciphertext)]
 
-@handbook-scenario{Example Vectors}
+@handbook-scenario[#:tag "aes-vectors"]{Example Vectors}
 
 @tamer-action[
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f aes-ciphertext128)
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f1011121314151617 aes-ciphertext192)
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f aes-ciphertext256)]
 
-@handbook-scenario{Real world example in CTR mode}
+@handbook-scenario[#:tag "aes-ctr"]{Real world example in CTR mode}
 
 The next testcase is dumped from the debug information of @~cite[libssh2].
 
@@ -73,17 +73,17 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
        (tamer-taming-start!)
 
        (module+ tamer
-         <datatype>)]
+         <aes>)]
 
-@chunk[<datatype>
+@chunk[<aes>
        (require (prefix-in pict: pict))
 
        (require "inc/aes.rkt")
+       (require "inc/misc.rkt")
        
        (require "../../digitama/algorithm/crypto/aes/s-box.rkt")
-       (require "../../digitama/algorithm/crypto/pretty.rkt")
+       (require "../../digitama/algorithm/crypto/aes/pretty.rkt")
 
-       (define openssl-rsa.pem (digimon-path "tamer" "stone" "openssl_rsa.pem"))
        (define sbox-gapsize 8)
 
        (define aes-key128 '0x2b7e151628aed2a6abf7158809cf4f3c)
@@ -96,12 +96,6 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
        (define aes-ciphertext128 '0x69c4e0d86a7b0430d8cdb78070b4c55a)
        (define aes-ciphertext192 '0xdda97ca4864cdfe06eaf70a0ec0d7191)
        (define aes-ciphertext256 '0x8ea2b7ca516745bfeafc49904b496089)
-
-       (define symb0x->octets
-         (lambda [i]
-           (apply bytes
-                  (for/list ([pair (in-list (regexp-match* #px".." (substring (symbol->string i) 2)))])
-                    (string->number pair 16)))))
        
        (define state-array-pict
          (let ([/dev/stdout (open-output-string '/dev/stdout)])

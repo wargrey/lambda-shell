@@ -10,7 +10,8 @@
 
 (require "aes/state.rkt")
 (require "aes/s-box.rkt")
-(require "math.rkt")
+(require "aes/math.rkt")
+(require "utility.rkt")
 
 (require (for-syntax racket/base))
 
@@ -120,7 +121,7 @@
 (define aes-encrypt : (->* (Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index) (Natural Natural) Bytes)
   (lambda [plaintext schedule state Nr-lidx [pstart 0] [pend0 0]]
     (define pend : Index (bytes-range-end plaintext pstart pend0))
-    (define ciphertext : Bytes (make-bytes (aes-ciphertext-size (- pend pstart))))
+    (define ciphertext : Bytes (make-bytes (ciphertext-size (- pend pstart) aes-blocksize)))
 
     (aes-encrypt! plaintext schedule state Nr-lidx pstart pend ciphertext)
     ciphertext))
@@ -172,7 +173,7 @@
 (define aes-crypt-ctr : (->* (Bytes Bytes (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index) (Natural Natural Bytes) Bytes)
   (lambda [text counter schedule state Nr-lidx [tstart 0] [tend0 0] [aes-k-iv (make-bytes aes-blocksize)]]
     (define tend : Index (bytes-range-end text tstart tend0))
-    (define result : Bytes (make-bytes (aes-ciphertext-size (- tend tstart))))
+    (define result : Bytes (make-bytes (ciphertext-size (- tend tstart) aes-blocksize)))
 
     (aes-crypt-ctr! text counter schedule state Nr-lidx tstart tend result 0 0 aes-k-iv)
     result))
@@ -234,7 +235,7 @@
     (aes-state-array-copy-to-bytes! state cipherblock cstart)))
 
 (define aes-block-decrypt : (-> Bytes Index Index Bytes Nonnegative-Fixnum (Vectorof Nonnegative-Fixnum) (State-Array 4 4) Index Void)
-  (lambda [cipherblock cstart cend plaintext pstart schedule state Nr-lidx]
+  (lambda [cipherblock cstart cend plainblock pstart schedule state Nr-lidx]
     (aes-state-array-copy-from-bytes! state cipherblock cstart cend)
     (aes-state-array-add-round-key! state schedule Nr-lidx)
 
@@ -257,7 +258,7 @@
     (aes-right-shift-rows! state)
     (aes-state-array-add-round-key! state schedule 0)
     
-    (aes-state-array-copy-to-bytes! state plaintext pstart)))
+    (aes-state-array-copy-to-bytes! state plainblock pstart)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define aes-key-expand : (-> Bytes (Vectorof Nonnegative-Fixnum))
@@ -399,11 +400,3 @@
                           [else (2rci-1 (+ it 1)
                                         (unsafe-fxxor (unsafe-fxlshift rc 1)
                                                       (if (< rc #x80) #x00 #x11B)))]))]))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define aes-ciphertext-size : (-> Integer Natural)
-  (lambda [plaintext-size]
-    (define-values (q r) (quotient/remainder (max plaintext-size 0) aes-blocksize))
-
-    (unsafe-fx+ (unsafe-fx* q aes-blocksize)
-                (if (= r 0) 0 aes-blocksize))))

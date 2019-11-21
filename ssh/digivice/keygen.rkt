@@ -2,8 +2,6 @@
 
 (require digimon/cmdopt)
 
-(require ssh/digitama/algorithm/rsa)
-
 (require racket/logging)
 
 (require "keygen/cmdenv.rkt")
