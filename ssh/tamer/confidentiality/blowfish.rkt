@@ -14,6 +14,11 @@
    #:date   2005
    #:url    "https://www.schneier.com/academic/blowfish/")
 
+@(define-bib S63DPS
+   #:title  "S63 Data Protection Scheme"
+   #:author (org-author-name "INTERNATIONAL HYDROGRAPHIC ORGANISATION")
+   #:date   2012)
+
 @handbook-story{The Blowfish Encryption Algorithm}
 
 This section demonstrates the implementation of @~cite[BF] and @~cite[TBEA].
@@ -34,6 +39,21 @@ This section demonstrates the implementation of @~cite[BF] and @~cite[TBEA].
 
 @tamer-action[
  (bf-cipher-cbc cbc-data cbc-iv cbc-key cbc-ok)]
+
+@handbook-scenario[#:tag "bf-enc"]{ENC Cell Permit Examples}
+
+Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors that provided in @~cite[S63DPS].
+
+@tamer-action[
+ (define HW-ID (string->bytes/utf-8 (string #\1 #\2 #\3 #\4 #\8)))
+ (define HW-ID6 (bytes-append HW-ID (bytes (bytes-ref HW-ID 0))))
+ (define cell-key1 (bytes #xC1 #xCB #x51 #x8E #x9C))
+ (define cell-key2 (bytes #x42 #x15 #x71 #xCC #x66))
+ (define-values (encrypt decrypt) (blowfish-cipher HW-ID6))
+ (define eck1 (encrypt (bytes-append cell-key1 (bytes 03 03 03))))
+ (define eck2 (encrypt (bytes-append cell-key2 (bytes 03 03 03))))
+ (string-upcase (bytes->hex-string eck1))
+ (string-upcase (bytes->hex-string eck2))]
 
 @handbook-reference[]
 
