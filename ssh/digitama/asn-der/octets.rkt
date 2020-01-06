@@ -7,6 +7,7 @@
 
 (require digimon/number)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (ASN-Octets->Datum t) (-> Bytes Natural Natural t))
 (define-type ASN-Relative-Object-Identifier (Listof Index))
 (define-type ASN-Object-Identifier (List* Byte Byte ASN-Relative-Object-Identifier))
@@ -14,7 +15,7 @@
 
 (define asn-boolean->octets : (-> Any Bytes)
   (lambda [bool]
-    (if bool (bytes #xFF) (bytes 0))))
+    (if bool #"\xFF" #"\x00")))
 
 (define asn-octets->boolean : (ASN-Octets->Datum Boolean)
   (lambda [bbool start end]
@@ -25,7 +26,7 @@
     (define os : Bytes (integer->network-bytes mpint))
     
     (cond [(or (<= mpint 0) (not (bitwise-bit-set? (bytes-ref os 0) 7))) os]
-          [else (bytes-append (bytes #b00000000) os)])))
+          [else (bytes-append #"\x00" os)])))
 
 (define asn-null->octets : (-> Any Bytes)
   (lambda [nil]
@@ -159,3 +160,5 @@
       (define oid++ : Natural (bitwise-ior (arithmetic-shift oid 7) (bitwise-and sub #b01111111)))
       (cond [(< sub #b10000000) (values (assert oid++ index?) (assert (- idx start -1) index?))]
             [else (octets->subid (+ idx 1) oid++)]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

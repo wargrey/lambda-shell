@@ -113,6 +113,7 @@ The first testcase is defined in @~cite[MS-DER].
            (define os (asn-primitive->bytes datum identifier))
            (define-values (restored _) (asn-bytes->primitive os))
            
-           (values restored
-                   (bytes->bin-string os #:separator " ")
-                   (bytes->hex-string os #:separator " "))))]
+           (if (equal? datum restored)
+               (values (bytes->bin-string os #:separator " ")
+                       (bytes->hex-string os #:separator " "))
+               (eprintf "~a~n" (bytes->hex-string os #:separator " ")))))]

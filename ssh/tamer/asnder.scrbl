@@ -6,3 +6,4 @@
 
 @include-section[(submod "asn/primitive.rkt" doc)]
 @include-section[(submod "asn/sequence.rkt" doc)]
+@include-section[(submod "asn/real.rkt" doc)]

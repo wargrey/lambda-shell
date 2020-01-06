@@ -5,9 +5,11 @@
 
 (provide (all-defined-out))
 (provide ASN-Bitset ASN-Object-Identifier ASN-Relative-Object-Identifier)
+(provide default-asn-real-base)
 
 (require "base.rkt")
 (require "octets.rkt")
+(require "real.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -77,6 +79,7 @@
   
   [null             #:as Void                           #x05 [void?                           asn-null->octets void]]
   [oid              #:as ASN-Object-Identifier          #x06 [asn-object-identifier?          asn-oid->octets asn-octets->oid]]
+  [real             #:as Flonum                         #x09 [double-flonum?                  asn-real->octets asn-octets->real]]
   [relative-oid     #:as ASN-Relative-Object-Identifier #x0D [asn-relative-object-identifier? asn-relative-oid->octets asn-octets->relative-oid]]
 
   [string/utf8      #:as String                         #x0C [string?                         string->bytes/utf-8 asn-octets->string/utf8]]
