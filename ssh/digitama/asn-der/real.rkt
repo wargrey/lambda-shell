@@ -11,23 +11,19 @@
 
 (require "octets.rkt")
 
-(require/typed
- racket/base
- [log (-> Flonum Real Flonum)])
-
-(define default-asn-real-base : (Parameterof Byte) (make-parameter 2))
+(define default-asn-real-base : (Parameterof Byte) (make-parameter 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-real->octets : (->* (Flonum) (Byte) Bytes)
   (lambda [real [base (default-asn-real-base)]]
     (cond [(zero? real) (if (eqv? real -0.0) #"\x43" #"")]
-          [(infinite? real) (if (> real 0.0)  #"\x40" #"\x41")]
+          [(infinite? real) (if (> real 0.0) #"\x40" #"\x41")]
           [(nan? real) #"\x42"]
-          [else (case base
-                  [(2) (asn-real-binary real 2)]
-                  [(8) (asn-real-binary real 8)]
-                  [(16) (asn-real-binary real 16)]
-                  [else (asn-real-decimal real)])])))
+          [(= base 2)  (asn-real-binary real 2.0)]
+          [(= base 8)  (asn-real-binary real 8.0)]
+          [(= base 10) (asn-real-decimal real)]
+          [(= base 16) (asn-real-binary real 16.0)]
+          [else (asn-real-smart real)])))
 
 (define asn-octets->real : (ASN-Octets->Datum Flonum)
   (lambda [breal start end]
@@ -57,62 +53,78 @@
                                [else #| reserved for addenda |# +nan.0])]))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define asn-real-smart : (-> Flonum Bytes)
+  (lambda [real]
+    #| TODO: auto detect most suitable algorithm |#
+    (asn-real-binary real 16.0)))
+
 (define asn-real-decimal : (-> Flonum Bytes)
   (lambda [real]
     (define numerical-representation (number->string real))
     
-    (if (regexp-match? #px"e" numerical-representation)
+    (if (regexp-match? #rx"e" numerical-representation)
         (bytes-append #"\x3" (string->bytes/utf-8 (string-upcase numerical-representation)))
         (bytes-append #"\x1" (string->bytes/utf-8 numerical-representation)))))
 
-(define asn-real-binary : (-> Flonum Byte Bytes)
+(define asn-real-binary : (-> Flonum Flonum Bytes)
   (lambda [real base]
-    (define-values (E N factor) (asn-real-normalize (flabs real) base))
-    (define E-bytes (integer->network-bytes E))
-    (define N-bytes (integer->network-bytes N))
-    (define E-size (bytes-length E-bytes))
+    (define +real : Nonnegative-Flonum (flabs real))
+    (define-values (E N factor) (asn-real-normalize +real base))
+    (cond [(not (fl= +real (asn-real-value 1.0 N base E factor))) (asn-real-decimal real)]
+          [else (let ([E-bytes (integer->network-bytes E)]
+                      [N-bytes (integer->network-bytes N)])
+                  (define E-size (bytes-length E-bytes))
     
-    (define infoctet : Byte
-      (bitwise-ior (if (> real 0.0)   #b10000000 #b11000000)
-                   (cond [(= base 2)  #b00000000]
-                         [(= base 8)  #b00010000]
-                         [(= base 16) #b00100000]
-                         [else        #b00110000 #| deadcode |#])
-                   (cond [(= factor 0) #b0000000]
-                         [(= factor 1) #b0000100]
-                         [(= factor 2) #b0001000]
-                         [else         #b0001100])
-                   (cond [(= E-size 1) #b0000000]
-                         [(= E-size 2) #b0000001]
-                         [(= E-size 3) #b0000010]
-                         [else         #b0000011])))
-    
-    (bytes-append (cond [(< E-size 4) (bytes infoctet)]
-                        [else (bytes infoctet E-size)])
-                  E-bytes N-bytes)))
+                  (define infoctet : Byte
+                    (bitwise-ior (cond [(> real 0.0) #b10000000]
+                                       [else         #b11000000])
+                                 (cond [(= base 2)   #b00000000]
+                                       [(= base 8)   #b00010000]
+                                       [(= base 16)  #b00100000]
+                                       [else         #b00110000 #| deadcode |#])
+                                 (cond [(= factor 0) #b00000000]
+                                       [(= factor 1) #b00000100]
+                                       [(= factor 2) #b00001000]
+                                       [else         #b00001100])
+                                 (cond [(= E-size 1) #b00000000]
+                                       [(= E-size 2) #b00000001]
+                                       [(= E-size 3) #b00000010]
+                                       [else         #b00000011])))
+                  
+                  (bytes-append (cond [(< E-size 4) (bytes infoctet)]
+                                      [else (bytes infoctet E-size)])
+                                E-bytes N-bytes))])))
 
-(define asn-real-normalize : (-> Nonnegative-Flonum Byte (Values Integer Integer Byte))
-  (lambda [+real B]
-    (define fwhole (exact-floor +real))
-    (define base (fl B))
-    (let factoring ([fraction : Flonum (- +real fwhole)]
-                    [N : Integer fwhole]
-                    [E : Integer 0])
-      (if (= fraction 0.0)
-          (let rshift ([N : Integer N]
-                       [F : Index 0])
-            (cond [(>= F 3) (values E N 3)]
-                  [(odd? N) (values E N F)]
-                  [else (rshift (arithmetic-shift N -1) (+ F 1))]))
-          (let* ([e (exact-floor (fllogb fraction base))]
-                 [m (/ fraction (expt base e))]
-                 [mwhole (exact-floor m)])
-            (printf "~a * ~a^~a~n" m B e)
-            
-            (factoring (cond [(integer? m) 0.0]
-                             [else (- m mwhole)])
-                       (+ (* N B) mwhole)
-                       (+ E e)))))))
+(define asn-real-normalize : (-> Nonnegative-Flonum Flonum (Values Integer Integer Byte))
+  (lambda [+real base]
+    ; R = M * b^n = (M * b) * b^(n - 1)
+    
+    (define-values (E N)
+      (let normalize : (Values Integer Integer)
+        ([E : Integer 0]
+         [r : Flonum +real])
+        ; NOTE: `(integer? +max.0)` is true
+        (cond [(not (integer? r)) (normalize (- E 1) (* r base))]
+              [(= base 16.0) (asn-substitude-trailing-zeros E (exact-floor r) 2 #xFF -8)]
+              [(= base 2.0) (asn-substitude-trailing-zeros E (exact-floor r) 8 #xFF -8)]
+              [else (asn-substitude-trailing-zeros E (exact-floor r) 8 #xFFFFFF -24)])))
+
+    (asn-real-binary-scale E N)))
+
+(define asn-real-binary-scale : (-> Integer Integer (Values Integer Integer Byte))
+  (lambda [E N]
+    (let rshift ([N : Integer N]
+                 [F : Index 0])
+      (cond [(>= F 3) (values E N 3)]
+            [(odd? N) (values E N F)]
+            [else (rshift (arithmetic-shift N -1) (+ F 1))]))))
+
+(define asn-substitude-trailing-zeros : (-> Integer Integer Byte Natural Integer (Values Integer Integer))
+  (lambda [E0 N0 delta mask rshift]
+    (let substitute ([E : Integer E0]
+                     [N : Integer N0])
+      (cond [(> (bitwise-and N mask) 0) (values E N)]
+            [else (substitute (+ E delta) (arithmetic-shift N rshift))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-binary-real : (-> Bytes Natural Natural Flonum Flonum Byte Byte Flonum)
@@ -128,8 +140,7 @@
     (cond [(< E-end end)
            (let ([E (network-bytes->integer breal (+ start start-offset) E-end)]
                  [N (network-bytes->integer breal E-end end)])
-             (cond [(not (= N 0)) (assert (* (* S (arithmetic-shift N F)) (expt B E)) double-flonum?)]
-                   [else 0.0]))]
+             (asn-real-value S N B E F))]
           [(= E-end end) 0.0]
           [else +nan.0])))
 
@@ -141,3 +152,9 @@
                         [(exact-integer? maybe-real) (exact->inexact maybe-real)]
                         [(real? maybe-real) (real->double-flonum maybe-real)]
                         [else +nan.0]))])))
+
+(define asn-real-value : (-> Flonum Integer Flonum Integer Byte Flonum)
+  (lambda [S N B E F]
+    (cond [(= N 0) 0.0]
+          [(= F 0) (* (* S (fl N)) (flexpt B (fl E)))]
+          [else (* (* S (fl (arithmetic-shift N F))) (flexpt B (fl E)))])))
