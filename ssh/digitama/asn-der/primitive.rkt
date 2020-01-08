@@ -5,7 +5,7 @@
 
 (provide (all-defined-out))
 (provide ASN-Bitset ASN-Object-Identifier ASN-Relative-Object-Identifier)
-(provide default-asn-real-base)
+(provide default-asn-real-base asn-real-disable-binary-scale asn-real-force-scientific-decimal)
 
 (require "base.rkt")
 (require "octets.rkt")

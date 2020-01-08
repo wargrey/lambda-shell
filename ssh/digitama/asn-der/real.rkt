@@ -5,13 +5,25 @@
 
 (provide (all-defined-out))
 
+(require typed/racket/unsafe)
+
 (require racket/math)
+(require racket/string)
+
 (require math/flonum)
+
 (require digimon/number)
 
 (require "octets.rkt")
 
+(unsafe-require/typed
+ racket/string
+ [string-split (->* (String) (String #:trim? Boolean #:repeat? Boolean) (List String String))])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-asn-real-base : (Parameterof Byte) (make-parameter 0))
+(define asn-real-disable-binary-scale : (Parameterof Boolean) (make-parameter #true))
+(define asn-real-force-scientific-decimal : (Parameterof Boolean) (make-parameter #true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-real->octets : (->* (Flonum) (Byte) Bytes)
@@ -60,11 +72,36 @@
 
 (define asn-real-decimal : (-> Flonum Bytes)
   (lambda [real]
-    (define numerical-representation (number->string real))
-    
-    (if (regexp-match? #rx"e" numerical-representation)
-        (bytes-append #"\x3" (string->bytes/utf-8 (string-upcase numerical-representation)))
-        (bytes-append #"\x1" (string->bytes/utf-8 numerical-representation)))))
+    (define +real : Nonnegative-Flonum (flabs real))
+    (define NR : String (number->string real))
+
+    (cond [(regexp-match? #rx"e" NR) (bytes-append #"\x3" (string->bytes/utf-8 (string-replace NR "e" "E")))]
+          [(not (asn-real-force-scientific-decimal)) (bytes-append #"\x1" (string->bytes/utf-8 NR))]
+          [(and (>= +real 1.0) (< +real 10.0)) (bytes-append #"\x3" (string->bytes/utf-8 NR) #"E+0")]
+          [else (let ([/dev/asnout (open-output-bytes)])
+                  (define parts : (List String String) (string-split NR "." #:trim? #false #:repeat? #false))
+                  (define whole : String (car parts))
+                  (write-byte #x3 /dev/asnout)
+                        
+                  (if (>= +real 10.0)
+                      (let ([whole (car parts)]
+                            [leader-size (if (negative? real) 2 1)])
+                        (write-string whole /dev/asnout 0 leader-size)
+                        (write-char #\. /dev/asnout)
+                        (write-string whole /dev/asnout leader-size)
+                        (unless (integer? real) (write-string (cadr parts) /dev/asnout))
+                        (write-char #\E /dev/asnout)
+                        (write (- (string-length whole) leader-size) /dev/asnout))
+                      (let* ([fraction (cadr parts)]
+                             [significand (string-trim fraction #rx"[0]+" #:right? #false)])
+                        (when (negative? real) (write-char #\- /dev/asnout))
+                        (write-string significand /dev/asnout 0 1)
+                        (write-char #\. /dev/asnout)
+                        (write-string significand /dev/asnout 1)
+                        (write-char #\E /dev/asnout)
+                        (write (- (string-length significand) (string-length fraction) 1) /dev/asnout)))
+                  
+                  (get-output-bytes /dev/asnout #true))])))
 
 (define asn-real-binary : (-> Flonum Flonum Bytes)
   (lambda [real base]
@@ -107,17 +144,18 @@
         (cond [(not (integer? r)) (normalize (- E 1) (* r base))]
               [(= base 16.0) (asn-substitude-trailing-zeros E (exact-floor r) 2 #xFF -8)]
               [(= base 2.0) (asn-substitude-trailing-zeros E (exact-floor r) 8 #xFF -8)]
-              [else (asn-substitude-trailing-zeros E (exact-floor r) 8 #xFFFFFF -24)])))
+              [else (asn-substitude-trailing-zeros E (exact-floor r) 1 #b111 -3)])))
 
     (asn-real-binary-scale E N)))
 
 (define asn-real-binary-scale : (-> Integer Integer (Values Integer Integer Byte))
   (lambda [E N]
-    (let rshift ([N : Integer N]
-                 [F : Index 0])
-      (cond [(>= F 3) (values E N 3)]
-            [(odd? N) (values E N F)]
-            [else (rshift (arithmetic-shift N -1) (+ F 1))]))))
+    (cond [(asn-real-disable-binary-scale) (values E N 0)]
+          [else (let rshift ([N : Integer N]
+                             [F : Index 0])
+                  (cond [(>= F 3) (values E N 3)]
+                        [(odd? N) (values E N F)]
+                        [else (rshift (arithmetic-shift N -1) (+ F 1))]))])))
 
 (define asn-substitude-trailing-zeros : (-> Integer Integer Byte Natural Integer (Values Integer Integer))
   (lambda [E0 N0 delta mask rshift]
@@ -145,16 +183,21 @@
           [else +nan.0])))
 
 (define asn-decimal-real : (-> Bytes Natural Natural Byte Flonum)
-  (lambda [breal start end NR-form] ;;; intend to ignore the numerical representation form
+  (lambda [breal start end NR-form]
     (cond [(> (+ start 1) end) +nan.0]
-          [else (let ([maybe-real (read (open-input-bytes (subbytes breal (+ start 1) end)))])
-                  (cond [(double-flonum? maybe-real) maybe-real]
-                        [(exact-integer? maybe-real) (exact->inexact maybe-real)]
-                        [(real? maybe-real) (real->double-flonum maybe-real)]
-                        [else +nan.0]))])))
+          [else (let ([src (subbytes breal (+ start 1) end)])
+                  (cond [(not (= NR-form #x2)) (asn-real-value (read (open-input-bytes src)))]
+                        [else (asn-real-value (read (open-input-string (string-replace (bytes->string/utf-8 src #\.) "," "."))))]))])))
 
-(define asn-real-value : (-> Flonum Integer Flonum Integer Byte Flonum)
-  (lambda [S N B E F]
-    (cond [(= N 0) 0.0]
-          [(= F 0) (* (* S (fl N)) (flexpt B (fl E)))]
-          [else (* (* S (fl (arithmetic-shift N F))) (flexpt B (fl E)))])))
+(define asn-real-value : (case-> [Any -> Flonum]
+                                 [Flonum Integer Flonum Integer Byte -> Flonum])
+  (case-lambda
+    [(maybe-real)
+     (cond [(double-flonum? maybe-real) maybe-real]
+           [(exact-integer? maybe-real) (exact->inexact maybe-real)]
+           [(real? maybe-real) (real->double-flonum maybe-real)]
+           [else +nan.0])]
+    [(S N B E F)
+     (cond [(= N 0) 0.0]
+           [(= F 0) (* (* S (fl N)) (flexpt B (fl E)))]
+           [else (* (* S (fl (arithmetic-shift N F))) (flexpt B (fl E)))])]))
