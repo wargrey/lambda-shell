@@ -7,8 +7,6 @@
 
 (require digimon/number)
 
-(require "../datatype.rkt")
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type ASN.1-Tag-Class (U 'Universal 'Application 'Context-specific 'Private))
 
@@ -54,7 +52,7 @@
                   (bytes-append (bytes (bitwise-ior (bytes-length bsize) #b10000000))
                                 bsize))])))
 
-(define asn-octets->length : (SSH-Bytes->Datum Natural)
+(define asn-octets->length : (->* (Bytes) (Natural) (Values Natural Natural))
   (lambda [blength [offset 0]]
     (define head-byte : Byte (bytes-ref blength offset))
     (cond [(< head-byte #b10000000) (values head-byte (+ offset 1))]

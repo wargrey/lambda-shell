@@ -21,7 +21,6 @@ Everything therefore is subject to change.
 
 @include-section{walkthrough.scrbl}
 @include-section{confidentiality.scrbl}
-@include-section{asnder.scrbl}
 
 @handbook-appendix[#:index? #true
  (rfc-bib-entry 4250 "The Secure Shell (SSH) Protocol Assigned Numbers" #:author "S. Lehtinen" #:date 2006 #:key 'SSH-NUMBERS)

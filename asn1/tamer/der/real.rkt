@@ -78,8 +78,8 @@ Some details are learnt from @~cite[ASN1bSW].
          <primitive>)]
 
 @chunk[<primitive>
-       (require "../../digitama/asn-der/base.rkt")
-       (require "../../digitama/asn-der/primitive.rkt")
+       (require "../../digitama/der/base.rkt")
+       (require "../../digitama/der/primitive.rkt")
 
        (require math/base)
        (require math/flonum)

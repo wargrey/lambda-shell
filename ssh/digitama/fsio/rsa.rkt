@@ -3,11 +3,11 @@
 (provide (all-defined-out))
 (provide (all-from-out "../algorithm/pkcs1/key.rkt"))
 
+(require asn1/base/der)
+
 (require "pem.rkt")
 
 (require "../algorithm/pkcs1/key.rkt")
-(require "../asn-der/primitive.rkt")
-(require "../asn-der/pretty.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-rsa : (-> (U Input-Port Path-String) (Option RSA-Private-Key))

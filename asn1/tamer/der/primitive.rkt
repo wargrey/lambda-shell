@@ -2,12 +2,6 @@
 
 @(require digimon/tamer)
 
-@(define-bib ASN.1-DER
-   #:title    "The ASN.1 Distinguished Encoding Rules"
-   #:author   (org-author-name "ITU-T")
-   #:date     2015
-   #:url      "https://www.itu.int/rec/T-REC-X.690-201508-I/en")
-
 @(define-bib asn1-lib
    #:title    "ASN.1"
    #:author   (authors "Ryan Culpepper")
@@ -22,7 +16,7 @@
 
 @handbook-story{ASN.1 Primitive Data Types}
 
-This section demonstrates the implementation of @~cite[ASN.1-DER]
+This section demonstrates the implementation of @cite{X690}
 
 @;tamer-smart-summary[]
 
@@ -88,8 +82,8 @@ The first testcase is defined in @~cite[MS-DER].
          <primitive>)]
 
 @chunk[<primitive>
-       (require "../../digitama/asn-der/base.rkt")
-       (require "../../digitama/asn-der/primitive.rkt")
+       (require "../../digitama/der/base.rkt")
+       (require "../../digitama/der/primitive.rkt")
 
        (define symb0x-bytes
          (lambda [bs]

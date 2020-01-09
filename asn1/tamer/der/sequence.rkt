@@ -77,6 +77,5 @@ The next example is defined int @~cite[RFC-PKCS#1].
          <sequence>)]
 
 @chunk[<sequence>
-       (require "../../digitama/algorithm/random.rkt")
-       (require "../../digitama/asn-der/sequence.rkt")
-       (require "../../digitama/asn-der/pretty.rkt")]
+       (require "../../digitama/der/sequence.rkt")
+       (require "../../digitama/der/pretty.rkt")]

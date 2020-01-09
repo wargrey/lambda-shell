@@ -4,7 +4,7 @@
 
 (provide (all-defined-out))
 
-(require "../../asn-der/sequence.rkt")
+(require "../../../../asn1/digitama/der/sequence.rkt")
 
 (define-asn-sequence rsa-other-prime-info : RSA-Other-Prime-Info
   ([r : asn-integer]   ; prime
