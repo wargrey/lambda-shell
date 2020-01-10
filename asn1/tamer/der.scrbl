@@ -5,7 +5,8 @@
 @table-of-contents[]
 
 @include-section[(submod "der/primitive.rkt" doc)]
+
 @include-section[(submod "der/real.rkt" doc)]
-@include-section[(submod "der/enumeration.rkt" doc)]
+@include-section[(submod "der/enumerated.rkt" doc)]
 
 @include-section[(submod "der/sequence.rkt" doc)]

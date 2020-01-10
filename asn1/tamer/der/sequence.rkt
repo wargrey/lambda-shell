@@ -15,10 +15,11 @@
 @handbook-scenario{Sequences}
 
 @tamer-action[
+ (define-asn-enumerated asn-gender : ASN-Gender (unknown male female))
  (define-asn-sequence plain-seq : Plain-Seq
    ([name : asn-string/ia5]
-    [ok : asn-boolean]))
- (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:ok #true)))
+    [gender : asn-gender]))
+ (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:gender 'male)))
  (unsafe-bytes->plain-seq* plain-octets)
  (asn-pretty-print plain-octets)]
 
@@ -78,4 +79,5 @@ The next example is defined int @~cite[RFC-PKCS#1].
 
 @chunk[<sequence>
        (require "../../digitama/der/sequence.rkt")
+       (require "../../digitama/der/enumerated.rkt")
        (require "../../digitama/der/pretty.rkt")]

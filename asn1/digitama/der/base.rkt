@@ -60,3 +60,13 @@
                        [idx0 (+ offset 1)]
                        [idxn (+ idx0 ssize)])
                   (values (network-bytes->natural blength idx0 idxn) idxn))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define asn-octets-box : (-> Bytes Bytes Bytes)
+  (lambda [id octets]
+    (bytes-append id (asn-length->octets (bytes-length octets)) octets)))
+
+(define asn-octets-unbox : (->* (Bytes) (Natural) (Values Natural Index))
+  (lambda [octets [offset 0]]
+    (define-values (size offset++) (asn-octets->length octets (+ offset 1)))
+    (values offset++ (assert (+ offset++ size) index?))))

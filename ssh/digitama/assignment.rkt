@@ -33,9 +33,9 @@
                 
                 (define #%Type : (Pairof TypeU (Listof TypeU)) '(name ...))
 
-                (define $Type : (case-> [-> (Listof TypeU)] [Symbol -> Type] [Integer -> TypeU])
+                (define $Type : (case-> [-> (Pairof TypeU (Listof TypeU))] [Symbol -> Type] [Integer -> TypeU])
                   (case-lambda
-                    [() (list 'name ...)]
+                    [() #%Type]
                     [(v) (cond [(symbol? v) (case v [(enum name) val] ... [else ($Type 'fbname)])]
                                [else (case v [(val) 'name] ... [else 'fbname])])]))))]))
 

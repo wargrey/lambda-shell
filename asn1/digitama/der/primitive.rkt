@@ -21,8 +21,8 @@
      (with-syntax* ([asn (format-id #'type "asn-~a" (syntax-e #'type))]
                     [asn-octets? (format-id #'asn "~a-octets?" (syntax-e #'asn))]
                     [asn->bytes (format-id #'asn "~a->bytes" (syntax-e #'asn))]
-                    [unsafe-bytes->asn (format-id #'asn "unsafe-asn-bytes->~a" (syntax-e #'asn))]
-                    [unsafe-bytes->asn* (format-id #'asn "unsafe-asn-bytes->~a*" (syntax-e #'asn))]
+                    [unsafe-bytes->asn (format-id #'asn "unsafe-asn-bytes->~a" (syntax-e #'type))]
+                    [unsafe-bytes->asn* (format-id #'asn "unsafe-asn-bytes->~a*" (syntax-e #'type))]
                     [ASN->type (format-id #'asn "~a" (gensym 'ASN->bytes:))])
        #'(begin (define asn : Byte (asn-identifier-octet tag #:class 'Universal #:constructed? #false))
 
@@ -34,8 +34,7 @@
                 (define asn->bytes : (-> Type Bytes)
                   (let ([id (bytes asn)])
                     (lambda [self]
-                      (let ([octets (asn->octets self)])
-                        (bytes-append id (asn-length->octets (bytes-length octets)) octets)))))
+                      (asn-octets-box id (asn->octets self)))))
 
                 (define unsafe-bytes->asn : (->* (Bytes) (Natural) (Values Type Natural))
                   (lambda [basn [offset 0]]
@@ -110,6 +109,11 @@
 
     (cond [(and maybe-types->asn) (maybe-types->asn basn offset)]
           [else (values eof offset)])))
+
+(define asn-bytes->primitive* : (->* (Bytes) (Natural) (U ASN-Primitive EOF))
+  (lambda [basn [offset 0]]
+    (define-values (asn end) (asn-bytes->primitive basn offset))
+    asn))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type ASN-Primitives (Rec ASN-Vector (U ASN-Primitive (Vectorof ASN-Vector))))
