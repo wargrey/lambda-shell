@@ -3,9 +3,7 @@
 ;;; https://en.wikipedia.org/wiki/X.690
 ;;; https://docs.microsoft.com/en-us/windows/desktop/SecCertEnroll/about-der-encoding-of-asn-1-types
 
-(provide (all-defined-out) network-bytes->integer)
-
-(require digimon/number)
+(provide (all-defined-out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (ASN-Octets->Datum t) (-> Bytes Natural Natural t))
@@ -20,13 +18,6 @@
 (define asn-octets->boolean : (ASN-Octets->Datum Boolean)
   (lambda [bbool start end]
     (not (zero? (bytes-ref bbool start)))))
-
-(define asn-integer->octets : (-> Integer Bytes)
-  (lambda [mpint]
-    (define os : Bytes (integer->network-bytes mpint))
-    
-    (cond [(or (<= mpint 0) (not (bitwise-bit-set? (bytes-ref os 0) 7))) os]
-          [else (bytes-append #"\x00" os)])))
 
 (define asn-null->octets : (-> Any Bytes)
   (lambda [nil]

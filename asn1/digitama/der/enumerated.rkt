@@ -5,9 +5,10 @@
 
 (provide (all-defined-out))
 
+(require digimon/number)
+
 (require "base.rkt")
 (require "primitive.rkt")
-(require "octets.rkt")
 (require "metatype.rkt")
 
 (require (for-syntax racket/base))
@@ -88,7 +89,7 @@
 
                 (define asn-enum->bytes : (-> ASN-Enum Bytes)
                   (lambda [self]
-                    (asn-octets-box asn-enumerated-id (asn-integer->octets (asn-enum self)))))
+                    (asn-octets-box asn-enumerated-id (integer->network-bytes (asn-enum self)))))
                 
                 (define unsafe-bytes->asn-enum : (->* (Bytes) (Natural) (Values ASN-Enum Natural))
                   (lambda [bseq [offset 0]]

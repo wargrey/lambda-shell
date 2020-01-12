@@ -7,6 +7,8 @@
 (provide ASN-Bitset ASN-Object-Identifier ASN-Relative-Object-Identifier)
 (provide default-asn-real-base asn-real-disable-binary-scale asn-real-force-scientific-decimal)
 
+(require digimon/number)
+
 (require "base.rkt")
 (require "octets.rkt")
 (require "real.rkt")
@@ -73,7 +75,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-asn-primitives ASN-Primitive
   [boolean          #:as Boolean                        #x01 [boolean?                        asn-boolean->octets asn-octets->boolean]]
-  [integer          #:as Integer                        #x02 [exact-integer?                  asn-integer->octets network-bytes->integer]]
+  [integer          #:as Integer                        #x02 [exact-integer?                  integer->network-bytes network-bytes->integer]]
   [bitstring        #:as ASN-Bitset                     #x03 [asn-bitstring?                  asn-bitstring->octets asn-octets->bitstring]]
   [octetstring      #:as Bytes                          #x04 [bytes?                          values subbytes]]
   
