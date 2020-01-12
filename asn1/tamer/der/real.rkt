@@ -18,11 +18,11 @@ Some details are learnt from @~cite[ASN1bSW].
 @handbook-scenario{Special Real Values}
 
 @tamer-action[
- (asn-primitive -inf.0)
- (asn-primitive -0.0)
  (asn-primitive +0.0)
  (asn-primitive +inf.0)
- (asn-primitive +nan.0)]
+ (asn-primitive -inf.0)
+ (asn-primitive +nan.0)
+ (asn-primitive -0.0)]
 
 @handbook-scenario{Base 2 Representation}
 
