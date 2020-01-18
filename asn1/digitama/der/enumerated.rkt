@@ -56,7 +56,7 @@
                       (cond [(and <idx>) (values (syntax-e <idx>) <idx>)]
                             [else (values idx (datum->syntax <id> idx))]))
 
-                    (auto-number (cdr <item>s) idx (cons id sreifitnedi) (cons (list <id> <index>) <smeti>)
+                    (auto-number (cdr <item>s) (+ idx 1) (cons id sreifitnedi) (cons (list <id> <index>) <smeti>)
                                  (or fb-<id.idx>
                                      (and (or (eq? fallback id) (equal? fallback index))
                                           (list <id> <index>)))))])))

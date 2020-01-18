@@ -18,8 +18,10 @@
  (define-asn-enumerated asn-gender : ASN-Gender (unknown male female))
  (define-asn-sequence plain-seq : Plain-Seq
    ([name : asn-string/ia5]
-    [gender : asn-gender]))
- (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:gender 'male)))
+    [gender : asn-gender]
+    [age : asn-integer]
+    [height : asn-real]))
+ (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:gender 'male #:age 42 #:height 180.0)))
  (unsafe-bytes->plain-seq* plain-octets)
  (asn-pretty-print plain-octets)]
 
