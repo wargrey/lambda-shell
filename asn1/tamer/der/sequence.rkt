@@ -21,6 +21,7 @@
     [gender : asn-gender]
     [age : asn-integer]
     [height : asn-real]))
+ (default-asn-real-base 2)
  (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:gender 'male #:age 42 #:height 180.0)))
  (unsafe-bytes->plain-seq* plain-octets)
  (asn-pretty-print plain-octets)]
