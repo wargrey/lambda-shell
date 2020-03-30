@@ -6,7 +6,7 @@
 
 (require "base.rkt")
 
-(define asn-pretty-print : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:indention Byte #:column Positive-Byte #:separator Char) Void)
+(define asn-dissect : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:indention Byte #:column Positive-Byte #:separator Char) Void)
   (lambda [basn [start 0] [smart-end 0]
                 #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)]
                 #:indention [indention 0] #:column [column 16] #:separator [separator #\space]]

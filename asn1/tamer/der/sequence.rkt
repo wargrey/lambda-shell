@@ -24,7 +24,7 @@
  (default-asn-real-base 2)
  (define plain-octets (plain-seq->bytes (make-plain-seq #:name "Smith" #:gender 'male #:age 42 #:height 180.0)))
  (unsafe-bytes->plain-seq* plain-octets)
- (asn-pretty-print plain-octets)]
+ (asn-dissect plain-octets)]
 
 The next example is defined int @~cite[RFC-PKCS#1].
 
@@ -40,13 +40,13 @@ The next example is defined int @~cite[RFC-PKCS#1].
    (let ([id-sha (make-digest-algorithm #:id (list 1 3 14 3 2 26))])
      (digest-info->bytes (make-digest-info #:algorithm id-sha #:digest (sha1-bytes #"EMSA-PKCS1-v1_5")))))
  (unsafe-bytes->digest-info* sha1-octets)
- (asn-pretty-print sha1-octets)
+ (asn-dissect sha1-octets)
 
  (define sha256-octets
    (let ([id-sha (make-digest-algorithm #:id (list 2 16 840 1 101 3 4 2 1))])
      (digest-info->bytes (make-digest-info #:algorithm id-sha #:digest (sha256-bytes #"EMSA-PKCS1-v1_5")))))
  (unsafe-bytes->digest-info* sha256-octets)
- (asn-pretty-print sha256-octets)]
+ (asn-dissect sha256-octets)]
 
 @handbook-scenario{Sequences with Optional Components}
 
@@ -57,8 +57,8 @@ The next example is defined int @~cite[RFC-PKCS#1].
     [seq : asn-integer #:default 3]))
  (define no-partner-octets (option-seq->bytes (make-option-seq #:name "wargrey" #:seq 0)))
  (define partner-octets (option-seq->bytes (make-option-seq #:name "Sakuyamon" #:partner "Rika Nonaka")))
- (asn-pretty-print no-partner-octets)
- (asn-pretty-print partner-octets)]
+ (asn-dissect no-partner-octets)
+ (asn-dissect partner-octets)]
 
 @handbook-scenario{Sequence-Ofs}
 
@@ -83,4 +83,4 @@ The next example is defined int @~cite[RFC-PKCS#1].
 @chunk[<sequence>
        (require "../../digitama/der/sequence.rkt")
        (require "../../digitama/der/enumerated.rkt")
-       (require "../../digitama/der/pretty.rkt")]
+       (require "../../digitama/der/dissection.rkt")]

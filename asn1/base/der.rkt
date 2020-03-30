@@ -1,7 +1,7 @@
 #lang racket
 
 (provide (all-from-out "../digitama/der/base.rkt"))
-(provide (all-from-out "../digitama/der/pretty.rkt"))
+(provide (all-from-out "../digitama/der/dissection.rkt"))
 
 (provide define-asn-sequence asn-sequence asn-sequence-octets?)
 (provide define-asn-enumerated asn-enumerated asn-enumerated-octets?)
@@ -20,4 +20,4 @@
 
 (require "../digitama/der/sequence.rkt")
 
-(require "../digitama/der/pretty.rkt")
+(require "../digitama/der/dissection.rkt")
