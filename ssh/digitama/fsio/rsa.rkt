@@ -26,8 +26,8 @@
   (lambda [/dev/rsain]
     (define-values (key-octets BEGIN END) (pem-read /dev/rsain))
 
-    (asn-pretty-print #:separator #\: #:column 24
-                      key-octets)
+    (asn-dissect #:separator #\: #:column 24
+                 key-octets)
 
     (and (eq? BEGIN END)
          (pem-label-equal? '|RSA PUBLIC KEY| BEGIN)
@@ -68,6 +68,6 @@
     (when (and name (> (string-length name) 0))
       (fprintf /dev/keyout "~a:~n" name))
 
-    (asn-pretty-print #:port /dev/keyout #:separator #\: #:column column
-                      (asn-integer->bytes n))))
+    (asn-dissect #:port /dev/keyout #:separator #\: #:column column
+                 (asn-integer->bytes n))))
 

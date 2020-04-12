@@ -7,4 +7,4 @@
 
 (define version "1.0")
 
-(define scribblings '(["tamer/ASN1.scrbl" (main-doc multi-page) (net-library)]))
+(define scribblings '(["asn1/tamer/ASN1.scrbl" (main-doc multi-page) (net-library)]))
