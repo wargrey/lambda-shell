@@ -32,29 +32,25 @@ This section demonstrates the implementation of @cite{SSH-TRANS}.
  (ssh-message (make-ssh:msg:unimplemented #:number 0))
  (ssh-message (make-ssh:msg:newkeys))]
 
-@handbook-reference[]
+@handbook-reference[#:auto-hide? #false]
 
-@; Chunks after `handbook-reference[]` will never be rendered in documents
-@; <*> is the main chunk by convention.
+@; Chunks after `handbook-reference[#:auto-hide? #false]` will never be rendered in documents
 
-@chunk[|<*>|
+@chunk[|<transport:*>|
        (require digimon/tamer)
        (tamer-taming-start!)
 
        (module tamer typed/racket
-         |<transport:*>|)]
-
-@chunk[|<transport:*>|
-       (require "message.rkt")
+         (require "message.rkt")
        
-       (require "../transport.rkt") ; import builtin algorithms
-       (require "../configuration.rkt")
-       
-       (require "../digitama/message/transport.rkt")
-       (require "../digitama/transport/identification.rkt")
-       (require "../digitama/transport/prompt.rkt")
+         (require "../transport.rkt") ; import builtin algorithms
+         (require "../configuration.rkt")
          
-       <identification>]
+         (require "../digitama/message/transport.rkt")
+         (require "../digitama/transport/identification.rkt")
+         (require "../digitama/transport/prompt.rkt")
+         
+         <identification>)]
 
 @chunk[<identification>
        (define rfc : SSH-Configuration (make-ssh-configuration))

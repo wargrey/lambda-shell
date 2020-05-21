@@ -27,12 +27,11 @@ The format of @deftech{authorized_keys} is defined in @exec{man sshd}.
    (λ [] (read-authorized-keys* authorized_keys #:count-lines? #true))
    'debug)]
 
-@handbook-reference[]
+@handbook-reference[#:auto-hide? #false]
 
-@; Chunks after `handbook-reference[]` will never be rendered in documents
-@; <*> is the main chunk by convention.
+@; Chunks after `handbook-reference[#:auto-hide? #false]` will never be rendered in document
 
-@chunk[|<*>|
+@chunk[|<authentication:*>|
        (require digimon/tamer)
        (tamer-taming-start!)
 
