@@ -8,8 +8,6 @@
 (require "keygen/rsa/cmdenv.rkt")
 (require "keygen/rsa/keygen.rkt")
 
-(require "cmdopt/parameter.rkt")
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option keygen-flags #: Keygen-Flags
   #:usage-help "[unstable, try at your own risk]"
@@ -17,7 +15,7 @@
   [[(17)       "use 17 as the public exponent"]
    [(f4)       ["use the default public exponent [default: ~a]" (sshkey-rsa-public-exponent)]]]
   #:once-each
-  [[(#\b bits) #:=> string->bits-length bits #: Positive-Index
+  [[(#\b bits) #:=> cmdopt-string+>index bits #: Positive-Index
                ["specific the number of ~1 in the rsa key [default: ~a]" (sshkey-rsa-bits)]]
    [(#\f)      keyfile
                "specific the ~1"]

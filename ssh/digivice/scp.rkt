@@ -4,12 +4,10 @@
 
 (require digimon/collection)
 (require digimon/cmdopt)
+(require digimon/dtrace)
 
-(require racket/logging)
 (require racket/match)
 
-(require "cmdopt/common.rkt")
-(require "cmdopt/parameter.rkt")
 (require "scp/application.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -20,7 +18,7 @@
   #:usage-help "[unstable, try at your own risk]"
   
   #:once-each
-  [[(#\P Port) #:=> string->port port #: Positive-Index
+  [[(#\P Port) #:=> cmdopt-string+>port port #: Positive-Index
                ["connect to ~1 on the remote host [default: ~a]" (ssh-target-port)]]])
 
 (define main : (-> (Vectorof String) Void)
@@ -30,11 +28,10 @@
     (define-values (options λargv) (parse-scp-flags argument-list #:help-output-port (current-output-port)))
     (match-define (list srcs target) (λargv))
     (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-scp-flags #:user-error e #:exit 1))])
-      (with-intercepted-logging log-echo
-        (λ [] (cond [(null? srcs) (raise-user-error "no sources file specified")]
-                    [else (scp (car srcs) target (or (scp-flags-Port options) (ssh-target-port))
-                               (make-ssh-configuration #:pretty-log-packet-level #false))]))
-        'debug))))
+      (call-with-dtrace
+          (λ [] (cond [(null? srcs) (raise-user-error "no sources file specified")]
+                      [else (scp (car srcs) target (or (scp-flags-Port options) (ssh-target-port))
+                                 (make-ssh-configuration #:pretty-log-packet-level #false))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

@@ -3,12 +3,8 @@
 (require ssh/base)
 
 (require digimon/cmdopt)
+(require digimon/dtrace)
 (require digimon/collection)
-
-(require racket/logging)
-
-(require "cmdopt/parameter.rkt")
-(require "cmdopt/common.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-target-port : (Parameterof Positive-Integer) (make-parameter 22))
@@ -18,7 +14,7 @@
   #:args [hostname]
   
   #:once-each
-  [[(#\p port) #:=> string->port port #: Positive-Integer
+  [[(#\p port) #:=> cmdopt-string+>port port #: Positive-Integer
                ["connect to ~1 on the remote host [default: ~a]" (ssh-target-port)]]])
 
 (define main : (-> (Vectorof String) Void)
@@ -27,9 +23,8 @@
 
     (define-values (options λargv) (parse-ssh-flags argument-list #:help-output-port (current-output-port)))
     (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-ssh-flags #:user-error e #:exit 1))])
-      (with-intercepted-logging log-echo
-        (λ [] (void (ssh-connect (car (λargv)) (or (ssh-flags-port options) (ssh-target-port)))))
-        'debug))))
+      (call-with-dtrace
+        (λ [] (void (ssh-connect (car (λargv)) (or (ssh-flags-port options) (ssh-target-port)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
