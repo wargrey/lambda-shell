@@ -8,8 +8,9 @@
 (define software-version 'λsh)
 
 (define version "1.0")
+(define test-omit-paths 'all)
 
 #;(define raco-commands '(["ssh"  ssh/digivice/ssh  "yet another ssh client" #false]
                           ["sshd" ssh/digivice/sshd "yet another ssh server" #false]))
 
-(define scribblings '(["tamer/tSSH.scrbl" (main-doc multi-page) (net-library)]))
+(define scribblings '(["tamer/SSH.scrbl" (main-doc multi-page) (net-library)]))
