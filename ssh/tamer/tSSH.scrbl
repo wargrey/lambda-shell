@@ -22,7 +22,7 @@ Everything therefore is subject to change.
 @include-section{walkthrough.scrbl}
 @include-section{confidentiality.scrbl}
 
-@handbook-appendix[#:index? #true
+@handbook-appendix[#:index-section? #true
  (rfc-bib-entry 4250 "The Secure Shell (SSH) Protocol Assigned Numbers" #:author "S. Lehtinen" #:date 2006 #:key 'SSH-NUMBERS)
  (rfc-bib-entry 4251 "The Secure Shell (SSH) Protocol Architecture"     #:author "T. Ylonen"   #:date 2006 #:key 'SSH-ARCH)
  (rfc-bib-entry 4252 "The Secure Shell (SSH) Authentication Protocol"   #:author "T. Ylonen"   #:date 2006 #:key 'SSH-USERAUTH)

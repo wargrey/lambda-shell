@@ -13,4 +13,4 @@
 #;(define raco-commands '(["ssh"  ssh/digivice/ssh  "yet another ssh client" #false]
                           ["sshd" ssh/digivice/sshd "yet another ssh server" #false]))
 
-(define scribblings '(["tamer/SSH.scrbl" (main-doc multi-page) (net-library)]))
+(define scribblings '(["tamer/tSSH.scrbl" (main-doc multi-page) (net-library)]))
