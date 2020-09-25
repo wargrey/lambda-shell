@@ -29,7 +29,7 @@
 ; Peers like OpenSSH may not count on the size of channel data when computing the amount of data.
 ; This implementation counts on the size, and is tolerant of those do not.
 (define ssh-channel-data-fault-tolerance : Positive-Fixnum (ssh-bstring-length #""))
-(define ssh-window-upsize : Index (assert (- (expt 2 32) 1) index?))
+(define ssh-window-topsize : Index (assert (- (expt 2 32) 1) index?))
 
 (struct ssh-spot
   ([channel : SSH-Channel]
@@ -38,8 +38,8 @@
    [incoming-window : Index]
    [outgoing-window : Index]
    [parcel : Bytes]
-   [incoming-upwindow : Index]
-   [outgoing-upwindow : Index]
+   [incoming-topwindow : Index]
+   [outgoing-topwindow : Index]
    [pending-data : (Listof SSH-Message)]
    [incoming-eof? : Boolean]
    [outgoing-eof? : Boolean]
@@ -135,7 +135,7 @@
                   (define maybe-channel : (U SSH-Channel SSH-Message) ((cdr λchannel) type self-id msg rfc))
                   (cond [(ssh-message? maybe-channel) maybe-channel]
                         [else (let* ([incoming-capacity (min ($ssh-payload-capacity rfc) ($ssh-channel-packet-capacity rfc) outgoing-capacity)]
-                                     [incoming-window (min ($ssh-channel-initial-window-size rfc) ssh-window-upsize)])
+                                     [incoming-window (min ($ssh-channel-initial-window-size rfc) ssh-window-topsize)])
                                 (hash-set! self self-id
                                            (ssh-spot maybe-channel self-id partner incoming-window outgoing-window
                                                      (make-bytes (max (- incoming-capacity ssh-channel-data-fault-tolerance) 0))
@@ -156,7 +156,7 @@
       (let ([app-channel (ssh-spot-channel maybe-chport)])
         (set-ssh-spot-peer-id! maybe-chport partner)
         (set-ssh-spot-outgoing-window! maybe-chport outgoing-window)
-        (set-ssh-spot-outgoing-upwindow! maybe-chport outgoing-window)
+        (set-ssh-spot-outgoing-topwindow! maybe-chport outgoing-window)
         
         (when (< outgoing-capacity (ssh-bstring-length (ssh-spot-parcel maybe-chport)))
           (set-ssh-spot-parcel! maybe-chport (make-bytes (max (- outgoing-capacity ssh-channel-data-fault-tolerance) 0))))
@@ -229,11 +229,11 @@
     (when (and maybe-chport (ssh-spot-peer-id maybe-chport))
       (let* ([increment (ssh:msg:channel:window:adjust-increment msg)]
              [outgoing-window++ (+ (ssh-spot-outgoing-window maybe-chport) increment)]
-             [outgoing-window++ (if (> outgoing-window++ ssh-window-upsize) ssh-window-upsize outgoing-window++)]
+             [outgoing-window++ (if (> outgoing-window++ ssh-window-topsize) ssh-window-topsize outgoing-window++)]
              [pending-data (ssh-spot-pending-data maybe-chport)])
         (set-ssh-spot-pending-data! maybe-chport null)
         (set-ssh-spot-outgoing-window! maybe-chport outgoing-window++)
-        (set-ssh-spot-outgoing-upwindow! maybe-chport outgoing-window++)
+        (set-ssh-spot-outgoing-topwindow! maybe-chport outgoing-window++)
         (ssh-log-message 'debug "~a: the outgoing window is incremented to ~a after ~a consumed"
                          (ssh-channel-name (ssh-spot-channel maybe-chport)) (~size outgoing-window++)
                          (~size (ssh-spot-outgoing-traffic maybe-chport)))
@@ -323,7 +323,7 @@
                                           (~size outgoing-window #:precision '(= 6)) (~size traffic))
                          (values (void) (list reply) #false)]
                         [else (let ([outgoing-traffic++ (+ (ssh-spot-outgoing-traffic chport) traffic)]
-                                    [consumption (- (ssh-spot-outgoing-upwindow chport) outgoing-window--)])
+                                    [consumption (- (ssh-spot-outgoing-topwindow chport) outgoing-window--)])
                                 (set-ssh-spot-outgoing-window! chport outgoing-window--)
                                 (set-ssh-spot-outgoing-traffic! chport outgoing-traffic++)
                                 (ssh-log-message 'debug "~a: the outgoing window will be decremented to ~a by ~a" self-name
@@ -334,7 +334,7 @@
   (lambda [chport octets]
     (define partner : (Option Index) (ssh-channel-incoming-partner chport))
     (define traffic : Natural (ssh-bstring-length octets))
-    (define incoming-upwindow : Index (ssh-spot-incoming-upwindow chport))
+    (define incoming-upwindow : Index (ssh-spot-incoming-topwindow chport))
     (define incoming-window : Index (ssh-spot-incoming-window chport))
     (define incoming-window-- : Integer (- incoming-window traffic))
     (define channel-capacity : Natural (ssh-bstring-length (ssh-spot-parcel chport)))

@@ -128,11 +128,11 @@
       (define program : (Option (U String Symbol)) (ssh-application-channel-program self))
       (define /dev/usrin : Input-Port (ssh-application-channel-usrin self))
       (define /dev/msgin : (SSH-Stdin Port) (ssh-application-channel-msgin self))
-      (define upsize : Index (bytes-length parcel))
+      (define topsize : Index (bytes-length parcel))
       
       (define maybe-usrin-evt : (Option (Evtof SSH-Channel-Reply))
         (and program
-             (< upsize window)
+             (< topsize window)
              (not (port-closed? /dev/usrin))
              (wrap-evt /dev/usrin (λ [_] (ssh-user-read self /dev/usrin parcel partner)))))
 
@@ -141,8 +141,8 @@
              ((inst ssh-chin-evt (U SSH-Message (Listof SSH-Message)) SSH-Channel-Reply)
               /dev/msgin
               (λ [[msg : (U SSH-Message (Listof SSH-Message))]]
-                (cond [(list? msg) (ssh-channel-filter* self msg partner upsize)]
-                      [else (ssh-channel-filter self msg partner upsize)])))))
+                (cond [(list? msg) (ssh-channel-filter* self msg partner topsize)]
+                      [else (ssh-channel-filter self msg partner topsize)])))))
 
       (cond [(and maybe-usrin-evt maybe-msgin-evt) (choice-evt maybe-usrin-evt maybe-msgin-evt)]
             [else (or maybe-usrin-evt maybe-msgin-evt (void))]))))
@@ -162,61 +162,61 @@
           [else (close-input-port /dev/usrin) (make-ssh:msg:channel:eof #:recipient partner)])))
 
 (define ssh-channel-filter : (-> SSH-Application-Channel (U SSH-Message (Listof SSH-Message)) Index Index SSH-Channel-Reply)
-  (lambda [self msg partner upsize]
+  (lambda [self msg partner topsize]
     (cond [(ssh:msg:channel:request:shell? msg) (set-ssh-application-channel-program! self 'shell)]
           [(ssh:msg:channel:request:exec? msg) (set-ssh-application-channel-program! self (ssh:msg:channel:request:exec-command msg))]
           [(ssh:msg:channel:request:subsystem? msg) (set-ssh-application-channel-program! self (ssh:msg:channel:request:subsystem-name msg))])
 
     (cond [(ssh:msg:channel:request? msg) (when (= (ssh:msg:channel:request-recipient msg) partner) msg)]
-          [(ssh:msg:channel:extended:data? msg) (when (= (ssh:msg:channel:extended:data-recipient msg) partner) (ssh-split-extended-data msg upsize))]
-          [(ssh:msg:channel:data? msg) (when (= (ssh:msg:channel:data-recipient msg) partner) (ssh-split-data msg upsize))]
+          [(ssh:msg:channel:extended:data? msg) (when (= (ssh:msg:channel:extended:data-recipient msg) partner) (ssh-split-extended-data msg topsize))]
+          [(ssh:msg:channel:data? msg) (when (= (ssh:msg:channel:data-recipient msg) partner) (ssh-split-data msg topsize))]
           [(ssh:msg:channel:close? msg) (when (= (ssh:msg:channel:close-recipient msg) partner) msg)])))
 
 (define ssh-channel-filter* : (-> SSH-Application-Channel (Listof SSH-Message) Index Index SSH-Channel-Reply)
-  (lambda [self msgs partner upsize]
+  (lambda [self msgs partner topsize]
     (let filter ([replies : (Listof SSH-Message) null]
                  [rest : (Listof SSH-Message) msgs])
       (cond [(null? rest) (when (pair? replies) replies)]
-            [else (let ([msg (ssh-channel-filter self (car rest) partner upsize)])
+            [else (let ([msg (ssh-channel-filter self (car rest) partner topsize)])
                     (cond [(void? msg) (filter replies (cdr rest))]
                           [(list? msg) (filter (append replies msg) (cdr rest))]
                           [else (filter (append replies (list msg)) (cdr rest))]))]))))
 
 (define ssh-split-data : (-> SSH-MSG-CHANNEL-DATA Index (U SSH-Message (Listof SSH-Message)))
-  (lambda [msg upsize]
+  (lambda [msg topsize]
     (define payload : Bytes (ssh:msg:channel:data-payload msg))
     
-    (cond [(<= (bytes-length payload) upsize) msg]
-          [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload upsize))])
+    (cond [(<= (bytes-length payload) topsize) msg]
+          [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload topsize))])
                   (make-ssh:msg:channel:data #:recipient (ssh:msg:channel:data-recipient msg) #:payload data))])))
 
 (define ssh-split-extended-data : (-> SSH-MSG-CHANNEL-EXTENDED-DATA Index (U SSH-Message (Listof SSH-Message)))
-  (lambda [msg upsize]
+  (lambda [msg topsize]
     (define payload : Bytes (ssh:msg:channel:extended:data-payload msg))
 
-    (cond [(<= (bytes-length payload) upsize) msg]
-          [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload upsize))])
+    (cond [(<= (bytes-length payload) topsize) msg]
+          [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload topsize))])
                   (make-ssh:msg:channel:extended:data #:recipient (ssh:msg:channel:extended:data-recipient msg)
                                                       #:type (ssh:msg:channel:extended:data-type msg)
                                                       #:payload data))])))
 
 (define ssh-split-bytes : (-> Bytes Index (Listof Bytes))
-  (lambda [payload upsize]
+  (lambda [payload topsize]
     (define extsize : Index (bytes-length payload))
 
     (let split ([start : Nonnegative-Fixnum 0]
                 [exts : (Listof Bytes) null])
       (cond [(>= start extsize) (reverse exts)]
-            [else (split (+ start upsize)
-                         (cons (subbytes payload start (+ start (min upsize (- extsize start))))
+            [else (split (+ start topsize)
+                         (cons (subbytes payload start (+ start (min topsize (- extsize start))))
                                exts))]))))
 
 (define ssh-make-extended-data : (-> Index Symbol Bytes Index (U SSH-Message (Listof SSH-Message)))
-  (lambda [partner type payload upsize]
+  (lambda [partner type payload topsize]
     (define extsize : Index (bytes-length payload))
 
-    (cond [(<= extsize upsize) (make-ssh:msg:channel:extended:data #:recipient partner #:type type #:payload payload)]
-          [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload upsize))])
+    (cond [(<= extsize topsize) (make-ssh:msg:channel:extended:data #:recipient partner #:type type #:payload payload)]
+          [else (for/list : (Listof SSH-Message) ([data (in-list (ssh-split-bytes payload topsize))])
                   (make-ssh:msg:channel:extended:data #:recipient partner #:type type #:payload data))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
