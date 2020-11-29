@@ -6,8 +6,6 @@
 (require digimon/cmdopt)
 (require digimon/dtrace)
 
-(require racket/match)
-
 (require "scp/application.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -26,7 +24,7 @@
     (enter-digimon-zone!)
 
     (define-values (options λargv) (parse-scp-flags argument-list #:help-output-port (current-output-port)))
-    (match-define (list srcs target) (λargv))
+    (define-values (srcs target) (λargv))
     (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-scp-flags #:user-error e #:exit 1))])
       (call-with-dtrace
           (λ [] (cond [(null? srcs) (raise-user-error "no sources file specified")]

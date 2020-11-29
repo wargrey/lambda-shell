@@ -24,7 +24,7 @@
     (define-values (options λargv) (parse-ssh-flags argument-list #:help-output-port (current-output-port)))
     (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-ssh-flags #:user-error e #:exit 1))])
       (call-with-dtrace
-        (λ [] (void (ssh-connect (car (λargv)) (or (ssh-flags-port options) (ssh-target-port)))))))))
+        (λ [] (void (ssh-connect (λargv) (or (ssh-flags-port options) (ssh-target-port)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

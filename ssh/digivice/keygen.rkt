@@ -14,6 +14,7 @@
   #:once-any
   [[(17)       "use 17 as the public exponent"]
    [(f4)       ["use the default public exponent [default: ~a]" (sshkey-rsa-public-exponent)]]]
+  
   #:once-each
   [[(#\b bits) #:=> cmdopt-string+>index bits #: Positive-Index
                ["specific the number of ~1 in the rsa key [default: ~a]" (sshkey-rsa-bits)]]
