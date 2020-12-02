@@ -10,14 +10,15 @@
 (define-syntax (bf-round-do stx)
   (syntax-case stx []
     [(_ l r s p idx)
-     #'(unsafe-fxxor (unsafe-fxxor l (unsafe-vector-ref p idx))
+     (syntax/loc stx
+       (unsafe-fxxor (unsafe-fxxor l (unsafe-vector-ref p idx))
 
                      ; F = ((S1,a + S2,b mod 2^32) XOR S3,c) + S4,d mod 2^32
                      (unsafe-fxand (unsafe-fx+ (unsafe-fxxor (unsafe-fx+ (unsafe-vector-ref s (unsafe-fxand (unsafe-fxrshift r 24) #xFF))
                                                                          (unsafe-vector-ref s (+ (unsafe-fxand (unsafe-fxrshift r 16) #xFF) #x0100)))
                                                              (unsafe-vector-ref s (+ (unsafe-fxand (unsafe-fxrshift r 08) #xFF) #x0200)))
                                                (unsafe-vector-ref s (+ (unsafe-fxand r #xFF) #x0300)))
-                                   #xFFFFFFFF))]))
+                                   #xFFFFFFFF)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bf-blocksize : 8 8)

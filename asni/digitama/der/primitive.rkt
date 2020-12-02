@@ -26,7 +26,8 @@
                     [unsafe-bytes->asn (format-id #'asn "unsafe-asn-bytes->~a" (syntax-e #'type))]
                     [unsafe-bytes->asn* (format-id #'asn "unsafe-asn-bytes->~a*" (syntax-e #'type))]
                     [ASN->type (format-id #'asn "~a" (gensym 'ASN->bytes:))])
-       #'(begin (define asn : Byte (asn-identifier-octet tag #:class 'Universal #:constructed? #false))
+       (syntax/loc stx
+         (begin (define asn : Byte (asn-identifier-octet tag #:class 'Universal #:constructed? #false))
 
                 (define asn-octets? : (->* (Bytes) (Integer) Boolean)
                   (lambda [basn [offset 0]]
@@ -58,14 +59,15 @@
 
                 (hash-set! asn-type->bytes-database asn ASN->type)
                 (hash-set! asn-bytes->type-database asn unsafe-bytes->asn)
-                (hash-set! asn-type-metainfo-database 'asn '(Type asn-octets? asn->bytes unsafe-bytes->asn))))]))
+                (hash-set! asn-type-metainfo-database 'asn '(Type asn-octets? asn->bytes unsafe-bytes->asn)))))]))
 
 (define-syntax (define-asn-primitives stx)
   (syntax-case stx [:]
     [(_ ASN-Primitive [type #:as Type tag [datum? interfaces ...]] ...)
-     #'(begin (define-type ASN-Primitive (U Type ...))
+     (syntax/loc stx
+       (begin (define-type ASN-Primitive (U Type ...))
               
-              (define-asn-primitive type #:as Type tag [datum? interfaces ...]) ...)]))
+              (define-asn-primitive type #:as Type tag [datum? interfaces ...]) ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-type->bytes-database : (HashTable Byte (-> ASN-Primitive (Option Bytes))) (make-hasheq))

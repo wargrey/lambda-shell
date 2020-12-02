@@ -98,7 +98,8 @@
                     [([kw-args ...] [init-values ...]) (ssh-message-arguments #'([field FieldType defval ...] ...))]
                     [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket ssh-datum-length)] ...)
                      (ssh-message-field-transforms (syntax-e #'ssh:msg) #'(field ...) #'(FieldType ...))])
-       #'(begin (struct ssh:msg ssh-message ([field : FieldType] ...)
+       (syntax/loc stx
+         (begin (struct ssh:msg ssh-message ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 
                 (define (make-ssh:msg kw-args ...) : SSH-MSG
@@ -139,7 +140,7 @@
                              [([self : SSH-Message])
                               (ssh:msg->bytes (assert self ssh:msg?))]
                              [([self : SSH-Message] [pool : Bytes] [offset : Natural])
-                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))))]
+                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)])))))]
     [(_ id n #:parent parent ([pield : PieldType pefval ...] ...) ([field : FieldType defval ...] ...))
      (with-syntax* ([SSH-MSG (ssh-typename #'id)]
                     [(ssh:msg ssh:msg? ssh:msg-length ssh:msg->bytes unsafe-bytes->ssh:msg unsafe-bytes->ssh:msg*) (ssh-message-procedures #'id)]
@@ -150,7 +151,8 @@
                      (ssh-message-field-transforms (syntax-e #'pssh:msg) #'(pield ...) #'(PieldType ...))]
                     [([field-ref (racket->ssh ssh->bytes bytes->ssh ssh->racket ssh-datum-length)] ...)
                      (ssh-message-field-transforms (syntax-e #'ssh:msg) #'(field ...) #'(FieldType ...))])
-       #'(begin (struct ssh:msg pssh:msg ([field : FieldType] ...)
+       (syntax/loc stx
+         (begin (struct ssh:msg pssh:msg ([field : FieldType] ...)
                   #:transparent #:constructor-name constructor #:type-name SSH-MSG)
 
                 (define (make-ssh:msg kw-args ...) : SSH-MSG
@@ -191,30 +193,32 @@
                              [([self : SSH-Message])
                               (ssh:msg->bytes (assert self ssh:msg?))]
                              [([self : SSH-Message] [pool : Bytes] [offset : Natural])
-                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)]))))]
+                              (ssh:msg->bytes (assert self ssh:msg?) pool offset)])))))]
     [(_ id n ([field : FieldType defval ...] ...) #:case key-field)
      (with-syntax* ([SSH-MSG (ssh-typename #'id)]
                     [key-field-index (ssh-field-index #'key-field #'(field ...) 0)]
                     [field-infos (ssh-case-message-fields #'n #'(field ...) #'(FieldType ...) #'([defval ...] ...) (syntax-e #'key-field-index))]
                     [_ (hash-set! ssh-case-message-field-database (syntax-e #'SSH-MSG) (syntax->datum #'field-infos))])
-       #'(begin (define-message-interface id n ([field : FieldType defval ...] ...))
+       (syntax/loc stx
+         (begin (define-message-interface id n ([field : FieldType defval ...] ...))
 
                 (hash-set! ssh-bytes->case-message-database 'SSH-MSG
                            (cons key-field-index ((inst make-hasheq Any Unsafe-SSH-Bytes->Message))))
                 
-                (hash-set! ssh-case-message-field-database 'SSH-MSG 'field-infos)))]
+                (hash-set! ssh-case-message-field-database 'SSH-MSG 'field-infos))))]
     [(_ id n #:parent parent ([pield : PieldType pefval ...] ...) ([field : FieldType defval ...] ...) #:case key-field)
      (with-syntax* ([SSH-MSG (ssh-typename #'id)]
                     [key-field-index (ssh-field-index #'key-field #'(field ...) (length (syntax->list #'(pield ...))))]
                     [field-infos (ssh-case-message-fields #'n #'(pield ... field ...) #'(PieldType ... FieldType ...) #'([pefval ...] ... [defval ...] ...)
                                                           (syntax-e #'key-field-index))]
                     [_ (hash-set! ssh-case-message-field-database (syntax-e #'SSH-MSG) (syntax->datum #'field-infos))])
-       #'(begin (define-message-interface id n #:parent parent ([pield : PieldType pefval ...] ...) ([field : FieldType defval ...] ...))
+       (syntax/loc stx
+         (begin (define-message-interface id n #:parent parent ([pield : PieldType pefval ...] ...) ([field : FieldType defval ...] ...))
 
                 (hash-set! ssh-bytes->case-message-database 'SSH-MSG
                            (cons key-field-index ((inst make-hasheq Any Unsafe-SSH-Bytes->Message))))
                 
-                (hash-set! ssh-case-message-field-database 'SSH-MSG 'field-infos)))]))
+                (hash-set! ssh-case-message-field-database 'SSH-MSG 'field-infos))))]))
 
 (define-syntax (define-message stx)
   (syntax-case stx [:]
@@ -222,7 +226,8 @@
      (with-syntax* ([ssh:msg (ssh-typeid #'id)]
                     [SSH-MSG (ssh-typename #'id)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
-       #'(begin (define-message-interface id n (field-definition ...))
+       (syntax/loc stx
+         (begin (define-message-interface id n (field-definition ...))
                 
                 (let ([database ((inst hash-ref! Symbol (HashTable Index Unsafe-SSH-Bytes->Message))
                                  ssh-bytes->shared-message-database 'gid (λ [] (make-hasheq)))])
@@ -231,22 +236,24 @@
                 (let ([names (hash-ref ssh-message-name-database n (λ [] null))])
                   (when (list? names)
                     (hash-set! ssh-message-name-database n
-                               (cons 'SSH-MSG names))))))]
+                               (cons 'SSH-MSG names)))))))]
     [(_ id n (field-definition ...) conditions ...)
      (with-syntax* ([ssh:msg (ssh-typeid #'id)]
                     [SSH-MSG (ssh-typename #'id)]
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))])
-       #'(begin (define-message-interface id n (field-definition ...) conditions ...)
+       (syntax/loc stx
+         (begin (define-message-interface id n (field-definition ...) conditions ...)
 
                 (unless (hash-has-key? ssh-bytes->message-database n)
                   (hash-set! ssh-bytes->message-database n unsafe-bytes->ssh:msg))
 
-                (hash-set! ssh-message-name-database n 'SSH-MSG)))]
+                (hash-set! ssh-message-name-database n 'SSH-MSG))))]
     [(_ id n #:parent parent (parent-field-definition ...) (field-definition ...) conditions ...)
-     #'(begin (define-message-interface id n #:parent parent
+     (syntax/loc stx
+       (begin (define-message-interface id n #:parent parent
                 (parent-field-definition ...) (field-definition ...) conditions ...)
 
-              #| messages that have a parent have already had their number registered |#)]))
+              #| messages that have a parent have already had their number registered |#))]))
 
 (define-syntax (define-ssh-case-message stx)
   (syntax-parse stx #:literals [:]
@@ -257,29 +264,29 @@
                     [unsafe-bytes->ssh:msg (format-id #'ssh:msg "unsafe-bytes->~a" (syntax-e #'ssh:msg))]
                     [(n [pield-field PieldType smart_defval ...] ...)
                      (ssh-case-message-shared-fields ssh-case-message-field-database #'PSSH-MSG #'datum #'case-value)])
-       #'(begin (define-message SSH-MSG n #:parent PSSH-MSG
+       (syntax/loc stx
+         (begin (define-message SSH-MSG n #:parent PSSH-MSG
                   ([pield-field : PieldType smart_defval ...] ...)
                   ([field : FieldType defval ...] ...)
                   conditions ...)
 
                 (hash-set! (cdr (hash-ref ssh-bytes->case-message-database 'PSSH-MSG))
-                           case-value unsafe-bytes->ssh:msg)))]))
+                           case-value unsafe-bytes->ssh:msg))))]))
 
 (define-syntax (define-ssh-messages stx)
   (syntax-parse stx #:literals [:]
     [(_ [enum:id n:nat ([field:id : FieldType defval ...] ...) conditions ...] ...)
-     #'(begin (define-message enum n ([field : FieldType defval ...] ...) conditions ...) ...)]))
+     (syntax/loc stx (begin (define-message enum n ([field : FieldType defval ...] ...) conditions ...) ...))]))
 
 (define-syntax (define-ssh-shared-messages stx)
   (syntax-parse stx #:literals [:]
     [(_ group-name:id [enum:id n:nat ([field:id : FieldType defval ...] ...)] ...)
-     #'(begin (define-message enum n #:group group-name ([field : FieldType defval ...] ...)) ...)]))
+     (syntax/loc stx (begin (define-message enum n #:group group-name ([field : FieldType defval ...] ...)) ...))]))
 
 (define-syntax (define-ssh-case-messages stx)
   (syntax-parse stx #:literals [:]
     [(_ id [id-suffix datum:keyword case-value ([field:id : FieldType defval ...] ...) conditions ...] ...)
-     #'(begin (define-ssh-case-message id id-suffix datum case-value ([field : FieldType defval ...] ...) conditions ...)
-              ...)]))
+     (syntax/loc stx (begin (define-ssh-case-message id id-suffix datum case-value ([field : FieldType defval ...] ...) conditions ...) ...))]))
 
 (define-syntax (define-ssh-message-range stx)
   (syntax-case stx [:]
@@ -289,7 +296,8 @@
                    [ssh-range-message? (format-id #'type "ssh-~a-message?" (syntax-e #'type))]
                    [ssh-bytes->range-message (format-id #'type "ssh-bytes->~a-message" (syntax-e #'type))]
                    [ssh-bytes->range-message* (format-id #'type "ssh-bytes->~a-message*" (syntax-e #'type))])
-       #'(begin (define ssh-range : (Pairof Index Index) (cons idmin idmax))
+       (syntax/loc stx
+         (begin (define ssh-range : (Pairof Index Index) (cons idmin idmax))
 
                 (define ssh-range-payload? : (->* (Bytes) (Index) Boolean)
                   (lambda [src [offset 0]]
@@ -308,7 +316,7 @@
                 (define ssh-bytes->range-message* : (->* (Bytes) (Index #:group (Option Symbol)) (Option SSH-Message))
                   (lambda [bmsg [offset 0] #:group [group #false]]
                     (define-values (maybe-message end-index) (ssh-bytes->message bmsg offset #:group group))
-                    maybe-message))))]))
+                    maybe-message)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Unsafe-SSH-Bytes->Message (->* (Bytes) (Index) (Values SSH-Message Natural)))

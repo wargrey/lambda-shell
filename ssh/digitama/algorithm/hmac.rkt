@@ -10,7 +10,8 @@
 (define-syntax (define-hmac stx)
   (syntax-case stx []
     [(_ id #:hash HASH #:blocksize B)
-     #'(define id : (case-> [Bytes -> (->* (Bytes) (Natural Natural) Bytes)]
+     (syntax/loc stx
+       (define id : (case-> [Bytes -> (->* (Bytes) (Natural Natural) Bytes)]
                             [Bytes Bytes -> Bytes]
                             [Bytes Bytes Natural -> Bytes]
                             [Bytes Bytes Natural Natural -> Bytes])
@@ -25,8 +26,8 @@
            [(key-raw message start end)
             (let*-values ([(key) (if (> (bytes-length key-raw) B) (HASH key-raw) key-raw)]
                           [(k-ipad k-opad) (hmac-kio-pad key B)])         
-              (HASH (bytes-append k-opad (HASH (hmac-bytes-append k-ipad message start end)))))]))]
-    [(_ id #:hash HASH) #'(define-hmac id #:hash HASH #:blocksize 64)]))
+              (HASH (bytes-append k-opad (HASH (hmac-bytes-append k-ipad message start end)))))])))]
+    [(_ id #:hash HASH) (syntax/loc stx (define-hmac id #:hash HASH #:blocksize 64))]))
 
 (define-syntax (define-truncated-hmac stx)
   (syntax-case stx []
@@ -37,7 +38,8 @@
                                     [else (let-values ([(q r) (quotient/remainder n 8)])
                                             (cond [(> r 0) (raise-syntax-error 'ssh-truncated-hmac "misaligned bits" #'n-bits)]
                                                   [else (datum->syntax #'n-bits q)]))]))])
-       #'(define id : (case-> [Bytes -> (->* (Bytes) (Natural Natural) Bytes)]
+       (syntax/loc stx
+         (define id : (case-> [Bytes -> (->* (Bytes) (Natural Natural) Bytes)]
                               [Bytes Bytes -> Bytes]
                               [Bytes Bytes Natural -> Bytes]
                               [Bytes Bytes Natural Natural -> Bytes])
@@ -45,7 +47,7 @@
              [(key) (let ([mac (HMAC key)]) (λ [[message : Bytes] [start : Natural 0] [end : Natural 0]] : Bytes (subbytes (mac message start end) 0 n-byte)))]
              [(key message) (subbytes (HMAC key message 0 0) 0 n-byte)]
              [(key message start) (subbytes (HMAC key message start 0) 0 n-byte)]
-             [(key message start end) (subbytes (HMAC key message start end) 0 n-byte)])))]))
+             [(key message start end) (subbytes (HMAC key message start end) 0 n-byte)]))))]))
 
 (define-hmac hmac-sha1   #:hash sha1-bytes)
 (define-hmac hmac-sha256 #:hash sha256-bytes)

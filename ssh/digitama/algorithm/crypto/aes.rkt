@@ -21,28 +21,31 @@
 (define-syntax (aes-mix-columns! stx)
   (syntax-case stx []
     [(_ state c #:encrypt)
-     #'(let ([s0c (aes-state-array-ref state 0 c)]
+     (syntax/loc stx
+       (let ([s0c (aes-state-array-ref state 0 c)]
              [s1c (aes-state-array-ref state 1 c)]
              [s2c (aes-state-array-ref state 2 c)]
              [s3c (aes-state-array-ref state 3 c)])
          (aes-state-array-set! state 0 c (byte+ (byte* #x02 s0c) (byte* #x03 s1c) s2c s3c))
          (aes-state-array-set! state 1 c (byte+ s0c (byte* #x02 s1c) (byte* #x03 s2c) s3c))
          (aes-state-array-set! state 2 c (byte+ s0c s1c (byte* #x02 s2c) (byte* #x03 s3c)))
-         (aes-state-array-set! state 3 c (byte+ (byte* #x03 s0c) s1c s2c (byte* #x02 s3c))))]
+         (aes-state-array-set! state 3 c (byte+ (byte* #x03 s0c) s1c s2c (byte* #x02 s3c)))))]
     [(_ state c #:decrypt)
-     #'(let ([s0c (aes-state-array-ref state 0 c)]
+     (syntax/loc stx
+       (let ([s0c (aes-state-array-ref state 0 c)]
              [s1c (aes-state-array-ref state 1 c)]
              [s2c (aes-state-array-ref state 2 c)]
              [s3c (aes-state-array-ref state 3 c)])
          (aes-state-array-set! state 0 c (byte+ (byte* #x0e s0c) (byte* #x0b s1c) (byte* #x0d s2c) (byte* #x09 s3c)))
          (aes-state-array-set! state 1 c (byte+ (byte* #x09 s0c) (byte* #x0e s1c) (byte* #x0b s2c) (byte* #x0d s3c)))
          (aes-state-array-set! state 2 c (byte+ (byte* #x0d s0c) (byte* #x09 s1c) (byte* #x0e s2c) (byte* #x0b s3c)))
-         (aes-state-array-set! state 3 c (byte+ (byte* #x0b s0c) (byte* #x0d s1c) (byte* #x09 s2c) (byte* #x0e s3c))))]))
+         (aes-state-array-set! state 3 c (byte+ (byte* #x0b s0c) (byte* #x0d s1c) (byte* #x09 s2c) (byte* #x0e s3c)))))]))
 
 (define-syntax (aes-step stx)
   (syntax-case stx []
     [(_ state aes-substitute-box schedule widx #:encrypt)
-     #'(begin (aes-state-array-substitute! state aes-substitute-box)
+     (syntax/loc stx
+       (begin (aes-state-array-substitute! state aes-substitute-box)
               (aes-left-shift-rows! state)
 
               (aes-mix-columns! state 0 #:encrypt)
@@ -50,16 +53,17 @@
               (aes-mix-columns! state 2 #:encrypt)
               (aes-mix-columns! state 3 #:encrypt)
         
-              (aes-state-array-add-round-key! state schedule widx))]
+              (aes-state-array-add-round-key! state schedule widx)))]
     [(_ state aes-inverse-substitute-box schedule widx #:decrypt)
-     #'(begin (aes-state-array-substitute! state aes-inverse-substitute-box)
+     (syntax/loc stx
+       (begin (aes-state-array-substitute! state aes-inverse-substitute-box)
               (aes-right-shift-rows! state)
               (aes-state-array-add-round-key! state schedule widx)
               
               (aes-mix-columns! state 0 #:decrypt)
               (aes-mix-columns! state 1 #:decrypt)
               (aes-mix-columns! state 2 #:decrypt)
-              (aes-mix-columns! state 3 #:decrypt))]))
+              (aes-mix-columns! state 3 #:decrypt)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; TODO: padding the plaintext if its length is not the multiple of the block size

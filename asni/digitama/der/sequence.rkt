@@ -52,7 +52,8 @@
                                              (cons metainfo sofni)))])
                        (list kw-args (reverse sofni)))]
                     [_ (asn-metatype-set! #'asn-seq #'ASN-Seq #'(ASN-Seq asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))])
-       #'(begin (struct asn-seq ([field : Type] ...) #:transparent
+       (syntax/loc stx
+         (begin (struct asn-seq ([field : Type] ...) #:transparent
                   #:constructor-name constructor
                   #:type-name ASN-Seq)
 
@@ -76,14 +77,15 @@
                     (define-values (seq end) (unsafe-bytes->asn-seq bseq offset))
                     seq))
 
-                (asn-der-metatype-set! 'asn-seq 'ASN-Seq '(ASN-Seq asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq))))]
+                (asn-der-metatype-set! 'asn-seq 'ASN-Seq '(ASN-Seq asn-sequence-octets? asn-seq->bytes unsafe-bytes->asn-seq)))))]
     [(_ asn-seq-of : ASN-Seq-Of #:of ASNType)
      (with-syntax* ([asn-seq-of->bytes (format-id #'asn-seq-of "~a->bytes" (syntax-e #'asn-seq-of))]
                     [unsafe-bytes->asn-seq-of (format-id #'asn-seq-of "unsafe-bytes->~a" (syntax-e #'asn-seq-of))]
                     [unsafe-bytes->asn-seq-of* (format-id #'asn-seq-of "unsafe-bytes->~a*" (syntax-e #'asn-seq-of))]
                     [(Type asn-octets? asn->bytes bytes->asn) (call-with-values (λ [] (asn-metatype-ref 'define-asn-sequence #'ASNType)) list)]
                     [_ (asn-metatype-set! #'asn-seq-of #'ASN-Seq-Of #'(ASN-Seq-Of asn-sequence-octets? asn-seq-of->bytes unsafe-bytes->asn-seq-of))])
-       #'(begin (define-type ASN-Seq-Of (Listof Type))
+       (syntax/loc stx
+         (begin (define-type ASN-Seq-Of (Listof Type))
                 
                 (define asn-seq-of->bytes : (-> ASN-Seq-Of Bytes)
                   (lambda [self]
@@ -103,7 +105,7 @@
                     (define-values (seq end) (unsafe-bytes->asn-seq-of bseq offset))
                     seq))
 
-                (asn-der-metatype-set! 'asn-seq-of 'ASN-Seq-Of '(ASN-Seq-Of asn-sequence-octets? asn-seq-of->bytes unsafe-bytes->asn-seq-of))))]))
+                (asn-der-metatype-set! 'asn-seq-of 'ASN-Seq-Of '(ASN-Seq-Of asn-sequence-octets? asn-seq-of->bytes unsafe-bytes->asn-seq-of)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-sequence : Byte (asn-identifier-octet #x10 #:class 'Universal #:constructed? #true))

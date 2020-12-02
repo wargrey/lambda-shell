@@ -29,7 +29,8 @@
                               (unless (memq (syntax-e <fbname>) (syntax->datum #'(name ...)))
                                 (raise-syntax-error 'define-ssh-symbols (format "the fall back value is not a symbol of ~a" (syntax-e #'TypeU)) #'fallback))
                               <fbname>)])
-       #'(begin (define-type TypeU (U 'name ... 'enum ...))
+       (syntax/loc stx
+         (begin (define-type TypeU (U 'name ... 'enum ...))
                 
                 (define #%Type : (Pairof TypeU (Listof TypeU)) '(name ...))
 
@@ -37,23 +38,24 @@
                   (case-lambda
                     [() #%Type]
                     [(v) (cond [(symbol? v) (case v [(enum name) val] ... [else ($Type 'fbname)])]
-                               [else (case v [(val) 'name] ... [else 'fbname])])]))))]))
+                               [else (case v [(val) 'name] ... [else 'fbname])])])))))]))
 
 (define-syntax (define-ssh-name stx)
   (syntax-case stx [:]
     [(_ &database [name comments ... #:=> [data ...]])
-     #'(set-box! &database (cons (cons 'name (vector-immutable data ...)) (unbox &database)))]
+     (syntax/loc stx (set-box! &database (cons (cons 'name (vector-immutable data ...)) (unbox &database))))]
     [(_ &database [name comments ... #:=> datum])
-     #'(set-box! &database (cons (cons 'name datum) (unbox &database)))]
+     (syntax/loc stx (set-box! &database (cons (cons 'name datum) (unbox &database))))]
     [(_ &database [name comments ...])
-    #'(void)]))
+    (syntax/loc stx (void))]))
 
 (define-syntax (define-ssh-namebase stx)
   (syntax-case stx [:]
     [(_ id : SSH-Type #:as Type)
     (with-syntax ([&id (format-id #'id "&~a" (syntax-e #'id))]
                   [$SSH-Type (format-id #'SSH-Type "$~a" (syntax-e #'SSH-Type))])
-       #'(begin (define-type SSH-Type Type)
+       (syntax/loc stx
+         (begin (define-type SSH-Type Type)
                 (define &id : (Boxof (Listof (Pairof Symbol SSH-Type))) (box null))
                 
                 (define id : (case-> [-> (Listof (Pairof Symbol SSH-Type))]
@@ -73,30 +75,30 @@
                     (define base : (Listof (Pairof Symbol SSH-Type)) (id))
                     (for/list : (SSH-Name-Listof SSH-Type) ([name (in-list name-list)])
                       (or (assq name base)
-                          (cons name #false)))))))]))
+                          (cons name #false))))))))]))
 
 (define-syntax (define-ssh-names stx)
   (syntax-case stx [:]
     [(_ #:kex (definition ...))
-     #'(begin (define-ssh-name &ssh-kex-algorithms definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-kex-algorithms definition) ...))]
     [(_ #:hostkey (definition ...))
-     #'(begin (define-ssh-name &ssh-hostkey-algorithms definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-hostkey-algorithms definition) ...))]
     [(_ #:cipher (definition ...))
-     #'(begin (define-ssh-name &ssh-cipher-algorithms definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-cipher-algorithms definition) ...))]
     [(_ #:mac (definition ...))
-     #'(begin (define-ssh-name &ssh-mac-algorithms definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-mac-algorithms definition) ...))]
     [(_ #:compression (definition ...))
-     #'(begin (define-ssh-name &ssh-compression-algorithms definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-compression-algorithms definition) ...))]
     
     [(_ #:authentication (definition ...))
-     #'(begin (define-ssh-name &ssh-authentication-methods definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-authentication-methods definition) ...))]
     [(_ #:service (definition ...))
-     #'(begin (define-ssh-name &ssh-registered-services definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-registered-services definition) ...))]
     [(_ #:application (definition ...))
-     #'(begin (define-ssh-name &ssh-registered-applications definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-registered-applications definition) ...))]
 
     [(_ #:channel (definition ...))
-     #'(begin (define-ssh-name &ssh-registered-channels definition) ...)]
+     (syntax/loc stx (begin (define-ssh-name &ssh-registered-channels definition) ...))]
     
     [(_ keyword (definitions ...))
      (with-syntax* ([&id (let ([kw (syntax-e #'keyword)])
@@ -104,7 +106,7 @@
                            (let ([&id (format-id #'keyword "&~a" (keyword->string kw))])
                              (unless (identifier-binding &id) (raise-syntax-error 'define-ssh-algorithms "unknown algorithm type" #'keyword))
                              &id))])
-       #'(begin (define-ssh-name &id definitions) ...))]))
+       (syntax/loc stx (begin (define-ssh-name &id definitions) ...)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type SSH-λCipher! (->* (Bytes) (Natural Natural (Option Bytes) Natural Natural) Index))

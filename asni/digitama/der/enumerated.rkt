@@ -78,7 +78,8 @@
                     [unsafe-bytes->asn-enum* (format-id #'asn-enum "unsafe-bytes->~a*" (syntax-e #'asn-enum))]
                     [([fb-id fb-idx] [identifier index] ...) (asn-root-enumeration-parse #'(item ...) #'fallback)]
                     [_ (asn-metatype-set! #'asn-enum #'ASN-Enum #'(ASN-Enum asn-enumerated-octets? asn-enum->bytes unsafe-bytes->asn-enum))])
-       #'(begin (define-type ASN-Enum (U 'identifier ...))
+       (syntax/loc stx
+         (begin (define-type ASN-Enum (U 'identifier ...))
 
                 (define asn-enum : (case-> [-> (Pairof ASN-Enum (Listof ASN-Enum))] [Symbol -> Sub-Integer] [Integer -> ASN-Enum])
                   (let ([enum : (Pairof ASN-Enum (Listof ASN-Enum)) (list 'identifier ...)])
@@ -101,7 +102,7 @@
                     (define-values (seq end) (unsafe-bytes->asn-enum bseq offset))
                     seq))
 
-                (asn-der-metatype-set! 'asn-enum 'ASN-Enum '(ASN-Enum asn-enumerated-octets? asn-enum->bytes unsafe-bytes->asn-enum))))]))
+                (asn-der-metatype-set! 'asn-enum 'ASN-Enum '(ASN-Enum asn-enumerated-octets? asn-enum->bytes unsafe-bytes->asn-enum)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-enumerated : Byte (asn-identifier-octet 10 #:class 'Universal #:constructed? #false))

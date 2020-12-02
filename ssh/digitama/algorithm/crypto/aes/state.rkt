@@ -43,7 +43,8 @@
                                                         (define-values (c r)  (quotient/remainder bs (syntax-e #'rows)))
                                                         (list (datum->syntax #'blocksize bs)
                                                               (datum->syntax #'blocksize (+ c (* r (syntax-e #'Nb))))))])
-       #'(begin (define id-Nb : Nb Nb)
+       (syntax/loc stx
+         (begin (define id-Nb : Nb Nb)
                 (define id-blocksize : blocksize blocksize)
 
                 (define make-state-array : (-> (State-Array rows Nb))
@@ -113,4 +114,4 @@
                               [v (integer-bytes->uint32 s #false #true idx (unsafe-fx+ idx 4))])
                          (integer->integer-bytes (unsafe-fxxor (unsafe-fxrshift v bits)
                                                                (unsafe-fxand (unsafe-fxlshift v (- 32 bits)) #xFFFFFFFF))
-                                                 4 #false #true s idx))]))))]))
+                                                 4 #false #true s idx))])))))]))

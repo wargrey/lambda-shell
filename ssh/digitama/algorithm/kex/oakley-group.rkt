@@ -37,11 +37,12 @@
 (define-syntax (define-modp-dh-group stx)
   (syntax-case stx []
     [(_ v #:group id #:magic i #:generator g [#:prime hex ...])
-     #'(begin (define v : DH-MODP-Group
+     (syntax/loc stx
+       (begin (define v : DH-MODP-Group
                 (let ([p : Positive-Integer (make-prime hex ...)])
                   (dh-modp-group id p g (max (quotient (- p 1) 2) 1) i)))
 
-              (hash-set! dh-modp-groups (assert (integer-length (dh-modp-group-p v)) index?) v))]))
+              (hash-set! dh-modp-groups (assert (integer-length (dh-modp-group-p v)) index?) v)))]))
 
 (struct dh-modp-group
   ([id : Byte]            #;[group id]

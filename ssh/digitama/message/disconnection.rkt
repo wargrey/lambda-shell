@@ -18,11 +18,12 @@
     [(_ REASON)
      (with-syntax* ([make-id (format-id #'REASON "make-~a" (syntax-e (ssh-typeid #'REASON)))]
                     [make+id (format-id #'REASON "make+~a" (syntax-e (ssh-typeid #'REASON)))])
-       #'(define make-id : (->* () ((Option String) #:language (Option Symbol) #:source (Option Procedure)) #:rest Any SSH-MSG-DISCONNECT)
+       (syntax/loc stx
+         (define make-id : (->* () ((Option String) #:language (Option Symbol) #:source (Option Procedure)) #:rest Any SSH-MSG-DISCONNECT)
            (lambda [#:language [lang #false] #:source [src #false] [descfmt #false] . argl]
              (let* ([desc (and descfmt (apply format descfmt argl))]
                     [desc (and desc (if (and src) (format "~a: ~a" (object-name src) desc) desc))])
-               (make-ssh:msg:disconnect #:reason 'REASON #:description desc #:language lang)))))]))
+               (make-ssh:msg:disconnect #:reason 'REASON #:description desc #:language lang))))))]))
 
 (define-syntax (define-make-disconnections stx)
   (syntax-case stx [:]
@@ -30,6 +31,6 @@
      (with-syntax* ([(REASON ...) (map (λ [r] (datum->syntax #'reason r))
                                        (dynamic-require-for-syntax "../assignment/disconnection.rkt"
                                                                    (syntax-e (ssh-symid #'reason))))])
-       #'(begin (define-make-disconnection REASON) ...))]))
+       (syntax/loc stx (begin (define-make-disconnection REASON) ...)))]))
 
 (define-make-disconnections SSH-Disconnection-Reason)
