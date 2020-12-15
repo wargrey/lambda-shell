@@ -13,6 +13,7 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
+(require (for-syntax racket/symbol))
 
 (require (for-syntax "metatype.rkt"))
 
@@ -20,7 +21,7 @@
 (define-for-syntax (asn-sequence-field seqname <declaration>)
   (define declaration (syntax-e <declaration>))
   (define <field> (car declaration))
-  (define <kw-name> (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>)))))
+  (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
   (define <field-ref> (format-id <field> "~a-~a" seqname (syntax-e <field>)))
 
   (define-values (<Type> <asn-octets?> <asn->bytes> <bytes->asn>) (asn-metatype-ref 'define-asn-sequence (cadr declaration)))

@@ -5,6 +5,7 @@
 (provide (all-defined-out) SSH-Datum->Bytes SSH-Bytes->Datum SSH-Void)
 
 (require racket/string)
+(require racket/symbol)
 
 (require digimon/number)
 
@@ -145,13 +146,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-name-length : (-> Symbol Positive-Fixnum)
   (lambda [name]
-    (ssh-string-length (symbol->string name))))
+    (ssh-string-length (symbol->immutable-string name))))
 
 (define ssh-name->bytes : (SSH-Datum->Bytes Symbol)
   (case-lambda
-    [(name) (ssh-string->bytes (symbol->string name))]
-    [(name pool) (ssh-string->bytes (symbol->string name) pool 0)]
-    [(name pool offset) (ssh-string->bytes (symbol->string name) pool offset)]))
+    [(name) (ssh-string->bytes (symbol->immutable-string name))]
+    [(name pool) (ssh-string->bytes (symbol->immutable-string name) pool 0)]
+    [(name pool offset) (ssh-string->bytes (symbol->immutable-string name) pool offset)]))
 
 (define ssh-bytes->name : (SSH-Bytes->Datum Symbol)
   (lambda [butf8 [offset 0]]

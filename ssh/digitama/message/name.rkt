@@ -5,10 +5,11 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/string))
+(require (for-syntax racket/symbol))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax (ssh-typename <id>)
-  (format-id <id> "~a" (string-replace (symbol->string (syntax-e <id>)) "_" "-")))
+  (format-id <id> "~a" (string-replace (symbol->immutable-string (syntax-e <id>)) "_" "-")))
 
 (define-for-syntax (ssh-typename* <id> <id-suffix>)
   (syntax-case <id-suffix> []
@@ -16,7 +17,7 @@
     [suffix (ssh-typename (format-id <id-suffix> "~a_~a" (syntax-e <id>) (syntax-e #'suffix)))]))
 
 (define-for-syntax (ssh-typeid <id>)
-  (format-id <id> "~a" (string-replace (string-downcase (symbol->string (syntax-e <id>))) #px"[_-]" ":")))
+  (format-id <id> "~a" (string-replace (string-downcase (symbol->immutable-string (syntax-e <id>))) #px"[_-]" ":")))
 
 (define-for-syntax (ssh-symname <id>)
   (define id (syntax-e <id>))

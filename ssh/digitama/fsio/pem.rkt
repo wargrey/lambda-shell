@@ -5,6 +5,7 @@
 (provide (all-defined-out))
 
 (require racket/string)
+(require racket/symbol)
 (require racket/path)
 
 (require digimon/binscii)
@@ -93,7 +94,7 @@
       (string-upcase
        (string-replace
         (cond [(string? label-raw) label-raw]
-              [else (symbol->string label-raw)])
+              [else (symbol->immutable-string label-raw)])
         "-" " ")))
 
     (values (format "-----BEGIN ~a-----" label)
@@ -120,7 +121,7 @@
   (lambda [label LABEL]
     (and (symbol? LABEL)
          (or (eq? label LABEL)
-             (let ([s (symbol->string label)]
-                   [S (symbol->string LABEL)])
+             (let ([s (symbol->immutable-string label)]
+                   [S (symbol->immutable-string LABEL)])
                (or (string-ci=? s S)
                    (string-ci=? (string-replace s "-" " ") S)))))))

@@ -6,6 +6,7 @@
 (provide (except-out (all-defined-out) define-modp-dh-group))
 
 (require (for-syntax racket/base))
+(require (for-syntax racket/symbol))
 (require (for-syntax (only-in math/number-theory prime?)))
 
 (define-for-syntax (symbols->prime <hexadecimals>)
@@ -14,7 +15,7 @@
     (for/list ([<hex> (in-list <hexadecimal>s)])
       (define hex (syntax-e <hex>))
       (if (symbol? hex)
-          (let ([subsym (symbol->string hex)])
+          (let ([subsym (symbol->immutable-string hex)])
             (or (and (string->number subsym 16) subsym)
                 (raise-syntax-error 'symbols->prime "not a hexadecimal subsymbol" <hex>)))
           (if (integer? hex)

@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/string)
+(require racket/symbol)
 
 (require digimon/format)
 
@@ -116,7 +117,7 @@
                   [(or (not name) (null? name)) (ssh-log-message 'debug "received message ~a (~a, ~ams)" msg-id t ms)]
                   [(null? (cdr name)) (ssh-log-message 'debug "received message ~a[~a] (~a, ~ams)" (car name) msg-id t ms)]
                   [else (ssh-log-message 'debug "received message ~a, it's shared by ~a (~a, ~ams)" msg-id
-                                         (string-join (map symbol->string name) ", " #:before-last " and ")
+                                         (string-join (map symbol->immutable-string name) ", " #:before-last " and ")
                                          t ms)]))))
     
     (unless (not maybe-trans-msg)

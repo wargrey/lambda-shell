@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/symbol)
+
 (require "../message.rkt")
 
 (require "../assignment/connection.rkt")
@@ -18,7 +20,7 @@
   [SSH_MSG_CHANNEL_OPEN_CONFIRMATION 91 ([recipient : Index] [sender : Index] [window-size : Index] [packet-capacity : Index] [details : (SSH-Bytes #false) #""])]
   [SSH_MSG_CHANNEL_OPEN_FAILURE      92 ([recipient : Index]
                                          [reason : (SSH-Symbol SSH-Channel-Failure-Reason)]
-                                         [description : String (symbol->string reason)]
+                                         [description : String (symbol->immutable-string reason)]
                                          [language : Symbol '||])]
   [SSH_MSG_CHANNEL_WINDOW_ADJUST     93 ([recipient : Index] [increment : Index])]
   [SSH_MSG_CHANNEL_DATA              94 ([recipient : Index] [payload : Bytes])]

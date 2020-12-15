@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/math)
+(require racket/symbol)
 
 (require digimon/struct)
 
@@ -48,7 +49,7 @@
 (define make-ssh-channel-name : (-> Symbol Natural Symbol)
   (lambda [type id]
     (string->symbol (format "~a[0x~a]"
-                      (string-titlecase (symbol->string type))
+                      (string-titlecase (symbol->immutable-string type))
                       (number->string id 16)))))
 
 (define ssh-log-extended-data : (-> Symbol Symbol String Void)

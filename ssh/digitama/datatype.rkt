@@ -4,12 +4,13 @@
 (provide (for-syntax (all-defined-out)))
 
 (require (for-syntax racket/base))
+(require (for-syntax racket/symbol))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax (ssh-struct-field <declaration>)
   (define declaration (syntax-e <declaration>))
   (define <field> (car declaration))
-  (define <kw-name> (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>)))))
+  (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
   (define-values (<argls> <value>)
     (syntax-case <declaration> [SSH-Void Boolean]
       [(field FieldType) (values #'[field : FieldType] #'field)]

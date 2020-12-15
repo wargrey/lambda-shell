@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/symbol)
+
 (require "../message.rkt")
 (require "../assignment.rkt")
 (require "../assignment/disconnection.rkt")
@@ -18,7 +20,7 @@
 (define-ssh-messages
   ; for http://tools.ietf.org/html/rfc4253
   [SSH_MSG_DISCONNECT                 1 ([reason : (SSH-Symbol SSH-Disconnection-Reason)]
-                                         [description : String (symbol->string reason)]
+                                         [description : String (symbol->immutable-string reason)]
                                          [language : Symbol '||]
                                          [peer? : (SSH-Void Boolean #true) #false])]
   [SSH_MSG_IGNORE                     2 ([data : Bytes #""])]
