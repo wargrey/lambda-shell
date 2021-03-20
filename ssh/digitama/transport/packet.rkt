@@ -206,7 +206,7 @@
                               (pretty-print-line count++ (cons char srahc)))])))))
 
         (unless (bytes=? digest #"")
-          (fprintf /dev/pktout "~n[digest: ~a]" (bytes->hex-string digest #:separator ":")))
+          (fprintf /dev/pktout "~n[digest: ~a]" (bytes->hexstring digest #:separator ":")))
           
         (ssh-log-message #:with-peer-name? #false level (bytes->string/utf-8 (get-output-bytes /dev/pktout #true)) #:data blocksize)))))
 

@@ -51,5 +51,5 @@ and examples can be found in @~cite[ASN.1-CbHS].
            (define restored (bytes->enum os))
            
            (if (equal? datum restored)
-               (bytes->hex-string os #:separator " ")
-               (eprintf "~a~n" (bytes->hex-string os #:separator " ")))))]
+               (bytes->hexstring os #:separator " ")
+               (eprintf "~a~n" (bytes->hexstring os #:separator " ")))))]

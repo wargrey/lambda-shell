@@ -108,7 +108,7 @@ These test cases are defined in @~cite[HMAC-SHA].
            (define mphex (string->number (substring raw 2) 16))
            (define bs (ssh-mpint->bytes mphex))
            (define-values (restored _) (ssh-bytes->mpint bs))
-           (cons (number->symb0x restored) (bytes->hex-string bs #:separator " "))))
+           (cons (number->symb0x restored) (bytes->hexstring bs #:separator " "))))
 
        (define namelist
          (lambda [names]
@@ -118,12 +118,12 @@ These test cases are defined in @~cite[HMAC-SHA].
            (ssh-namelist->bytes names bs)
            
            (define-values (restored _) (ssh-bytes->namelist bs))
-           (cons restored (bytes->hex-string bs #:separator " "))))
+           (cons restored (bytes->hexstring bs #:separator " "))))
        
        (define HMAC
          (lambda [digest hmac-sha256 key message]
-           (printf "Key  = ~a (~a Bytes)~n" (bytes->hex-string key) (bytes-length key))
-           (printf "Data = ~a (~a Bytes)~n" (bytes->hex-string message) (bytes-length message))
+           (printf "Key  = ~a (~a Bytes)~n" (bytes->hexstring key) (bytes-length key))
+           (printf "Data = ~a (~a Bytes)~n" (bytes->hexstring message) (bytes-length message))
            (printf "~s~n" digest)
 
-           (bytes->hex-string ((hmac-sha256 key) message))))]
+           (bytes->hexstring ((hmac-sha256 key) message))))]

@@ -95,8 +95,8 @@ Some details are learnt from @~cite[ASN1bSW].
            (define-values (restored _) (asn-bytes->primitive os))
            
            (if (equal? datum restored) ; `+nan.0`s cannot be compared with arithemtic operator. 
-               (cons datum (bytes->hex-string os #:separator " "))
-               (eprintf "~a[~a]: ~a~n" datum restored (bytes->hex-string os #:separator " ")))))
+               (cons datum (bytes->hexstring os #:separator " "))
+               (eprintf "~a[~a]: ~a~n" datum restored (bytes->hexstring os #:separator " ")))))
 
        (define asn-primitives
          (lambda [data]

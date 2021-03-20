@@ -6,12 +6,13 @@
 
 (require "base.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define asn-dissect : (->* (Bytes) (Integer Integer #:binary? Boolean #:port Output-Port #:indention Byte #:column Positive-Byte #:separator Char) Void)
   (lambda [basn [start 0] [smart-end 0]
                 #:binary? [base2 #false] #:port [/dev/stdout (current-output-port)]
                 #:indention [indention 0] #:column [column 16] #:separator [separator #\space]]
     (define idxmax : Index (if (<= smart-end start) (bytes-length basn) (assert smart-end index?)))
-    (define-values (base inset ~byte) (if (not base2) (values 16 3 byte->hex-string) (values 2 9 byte->bin-string)))
+    (define-values (base inset ~byte) (if (not base2) (values 16 3 byte->hexstring) (values 2 9 byte->binstring)))
     (define pad : Bytes (make-bytes inset #x20))
     (define fmt : String (string-append (string separator) "~a"))
 

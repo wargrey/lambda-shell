@@ -223,7 +223,7 @@ Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors th
        
        (define bf-generate-subkeys
          (lambda [keyfull keydata]
-           (printf "data[~a]= ~a~n" (bytes-length keydata) (string-upcase (bytes->hex-string keydata)))
+           (printf "data[~a]= ~a~n" (bytes-length keydata) (string-upcase (bytes->hexstring keydata)))
 
            (andmap values
                    (for/list ([size (in-range 1 (bytes-length keyfull))])
@@ -234,7 +234,7 @@ Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors th
 
                      (fprintf (if okay? (current-output-port) (current-error-port))
                               "c=~a k[~a]=~a~n"
-                              (string-upcase (bytes->hex-string out)) (~r size #:min-width 2) (string-upcase (bytes->hex-string key)))
+                              (string-upcase (bytes->hexstring out)) (~r size #:min-width 2) (string-upcase (bytes->hexstring key)))
 
                      okay?))))
 
@@ -253,7 +253,7 @@ Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors th
 
                      (fprintf (if okay? (current-output-port) (current-error-port))
                               "~a\t~a\t~a~n"
-                              (string-upcase (bytes->hex-string key)) (string-upcase (bytes->hex-string pout)) (string-upcase (bytes->hex-string cout)))
+                              (string-upcase (bytes->hexstring key)) (string-upcase (bytes->hexstring pout)) (string-upcase (bytes->hexstring cout)))
 
                      okay?))))
        
@@ -268,14 +268,14 @@ Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors th
            (define pokay? (bytes=? pout plaintext))
            
            (printf "chain mode test data~n")
-           (printf "key[~a]\t  =~a~n" (bytes-length key) (string-upcase (bytes->hex-string key)))
-           (printf "iv[~a]\t  =~a~n" (bytes-length IV) (string-upcase (bytes->hex-string IV)))
+           (printf "key[~a]\t  =~a~n" (bytes-length key) (string-upcase (bytes->hexstring key)))
+           (printf "iv[~a]\t  =~a~n" (bytes-length IV) (string-upcase (bytes->hexstring IV)))
            (printf "data[~a]  =\"~a\" (including trailing '\\0')~n" (bytes-length data) data)
 
            (fprintf (if pokay? (current-output-port) (current-error-port))
-                    "data[~a]  =~a~n" (bytes-length data) (string-upcase (bytes->hex-string data)))
+                    "data[~a]  =~a~n" (bytes-length data) (string-upcase (bytes->hexstring data)))
            
            (fprintf (if cokay? (current-output-port) (current-error-port))
-                    "cbc cipher text~ncipher[~a]=~a~n" cipher-size (string-upcase (bytes->hex-string ciphertext)))
+                    "cbc cipher text~ncipher[~a]=~a~n" cipher-size (string-upcase (bytes->hexstring ciphertext)))
 
            (and cokay? pokay?)))]

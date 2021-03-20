@@ -116,7 +116,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
              (integer->integer-bytes (vector-ref schedule (+ start 2)) 4 #false #true pool 08)
              (integer->integer-bytes (vector-ref schedule (+ start 3)) 4 #false #true pool 12)
              
-             (let ([octets (string-split (bytes->hex-string pool #:separator " "))])
+             (let ([octets (string-split (bytes->hexstring pool #:separator " "))])
                (pict:frame (pict:inset (pict:table 4 (map pict:text octets) pict:cc-superimpose pict:cc-superimpose 8 8)
                                        4))))))
        
@@ -124,7 +124,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
          (lambda [0xkey column last-one]
            (define key (symb0x->octets 0xkey))
            
-           (printf "Cipher Key = ~a (~a bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
+           (printf "Cipher Key = ~a (~a bits)~n" (bytes->hexstring key) (* (bytes-length key) 8))
 
            (define schedule (aes-key-expand key))
            (define last-word (vector-ref schedule (- (vector-length schedule) 1)))
@@ -183,7 +183,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
            
            (encrypt! pool)
            
-           (values (bytes->hex-string pool)
+           (values (bytes->hexstring pool)
                    (bytes=? pool ciphertext))))
        
        (define aes-core-cipher
@@ -197,13 +197,13 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
            (define encryption-okay? (bytes=? ctext ciphertext))
            (define decryption-okay? (bytes=? ptext plaintext))
            
-           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
-           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
+           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hexstring plaintext) (bytes-length plaintext))
+           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hexstring key) (* (bytes-length key) 8))
            (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
+                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hexstring ctext) (bytes-length ctext))
            
            (when (not decryption-okay?)
-             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
+             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hexstring ptext) (bytes-length ptext)))
 
            (and encryption-okay? decryption-okay?)))
        
@@ -219,13 +219,13 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
            (define encryption-okay? (bytes=? ctext ciphertext))
            (define decryption-okay? (bytes=? ptext plaintext))
            
-           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hex-string plaintext) (bytes-length plaintext))
-           (printf "InitialVector = ~a (~a Bits)~n" (bytes->hex-string IV) (* (bytes-length IV) 8))
-           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hex-string key) (* (bytes-length key) 8))
+           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hexstring plaintext) (bytes-length plaintext))
+           (printf "InitialVector = ~a (~a Bits)~n" (bytes->hexstring IV) (* (bytes-length IV) 8))
+           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hexstring key) (* (bytes-length key) 8))
            (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hex-string ctext) (bytes-length ctext))
+                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hexstring ctext) (bytes-length ctext))
            
            (when (not decryption-okay?)
-             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hex-string ptext) (bytes-length ptext)))
+             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hexstring ptext) (bytes-length ptext)))
 
            (and encryption-okay? decryption-okay?)))]

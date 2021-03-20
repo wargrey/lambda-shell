@@ -94,7 +94,7 @@ The first testcase is defined in @~cite[MS-DER].
          (lambda [length]
            (define os (asn-length->octets length))
            (define-values (restored _) (asn-octets->length os))
-           (cons restored (bytes->bin-string os #:separator " "))))
+           (cons restored (bytes->binstring os #:separator " "))))
 
        (define asn-primitive
          (lambda [datum [identifier #false]]
@@ -108,6 +108,6 @@ The first testcase is defined in @~cite[MS-DER].
            (define-values (restored _) (asn-bytes->primitive os))
            
            (if (equal? datum restored)
-               (values (bytes->bin-string os #:separator " ")
-                       (bytes->hex-string os #:separator " "))
-               (eprintf "~a~n" (bytes->hex-string os #:separator " ")))))]
+               (values (bytes->binstring os #:separator " ")
+                       (bytes->hexstring os #:separator " "))
+               (eprintf "~a~n" (bytes->hexstring os #:separator " ")))))]
