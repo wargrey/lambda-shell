@@ -18,7 +18,9 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
+(require (for-syntax racket/keyword))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-ssh-symbols stx)
   (syntax-case stx [:]
     [(_ TypeU #:as Type ([enum val] ...) #:fallback fallback)
@@ -103,7 +105,7 @@
     [(_ keyword (definitions ...))
      (with-syntax* ([&id (let ([kw (syntax-e #'keyword)])
                            (unless (keyword? kw) (raise-syntax-error 'define-ssh-algorithms "expected a keyword" #'keyword))
-                           (let ([&id (format-id #'keyword "&~a" (keyword->string kw))])
+                           (let ([&id (format-id #'keyword "&~a" (keyword->immutable-string kw))])
                              (unless (identifier-binding &id) (raise-syntax-error 'define-ssh-algorithms "unknown algorithm type" #'keyword))
                              &id))])
        (syntax/loc stx (begin (define-ssh-name &id definitions) ...)))]))

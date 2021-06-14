@@ -6,6 +6,7 @@
 (provide (for-syntax (all-defined-out)))
 
 (require (for-syntax racket/base))
+(require (for-syntax racket/keyword))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax ssh-message-hidden-fields-count 2)
@@ -32,7 +33,7 @@
 (define-for-syntax (ssh-case-message-shared-fields db <id> <case-name> <case-val>)
   (define name (syntax-e <id>))
   (define field-infos (hash-ref db name (λ [] null)))
-  (define case-name (string->symbol (keyword->string (syntax->datum <case-name>))))
+  (define case-name (string->symbol (keyword->immutable-string (syntax->datum <case-name>))))
   
   (when (null? field-infos)
     (raise-syntax-error 'ssh-case-message-shared-fields
