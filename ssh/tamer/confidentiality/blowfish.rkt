@@ -52,8 +52,8 @@ Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors th
  (define-values (encrypt decrypt) (blowfish-cipher HW-ID6))
  (define eck1 (encrypt (bytes-append cell-key1 (bytes 03 03 03))))
  (define eck2 (encrypt (bytes-append cell-key2 (bytes 03 03 03))))
- (string-upcase (bytes->hex-string eck1))
- (string-upcase (bytes->hex-string eck2))]
+ (string-upcase (bytes->hexstring eck1))
+ (string-upcase (bytes->hexstring eck2))]
 
 @handbook-reference[]
 
