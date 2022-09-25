@@ -49,7 +49,7 @@ static char* user_fill_passwd(const char* name, struct passwd* pwd) {
 }
 #endif
 
-F_LAMBDA size_t user_home_dir(const char* name, char* pool, size_t psize) {
+__lambda__ size_t user_home_dir(const char* name, char* pool, size_t psize) {
 	size_t dirsize = 0;
 
 #ifdef __windows__
