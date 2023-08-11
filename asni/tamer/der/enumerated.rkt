@@ -16,7 +16,7 @@ and examples can be found in @~cite[ASN.1-CbHS].
 
 @handbook-scenario{Root Enumerations}
 
-@tamer-action[
+@tamer-repl[
  (define-asn-enumerated auto-index : Auto-Index #:+ Byte
    (1st 3rd [2nd 2] 4th [zero 0] [infinite 255]))
  

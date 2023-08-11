@@ -10,22 +10,22 @@ This section demonstrates the implementation of @cite{SSH-TRANS}.
 
 @handbook-scenario{Identification String}
 
-@tamer-action[
+@tamer-repl[
  default-identification
  (ssh-peer-identification default-identification)
  (ssh-peer-identification "SSH-2.0--")]
 
-@tamer-action[
+@tamer-repl[
  (ssh-peer-identification "SSL-2.0-Bad_Prefix")
  (ssh-peer-identification "SSH-1.b-Bad_Protocol")
  (ssh-peer-identification (~a "SSH-2.0-tl_dr " (make-string ($ssh-longest-identification-length rfc) #\.)))]
 
 @handbook-scenario{Additional Messages}
 
-@tamer-action[
+@tamer-repl[
  (ssh-message (make-ssh:msg:kexinit))]
 
-@tamer-action[
+@tamer-repl[
  (ssh-message (make-ssh:msg:disconnect #:reason 'SSH_DISCONNECT_RESERVED #:language 'en_US))
  (ssh-message (make-ssh:msg:ignore #:data #"Ignored Data Message"))
  (ssh-message (make-ssh:msg:debug #:display? #true #:message "调试信息 in ISO-10646 UTF-8 encoding [RFC3629]" #:language 'zh_CN))

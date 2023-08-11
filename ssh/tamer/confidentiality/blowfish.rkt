@@ -27,24 +27,24 @@ This section demonstrates the implementation of @~cite[BF] and @~cite[TBEA].
 
 @handbook-scenario[#:tag "bf-subkey"]{Generate Subkeys}
 
-@tamer-action[
+@tamer-repl[
  (bf-generate-subkeys key-test key-data)]
 
 @handbook-scenario[#:tag "bf-vector"]{Test Vectors}
 
-@tamer-action[
+@tamer-repl[
  (bf-cipher-ecb ecb-data plain-data cipher-data)]
 
 @handbook-scenario[#:tag "bf-cbc"]{Chain mode Test}
 
-@tamer-action[
+@tamer-repl[
  (bf-cipher-cbc cbc-data cbc-iv cbc-key cbc-ok)]
 
 @handbook-scenario[#:tag "bf-enc"]{ENC Cell Permit Examples}
 
 Blowfish algorithm is used to encrypt the ENC, so let's try some test vectors that provided in @~cite[S63DPS].
 
-@tamer-action[
+@tamer-repl[
  (define HW-ID (string->bytes/utf-8 (string #\1 #\2 #\3 #\4 #\8)))
  (define HW-ID6 (bytes-append HW-ID (bytes (bytes-ref HW-ID 0))))
  (define cell-key1 (bytes #xC1 #xCB #x51 #x8E #x9C))

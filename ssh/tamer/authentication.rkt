@@ -10,7 +10,7 @@ This section demonstrates the implementation of @cite{SSH-USERAUTH}.
 
 @handbook-scenario{Authentication Requests}
 
-@tamer-action[
+@tamer-repl[
  (ssh-message (make-ssh:msg:userauth:request #:username 'wargrey #:method 'none))
  (ssh-message (make-ssh:msg:userauth:request:publickey #:username 'wargrey #:algorithm 'algorithm #:key #"key"))
  (define-values (octets signed-request) (ssh-message (make-ssh:msg:userauth:request:publickey$ #:username 'wargrey #:signature #"signature" #:algorithm 'algorithm #:key #"key")))
@@ -22,7 +22,7 @@ This section demonstrates the implementation of @cite{SSH-USERAUTH}.
 
 The format of @deftech{authorized_keys} is defined in @exec{man sshd}.
 
-@tamer-action[
+@tamer-repl[
  (with-logging-to-port (current-error-port)
    (λ [] (read-authorized-keys* authorized_keys #:count-lines? #true))
    'debug)]

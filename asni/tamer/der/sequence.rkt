@@ -14,7 +14,7 @@
 
 @handbook-scenario{Sequences}
 
-@tamer-action[
+@tamer-repl[
  (define-asn-enumerated asn-gender : ASN-Gender (unknown male female))
  (define-asn-sequence plain-seq : Plain-Seq
    ([name : asn-string/ia5]
@@ -28,7 +28,7 @@
 
 The next example is defined int @~cite[RFC-PKCS#1].
 
-@tamer-action[
+@tamer-repl[
  (define-asn-sequence digest-algorithm : Digest-Algorithm
    ([id : asn-oid]
     [parameter : asn-null #:default (void)]))
@@ -50,7 +50,7 @@ The next example is defined int @~cite[RFC-PKCS#1].
 
 @handbook-scenario{Sequences with Optional Components}
 
-@tamer-action[
+@tamer-repl[
  (define-asn-sequence option-seq : Option-Seq
    ([name : asn-string/printable]
     [partner : asn-string/printable #:optional]
@@ -62,7 +62,7 @@ The next example is defined int @~cite[RFC-PKCS#1].
 
 @handbook-scenario{Sequence-Ofs}
 
-@tamer-action[
+@tamer-repl[
  (define-asn-sequence seq-of : SeqOf #:of Option-Seq)
  (unsafe-bytes->seq-of*
   (seq-of->bytes (list (unsafe-bytes->option-seq* no-partner-octets)

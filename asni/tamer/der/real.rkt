@@ -17,7 +17,7 @@ Some details are learnt from @~cite[ASN1bSW].
 
 @handbook-scenario{Special Real Values}
 
-@tamer-action[
+@tamer-repl[
  (asn-primitive +0.0)
  (asn-primitive +inf.0)
  (asn-primitive -inf.0)
@@ -26,7 +26,7 @@ Some details are learnt from @~cite[ASN1bSW].
 
 @handbook-scenario{Base 2 Representation}
 
-@tamer-action[
+@tamer-repl[
  (default-asn-real-base 2)
 
  (asn-primitives simple-reals)
@@ -36,7 +36,7 @@ Some details are learnt from @~cite[ASN1bSW].
 
 @handbook-scenario{Base 8 Representation}
 
-@tamer-action[
+@tamer-repl[
  (default-asn-real-base 8)
 
  (asn-primitives simple-reals)
@@ -46,7 +46,7 @@ Some details are learnt from @~cite[ASN1bSW].
 
 @handbook-scenario{Base 10 Representation}
 
-@tamer-action[
+@tamer-repl[
  (default-asn-real-base 10)
 
  (asn-primitives simple-reals)
@@ -56,7 +56,7 @@ Some details are learnt from @~cite[ASN1bSW].
 
 @handbook-scenario{Base 16 Representation}
 
-@tamer-action[
+@tamer-repl[
  (default-asn-real-base 16)
 
  (asn-primitives simple-reals)

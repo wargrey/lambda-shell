@@ -22,14 +22,14 @@ This section demonstrates the implementation of @~cite[AES].
 
 @handbook-scenario[#:tag "aes-key-expansion"]{Key Expansion Examples}
 
-@tamer-action[
+@tamer-repl[
  (define key-schedule128 (aes-key-schedule aes-key128 4 '0xb6630ca6))
  (define key-schedule192 (aes-key-schedule aes-key192 6 '0x01002202))
  (define key-schedule256 (aes-key-schedule aes-key256 8 '0x706c631e))]
 
 @handbook-scenario[#:tag "aes-cipher"]{Cipher Example}
 
-@tamer-action[
+@tamer-repl[
  (define state (make-aes-state-array))
  (aes-state-array-copy-from-bytes! state (symb0x->octets aes-plaintext))
  (aes-key-schedule-rotate! key-schedule128)
@@ -48,7 +48,7 @@ This section demonstrates the implementation of @~cite[AES].
 
 @handbook-scenario[#:tag "aes-vectors"]{Example Vectors}
 
-@tamer-action[
+@tamer-repl[
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f aes-ciphertext128)
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f1011121314151617 aes-ciphertext192)
  (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f aes-ciphertext256)]
@@ -57,7 +57,7 @@ This section demonstrates the implementation of @~cite[AES].
 
 The next testcase is dumped from the debug information of @~cite[libssh2].
 
-@tamer-action[
+@tamer-repl[
  (define-values (c2s-plaintext c2s-ciphertext) (values '0x050000000C7373682D75736572617574 '0xb1b5681bd3596d80f34482a7a2f215ad))
  (define-values (c2s-iv c2s-key) (values '0x409265b173313e3a1c78c714b27bc72c '0x6df8cd5d2a6487aa257dc3e8119a20c1))
  

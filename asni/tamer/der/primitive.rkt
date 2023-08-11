@@ -22,7 +22,7 @@ This section demonstrates the implementation of @cite{X690}
 
 @handbook-scenario{Lengths}
 
-@tamer-action[
+@tamer-repl[
  (asn-length 127)
  (asn-length 128)
  (asn-length 201)
@@ -31,7 +31,7 @@ This section demonstrates the implementation of @cite{X690}
 @handbook-scenario{Integers}
 
 These testcases are defined in @~cite[asn1-lib].
-@tamer-action[
+@tamer-repl[
  (asn-primitive 0)
  (asn-primitive 1)
  (asn-primitive -1)
@@ -47,14 +47,14 @@ These testcases are defined in @~cite[asn1-lib].
 @handbook-scenario{Object Identifiers}
 
 The first testcase is defined in @~cite[MS-DER].
-@tamer-action[
+@tamer-repl[
  (asn-primitive '(1 3 6 1 4 1 311 21 20) asn-oid)
  #;(asn-primitive '(2 999 3) asn-oid #|3, 0x883703|#)
  (asn-primitive '(8571 3 2) asn-relative-oid) #|4, 0xC27B0302|#]
 
 @handbook-scenario{Bytes and Strings}
 
-@tamer-action[
+@tamer-repl[
  (asn-primitive (cons #"" 4))
  (asn-primitive (cons (symb0x-bytes '0x0A3B5F291CD0) 4))
  (asn-primitive "6.0.5361.2" asn-string/ia5)
@@ -64,7 +64,7 @@ The first testcase is defined in @~cite[MS-DER].
 
 @handbook-scenario{Special Values}
 
-@tamer-action[
+@tamer-repl[
  (asn-primitive #true)
  (asn-primitive #false)
  (asn-primitive (void))]
