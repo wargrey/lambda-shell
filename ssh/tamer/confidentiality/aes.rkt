@@ -76,7 +76,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
          <aes>)]
 
 @chunk[<aes>
-       (require (prefix-in pict: pict))
+       (require bitmap)
 
        (require "inc/aes.rkt")
        (require "inc/misc.rkt")
@@ -97,16 +97,17 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
        (define aes-ciphertext192 '0xdda97ca4864cdfe06eaf70a0ec0d7191)
        (define aes-ciphertext256 '0x8ea2b7ca516745bfeafc49904b496089)
        
-       (define state-array-pict
+       (define state-array-bitmap
          (let ([/dev/stdout (open-output-string '/dev/stdout)])
            (lambda [state]
              (state-array-pretty-print state 4 4 #:port /dev/stdout)
 
              (let ([octets (string-split (bytes->string/latin-1 (get-output-bytes /dev/stdout #true)))])
-               (pict:frame (pict:inset (pict:table 4 (map pict:text octets) pict:cc-superimpose pict:cc-superimpose 8 8)
-                                       4))))))
+               (bitmap-frame #:padding 4 #:border (default-stroke)
+                             (bitmap-table 4 (map bitmap-text octets)
+                                           'cc 'cc 8 8))))))
 
-       (define rotated-schedule-pict
+       (define rotated-schedule-bitmap
          (let ([/dev/stdout (open-output-string '/dev/stdout)])
            (lambda [schedule start]
              (define pool (make-bytes 16))
@@ -117,8 +118,9 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
              (integer->integer-bytes (vector-ref schedule (+ start 3)) 4 #false #true pool 12)
              
              (let ([octets (string-split (bytes->hexstring pool #:separator " "))])
-               (pict:frame (pict:inset (pict:table 4 (map pict:text octets) pict:cc-superimpose pict:cc-superimpose 8 8)
-                                       4))))))
+               (bitmap-frame #:padding 4 #:border (default-stroke)
+                             (bitmap-table 4 (map bitmap-text octets)
+                                           'cc 'cc 8 8))))))
        
        (define aes-key-schedule
          (lambda [0xkey column last-one]
@@ -137,42 +139,45 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
 
        (define aes-add-round-key
          (lambda [state schedule start [space 3]]
-           (define Sin (state-array-pict state))
+           (define Sin (state-array-bitmap state))
 
            (aes-state-add-round-key! state schedule start)
            
-           (pict:hc-append sbox-gapsize
-                           (cond [(= space 0) Sin]
-                                 [else (apply pict:hc-append sbox-gapsize Sin
-                                              (make-list space (pict:ghost Sin)))])
-                           (pict:text "⊕")
-                           (rotated-schedule-pict schedule start)
-                           (pict:text "="))))
+           (bitmap-hc-append #:gapsize sbox-gapsize
+                             (if (> space 0)
+                                 (bitmap-hc-append* #:gapsize sbox-gapsize
+                                                    (cons Sin (make-list space (bitmap-ghost Sin))))
+                                 Sin)
+                             (bitmap-text "⊕")
+                             (rotated-schedule-bitmap schedule start)
+                             (bitmap-text "="))))
 
        (define aes-round-step
          (lambda [state schedule round]
-           (define Sin (state-array-pict state))
+           (define Sin (state-array-bitmap state))
            
            (aes-state-array-substitute! state aes-substitute-box)
-           (define Ssub (state-array-pict state))
+           (define Ssub (state-array-bitmap state))
 
            (aes-left-shift-rows! state)
-           (define Sshift (state-array-pict state))
+           (define Sshift (state-array-bitmap state))
 
            (aes-mixcolumns! state)
-           (pict:hc-append sbox-gapsize Sin Ssub Sshift (aes-add-round-key state schedule (* round 4) 0))))
+           (bitmap-hc-append #:gapsize sbox-gapsize
+                             Sin Ssub Sshift (aes-add-round-key state schedule (* round 4) 0))))
 
        (define aes-round-done
          (lambda [state schedule round]
-           (define Sin (state-array-pict state))
+           (define Sin (state-array-bitmap state))
            
            (aes-state-array-substitute! state aes-substitute-box)
-           (define Ssub (state-array-pict state))
+           (define Ssub (state-array-bitmap state))
 
            (aes-left-shift-rows! state)
-           (pict:vl-append sbox-gapsize
-                           (pict:hc-append sbox-gapsize Sin Ssub (aes-add-round-key state schedule (* round 4) 1))
-                           (state-array-pict state))))
+           (bitmap-vl-append #:gapsize sbox-gapsize
+                             (bitmap-hc-append #:gapsize sbox-gapsize
+                                               Sin Ssub (aes-add-round-key state schedule (* round 4) 1))
+                             (state-array-bitmap state))))
 
        (define aes-core-cipher!
          (lambda [0xplaintext 0xkey 0xciphertext]
