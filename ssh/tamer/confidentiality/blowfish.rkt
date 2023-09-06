@@ -23,7 +23,7 @@
 
 This section demonstrates the implementation of @~cite[BF] and @~cite[TBEA].
 
-@;tamer-smart-summary[]
+@tamer-smart-summary[]
 
 @handbook-scenario[#:tag "bf-subkey"]{Generate Subkeys}
 

@@ -18,7 +18,7 @@
 
 This section demonstrates the implementation of @~cite[AES].
 
-@;tamer-smart-summary[]
+@tamer-smart-summary[]
 
 @handbook-scenario[#:tag "aes-key-expansion"]{Key Expansion Examples}
 
@@ -31,7 +31,7 @@ This section demonstrates the implementation of @~cite[AES].
 
 @tamer-repl[
  (define state (make-aes-state-array))
- (aes-state-array-copy-from-bytes! state (symb0x->octets aes-plaintext))
+ (aes-state-array-copy-from-bytes! state (assert (symb0x->octets aes-plaintext)))
  (aes-key-schedule-rotate! key-schedule128)
  (aes-add-round-key state key-schedule128 0)
  (aes-round-step state key-schedule128 1)
@@ -43,25 +43,40 @@ This section demonstrates the implementation of @~cite[AES].
  (aes-round-step state key-schedule128 7)
  (aes-round-step state key-schedule128 8)
  (aes-round-step state key-schedule128 9)
- (aes-round-done state key-schedule128 10)
- (aes-core-cipher! aes-plaintext aes-key128 aes-ciphertext)]
+ (aes-round-done state key-schedule128 10)]
+
+@tamer-note{aes-core-cipher!}
+
+@handbook-chunk[<aes-core-spec!>
+  (context "aes-core-cipher!" #:do
+    (it-check-aes/core! aes-plaintext aes-key128 aes-ciphertext))]
 
 @handbook-scenario[#:tag "aes-vectors"]{Example Vectors}
 
-@tamer-repl[
- (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f aes-ciphertext128)
- (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f1011121314151617 aes-ciphertext192)
- (aes-core-cipher '0x00112233445566778899aabbccddeeff '0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f aes-ciphertext256)]
+@tamer-note{aes-core-cipher}
+@handbook-chunk[<aes-core-spec>
+  (context "aes-core-cipher" #:do
+    (it-check-aes/core #:plaintext '0x00112233445566778899aabbccddeeff
+                       #:key '0x000102030405060708090a0b0c0d0e0f
+                       #:ciphertext '0x69c4e0d86a7b0430d8cdb78070b4c55a)
+    (it-check-aes/core #:plaintext '0x00112233445566778899aabbccddeeff
+                       #:key '0x000102030405060708090a0b0c0d0e0f1011121314151617
+                       #:ciphertext '0xdda97ca4864cdfe06eaf70a0ec0d7191)
+    (it-check-aes/core #:plaintext '0x00112233445566778899aabbccddeeff
+                       #:key '0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+                       #:ciphertext '0x8ea2b7ca516745bfeafc49904b496089))]
 
 @handbook-scenario[#:tag "aes-ctr"]{Real world example in CTR mode}
 
 The next testcase is dumped from the debug information of @~cite[libssh2].
 
-@tamer-repl[
- (define-values (c2s-plaintext c2s-ciphertext) (values '0x050000000C7373682D75736572617574 '0xb1b5681bd3596d80f34482a7a2f215ad))
- (define-values (c2s-iv c2s-key) (values '0x409265b173313e3a1c78c714b27bc72c '0x6df8cd5d2a6487aa257dc3e8119a20c1))
- 
- (aes-ctr-cipher c2s-plaintext c2s-iv c2s-key c2s-ciphertext)]
+@tamer-note{aes-ctr-cipher}
+@handbook-chunk[<aes-ctr-spec>
+  (context "aes-ctr-cipher" #:do
+    (it-check-aes/ctr #:plaintext '0x050000000C7373682D75736572617574
+                      #:IV '0x409265b173313e3a1c78c714b27bc72c
+                      #:key '0x6df8cd5d2a6487aa257dc3e8119a20c1
+                      #:ciphertext '0xb1b5681bd3596d80f34482a7a2f215ad))]
 
 @handbook-reference[]
 
@@ -72,32 +87,35 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer
-         <aes>)]
+       (module tamer typed/racket
+         <aes>
+
+         (spec-begin aes #:do
+                     <aes-core-spec!>
+                     <aes-core-spec>
+                     <aes-ctr-spec>))]
 
 @chunk[<aes>
        (require bitmap)
 
+       (require digimon/format)
+       (require digimon/digitama/unsafe/release/ops)
+
        (require "inc/aes.rkt")
-       (require "inc/misc.rkt")
        
        (require "../../digitama/algorithm/crypto/aes/s-box.rkt")
        (require "../../digitama/algorithm/crypto/aes/pretty.rkt")
 
        (define sbox-gapsize 8)
 
-       (define aes-key128 '0x2b7e151628aed2a6abf7158809cf4f3c)
-       (define aes-key192 '0x8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b)
-       (define aes-key256 '0x603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4)
-
        (define aes-plaintext '0x3243f6a8885a308d313198a2e0370734)
        (define aes-ciphertext '0x3925841d02dc09fbdc118597196a0b32)
 
-       (define aes-ciphertext128 '0x69c4e0d86a7b0430d8cdb78070b4c55a)
-       (define aes-ciphertext192 '0xdda97ca4864cdfe06eaf70a0ec0d7191)
-       (define aes-ciphertext256 '0x8ea2b7ca516745bfeafc49904b496089)
+       (define aes-key128 '0x2b7e151628aed2a6abf7158809cf4f3c)
+       (define aes-key192 '0x8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b)
+       (define aes-key256 '0x603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4)
        
-       (define state-array-bitmap
+       (define state-array-bitmap : (-> Bytes Bitmap)
          (let ([/dev/stdout (open-output-string '/dev/stdout)])
            (lambda [state]
              (state-array-pretty-print state 4 4 #:port /dev/stdout)
@@ -107,7 +125,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
                              (bitmap-table 4 (map bitmap-text octets)
                                            'cc 'cc 8 8))))))
 
-       (define rotated-schedule-bitmap
+       (define rotated-schedule-bitmap : (-> (Vectorof Nonnegative-Fixnum) Integer Bitmap)
          (let ([/dev/stdout (open-output-string '/dev/stdout)])
            (lambda [schedule start]
              (define pool (make-bytes 16))
@@ -122,22 +140,25 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
                              (bitmap-table 4 (map bitmap-text octets)
                                            'cc 'cc 8 8))))))
        
-       (define aes-key-schedule
-         (lambda [0xkey column last-one]
-           (define key (symb0x->octets 0xkey))
+       (define aes-key-schedule : (-> Symbol Positive-Byte Symbol (Vectorof Nonnegative-Fixnum))
+         (lambda [0xkey column 0xlast]
+           (define key (assert (symb0x->octets 0xkey)))
+           (define last-one (symb0x->number 0xlast))
            
            (printf "Cipher Key = ~a (~a bits)~n" (bytes->hexstring key) (* (bytes-length key) 8))
 
            (define schedule (aes-key-expand key))
            (define last-word (vector-ref schedule (- (vector-length schedule) 1)))
 
-           (words-pretty-print schedule
-                               #:column column
-                               #:port (cond [(= last-word (symb0x->number last-one)) (current-output-port)]
-                                            [else (current-error-port)]))
+           ((inst words-pretty-print Nonnegative-Fixnum)
+            schedule
+            #:column column
+            #:port (if (and last-one (= last-word last-one))
+                       (current-output-port)
+                       (current-error-port)))
            schedule))
 
-       (define aes-add-round-key
+       (define aes-add-round-key : (->* (Bytes (Vectorof Nonnegative-Fixnum) Byte) (Byte) Bitmap)
          (lambda [state schedule start [space 3]]
            (define Sin (state-array-bitmap state))
 
@@ -152,7 +173,7 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
                              (rotated-schedule-bitmap schedule start)
                              (bitmap-text "="))))
 
-       (define aes-round-step
+       (define aes-round-step : (-> Bytes (Vectorof Nonnegative-Fixnum) Byte Bitmap)
          (lambda [state schedule round]
            (define Sin (state-array-bitmap state))
            
@@ -164,9 +185,9 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
 
            (aes-mixcolumns! state)
            (bitmap-hc-append #:gapsize sbox-gapsize
-                             Sin Ssub Sshift (aes-add-round-key state schedule (* round 4) 0))))
+                             Sin Ssub Sshift (aes-add-round-key state schedule (unsafe-b* round 4) 0))))
 
-       (define aes-round-done
+       (define aes-round-done : (-> Bytes (Vectorof Nonnegative-Fixnum) Byte Bitmap)
          (lambda [state schedule round]
            (define Sin (state-array-bitmap state))
            
@@ -176,61 +197,5 @@ The next testcase is dumped from the debug information of @~cite[libssh2].
            (aes-left-shift-rows! state)
            (bitmap-vl-append #:gapsize sbox-gapsize
                              (bitmap-hc-append #:gapsize sbox-gapsize
-                                               Sin Ssub (aes-add-round-key state schedule (* round 4) 1))
-                             (state-array-bitmap state))))
-
-       (define aes-core-cipher!
-         (lambda [0xplaintext 0xkey 0xciphertext]
-           (define pool (symb0x->octets 0xplaintext))
-           (define ciphertext (symb0x->octets 0xciphertext))
-           (define key (symb0x->octets 0xkey))
-           (define-values (encrypt! decrypt!) (aes-cipher! key))
-           
-           (encrypt! pool)
-           
-           (values (bytes->hexstring pool)
-                   (bytes=? pool ciphertext))))
-       
-       (define aes-core-cipher
-         (lambda [0xplaintext 0xkey 0xciphertext]
-           (define plaintext (symb0x->octets 0xplaintext))
-           (define ciphertext (symb0x->octets 0xciphertext))
-           (define key (symb0x->octets 0xkey))
-           (define-values (encrypt decrypt) (aes-cipher key))
-           (define ctext (encrypt plaintext))
-           (define ptext (decrypt ctext))
-           (define encryption-okay? (bytes=? ctext ciphertext))
-           (define decryption-okay? (bytes=? ptext plaintext))
-           
-           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hexstring plaintext) (bytes-length plaintext))
-           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hexstring key) (* (bytes-length key) 8))
-           (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hexstring ctext) (bytes-length ctext))
-           
-           (when (not decryption-okay?)
-             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hexstring ptext) (bytes-length ptext)))
-
-           (and encryption-okay? decryption-okay?)))
-       
-       (define aes-ctr-cipher
-         (lambda [0xplaintext 0xIV 0xkey 0xciphertext]
-           (define plaintext (symb0x->octets 0xplaintext))
-           (define ciphertext (symb0x->octets 0xciphertext))
-           (define IV (symb0x->octets 0xIV))
-           (define key (symb0x->octets 0xkey))
-           (define-values (encrypt decrypt) (aes-cipher-ctr IV key))
-           (define ctext (encrypt plaintext))
-           (define ptext (decrypt ctext))
-           (define encryption-okay? (bytes=? ctext ciphertext))
-           (define decryption-okay? (bytes=? ptext plaintext))
-           
-           (printf "Plaintext     = ~a (~a Bytes)~n" (bytes->hexstring plaintext) (bytes-length plaintext))
-           (printf "InitialVector = ~a (~a Bits)~n" (bytes->hexstring IV) (* (bytes-length IV) 8))
-           (printf "Cipher Key    = ~a (~a Bits)~n" (bytes->hexstring key) (* (bytes-length key) 8))
-           (fprintf (if encryption-okay? (current-output-port) (current-error-port))
-                    "Ciphertext    = ~a (~a Bytes)~n" (bytes->hexstring ctext) (bytes-length ctext))
-           
-           (when (not decryption-okay?)
-             (eprintf "Deciphertext  = ~a (~a Bytes)~n" (bytes->hexstring ptext) (bytes-length ptext)))
-
-           (and encryption-okay? decryption-okay?)))]
+                                               Sin Ssub (aes-add-round-key state schedule (unsafe-b* round 4) 1))
+                             (state-array-bitmap state))))]

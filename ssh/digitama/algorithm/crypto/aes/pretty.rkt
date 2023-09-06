@@ -5,7 +5,9 @@
 (require digimon/format)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define words-pretty-print : (->* ((Vectorof Natural)) (Integer Integer #:port Output-Port #:column Positive-Byte #:separator Char) Void)
+(define #:forall (n) words-pretty-print : (->* ((Vectorof (∩ n Real)))
+                                               (Integer Integer #:port Output-Port #:column Positive-Byte #:separator Char)
+                                               Void)
   (lambda [words [start 0] [smart-end 0] #:port [/dev/stdout (current-output-port)] #:column [column 4] #:separator [separator #\space]]
     (define idxmax : Index (if (<= smart-end start) (vector-length words) (assert smart-end index?)))
     
