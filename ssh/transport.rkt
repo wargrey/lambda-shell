@@ -168,7 +168,8 @@
     (unless (not abandon?)
       (custodian-shutdown-all (ssh-transport-custodian self)))
     
-    (thread-wait (ssh-port-ghostcat self))))
+    (thread-wait (ssh-port-ghostcat self))
+    (void)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ssh-shutdown : (case-> [(U SSH-Listener SSH-Port) -> Void]

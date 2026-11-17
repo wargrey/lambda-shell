@@ -65,7 +65,8 @@
 
     (unless (thread-dead? ghostcat)
       (break-thread ghostcat)
-      (thread-wait ghostcat))))
+      (thread-wait ghostcat)
+      (void))))
 
 (define ssh-session-close : (->* (SSH-Session) ((Option String)) Void)
   (lambda [self [description #false]]
